@@ -123,6 +123,52 @@ curl -X POST localhost:8080/api/agent/tools/get_weakest_attribute/invoke -d '{}'
 
 ---
 
+## Clients: web · CLI · AI agent (one API, proven)
+
+All clients are thin shells over the REST API above — none touch the database
+directly. They share a typed Go API client (`server/internal/apiclient`).
+
+### CLI
+
+```bash
+make backend                      # start the API (or `make dev`)
+make cli ARGS=dashboard           # character, attributes, today's quests, streak
+make cli ARGS="quests --status active"
+make cli ARGS='add --title "Cold plunge" --type daily --reward discipline=25 --reward health=15'
+make cli ARGS="complete 3"        # shows XP gained + level-ups
+make cli ARGS=suggest-gen
+make cli ARGS=tools               # the agent tool catalog
+# or build once:  ./bin/liferpg-cli dashboard   (after `make build`)
+```
+
+### MCP server (AI agent bridge)
+
+`liferpg-mcp` is a Model Context Protocol server (stdio JSON-RPC) that exposes the
+13 agent tools to an AI client. It is a pure proxy to `/api/agent/tools` — the agent
+drives the app through the **same service path** as every other client. A quest the
+agent creates is immediately visible to the web UI, CLI, and DB.
+
+Point an MCP-capable client (Claude Desktop / Claude Code) at it — start the API
+(`make backend`) first, then add:
+
+```jsonc
+{
+  "mcpServers": {
+    "liferpg": {
+      "command": "/absolute/path/to/bin/liferpg-mcp",
+      "env": { "LIFERPG_API": "http://localhost:8080" }
+    }
+  }
+}
+```
+
+(Build the binary with `make build`.) Tools available to the agent: `get_dashboard`,
+`list_quests`, `create_quest`, `complete_quest`, `skip_quest`, `archive_quest`,
+`create_journal_entry`, `list_journal_entries`, `get_weakest_attribute`,
+`generate_suggestions`, `accept_suggestion`, `dismiss_suggestion`, `update_quest`.
+
+---
+
 ## Rule-based suggestions (MVP)
 
 `generateSuggestions()` inspects recent activity and proposes quests:
@@ -147,11 +193,14 @@ client/                 React + Vite + TypeScript + Tailwind v4 SPA
 server/
   main.go               wiring + graceful shutdown + static SPA serving
   migrations/           *.sql (embedded) + schema_migrations runner
+  cmd/liferpg-cli/      terminal client (HTTP, over the REST API)
+  cmd/liferpg-mcp/      MCP stdio server (AI agent bridge, over the tool registry)
   internal/db/          Store: connection, migrations, seed, all SQL
   internal/models/      domain entities + API response shapes
   internal/services/    tool-like business logic (the core; fully unit-tested)
   internal/handlers/    thin HTTP layer (routing, JSON, CORS, middleware)
   internal/agent/        service layer exposed as a discoverable tool registry
+  internal/apiclient/    typed Go HTTP client shared by the CLI and MCP server
 scripts/dev.sh          run backend + frontend together
 Makefile                install / dev / build / prod / test / reset
 ```
@@ -181,8 +230,9 @@ clean console) rather than unit tests — see the validation report in the commi
 - **Single-user, no auth.** Fixed user id 1. CORS is restricted to loopback origins;
   do not expose this to the public internet as-is.
 - **Due dates** exist in the data model/API but have no UI date-picker yet.
-- **Agent suggestions are rule-based**, not an LLM — by design. The tool registry
-  (`/api/agent/tools`) is the seam to add an LLM/MCP bridge with no client changes.
+- **Agent suggestions are rule-based**, not an LLM — by design. Swapping
+  `generateSuggestions()` for an LLM call requires no client changes; the MCP bridge
+  (`cmd/liferpg-mcp`) already lets an external AI agent drive the app via the tools.
 - **No automated frontend unit tests** (Vitest) yet; UI is covered by browser e2e.
 - SQLite + single connection is intentional for a self-hosted single user; swap
   `db.Store` for Postgres + a pool when scaling to many users.

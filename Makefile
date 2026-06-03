@@ -1,7 +1,7 @@
 # ASCEND — Life RPG. Self-hosted dev/build commands.
 DB ?= liferpg.db
 
-.PHONY: install dev backend frontend build prod test reset help
+.PHONY: install dev backend frontend build prod test reset cli mcp help
 
 help:
 	@echo "ASCEND — Life RPG"
@@ -10,8 +10,10 @@ help:
 	@echo "  make dev        Run backend (:8080) + frontend (:5173) together"
 	@echo "  make backend    Run only the Go API server (:8080)"
 	@echo "  make frontend   Run only the Vite dev server (:5173)"
-	@echo "  make build      Build the web client and a single Go binary -> bin/liferpg"
+	@echo "  make build      Build the web client + all Go binaries -> bin/ (server, cli, mcp)"
 	@echo "  make prod       Build everything and run the single self-hosted binary (:8080)"
+	@echo "  make cli        Run the CLI         (e.g. make cli ARGS=dashboard)"
+	@echo "  make mcp        Run the MCP server  (stdio; for AI agent clients)"
 	@echo "  make test       Run backend Go tests"
 	@echo "  make reset      Delete the SQLite database (re-seeds on next start)"
 
@@ -30,10 +32,21 @@ frontend:
 
 build:
 	cd client && npm run build
-	cd server && go build -o ../bin/liferpg .
+	cd server && go build -o ../bin/liferpg . \
+		&& go build -o ../bin/liferpg-cli ./cmd/liferpg-cli \
+		&& go build -o ../bin/liferpg-mcp ./cmd/liferpg-mcp
 
 prod: build
 	LIFERPG_DB=$(DB) LIFERPG_CLIENT_DIR=client/dist ./bin/liferpg
+
+# Run the CLI against a running server. Example: make cli ARGS="complete 1"
+ARGS ?= dashboard
+cli:
+	cd server && go run ./cmd/liferpg-cli $(ARGS)
+
+# Run the MCP stdio server (point your AI client at this command).
+mcp:
+	cd server && go run ./cmd/liferpg-mcp
 
 test:
 	cd server && go test ./...

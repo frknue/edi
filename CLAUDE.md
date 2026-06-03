@@ -24,6 +24,13 @@ There is no hidden data layer.** Concretely:
 handler **and** (if it's an action an agent should take) an `agent` tool. Then mirror
 the JSON shape in `client/src/lib/types.ts`.
 
+Two non-web clients already prove this and should keep working: `cmd/liferpg-cli`
+(terminal) and `cmd/liferpg-mcp` (MCP stdio server for AI agents). Both are thin HTTP
+clients via `internal/apiclient` — they never touch the DB. If you add an endpoint
+the CLI should surface or an agent tool, extend `internal/apiclient` (typed methods)
+and the CLI rather than adding a second data path. The MCP server is a pure proxy to
+`/api/agent/tools`, so new agent tools appear there automatically.
+
 ## Commands
 
 ```bash
