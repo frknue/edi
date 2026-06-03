@@ -1,0 +1,21 @@
+# Build output
+/bin/
+client/dist/
+
+# Dependencies
+client/node_modules/
+
+# SQLite database (regenerated + re-seeded on start)
+*.db
+*.db-shm
+*.db-wal
+
+# Logs / env
+*.log
+.env
+.env.local
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

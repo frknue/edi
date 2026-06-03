@@ -1,0 +1,195 @@
+@import "tailwindcss";
+
+/* ============================================================
+   ASCEND — cyber-arcane RPG HUD theme
+   ============================================================ */
+@theme {
+  --font-display: "Chakra Petch", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Sora", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* structural surfaces */
+  --color-void: #07080c;
+  --color-abyss: #0a0c13;
+  --color-panel: #10131e;
+  --color-panel2: #151a28;
+  --color-edge: #232a3d;
+  --color-edge2: #2e3650;
+
+  /* text */
+  --color-ink: #e9ebf5;
+  --color-muted: #8b91a8;
+  --color-faint: #5a6076;
+
+  /* signature accent (XP / gold) */
+  --color-gold: #f4b740;
+  --color-goldhi: #ffd470;
+
+  /* attribute hues */
+  --color-strength: #ff5c5c;
+  --color-discipline: #7c8cff;
+  --color-focus: #2dd4ff;
+  --color-health: #3ee594;
+  --color-wealth: #f4b740;
+  --color-relationships: #ff7eb6;
+  --color-learning: #b18bff;
+  --color-creativity: #ff9d4d;
+  --color-spirituality: #45e0d0;
+
+  /* boss / danger */
+  --color-boss: #ff3b6b;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* {
+  border-color: var(--color-edge);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--color-ink);
+  background-color: var(--color-void);
+  /* layered radial glows for atmosphere */
+  background-image:
+    radial-gradient(900px 600px at 12% -8%, rgba(244, 183, 64, 0.10), transparent 60%),
+    radial-gradient(800px 600px at 92% 0%, rgba(45, 212, 255, 0.09), transparent 55%),
+    radial-gradient(1000px 800px at 50% 110%, rgba(124, 140, 255, 0.10), transparent 60%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* fine grain overlay */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+/* numbers feel like stats */
+.tabnum {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* ---- HUD panel ---- */
+.hud-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0) 40%),
+    var(--color-panel);
+  border: 1px solid var(--color-edge);
+  border-radius: 16px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 24px 60px -30px rgba(0, 0, 0, 0.8);
+}
+
+.hud-panel-hover {
+  transition: transform 0.18s var(--ease-out-expo), border-color 0.18s, box-shadow 0.18s;
+}
+.hud-panel-hover:hover {
+  border-color: var(--color-edge2);
+  transform: translateY(-2px);
+}
+
+/* clipped "tech" corner used on key panels */
+.clip-corner {
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+}
+
+/* ---- progress bar ---- */
+.xp-track {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+}
+.xp-fill {
+  position: relative;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.7s var(--ease-out-expo);
+}
+.xp-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 2.4s linear infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* boss pulse */
+@keyframes boss-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(255, 59, 107, 0.5), 0 0 28px -6px rgba(255, 59, 107, 0.55); }
+  50% { box-shadow: 0 0 0 1px rgba(255, 59, 107, 0.8), 0 0 46px -2px rgba(255, 59, 107, 0.8); }
+}
+.boss-glow {
+  animation: boss-pulse 2.6s ease-in-out infinite;
+}
+
+/* custom scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--color-edge);
+  border-radius: 999px;
+  border: 2px solid var(--color-void);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--color-edge2); }
+
+::selection {
+  background: rgba(244, 183, 64, 0.3);
+  color: #fff;
+}
+
+/* range slider (journal) */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-ink);
+  border: 3px solid var(--color-void);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+}
+
+@keyframes pop-in {
+  0% { opacity: 0; transform: scale(0.9) translateY(8px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}

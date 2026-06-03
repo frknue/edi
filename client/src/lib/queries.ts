@@ -1,0 +1,112 @@
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { api } from "./api";
+import type { QuestInput } from "./types";
+
+export const keys = {
+  dashboard: ["dashboard"] as const,
+  attributes: ["attributes"] as const,
+  quests: (filters?: { type?: string; status?: string }) => ["quests", filters ?? {}] as const,
+  journal: ["journal"] as const,
+  suggestions: (status?: string) => ["suggestions", status ?? "all"] as const,
+  xpEvents: ["xp-events"] as const,
+};
+
+export function useDashboard() {
+  return useQuery({ queryKey: keys.dashboard, queryFn: api.getDashboard });
+}
+
+export function useQuests(filters?: { type?: string; status?: string }) {
+  return useQuery({
+    queryKey: keys.quests(filters),
+    queryFn: () => api.listQuests(filters),
+  });
+}
+
+export function useJournal() {
+  return useQuery({ queryKey: keys.journal, queryFn: () => api.listJournal(30) });
+}
+
+export function useSuggestions(status?: string) {
+  return useQuery({
+    queryKey: keys.suggestions(status),
+    queryFn: () => api.listSuggestions(status),
+  });
+}
+
+export function useXPEvents() {
+  return useQuery({ queryKey: keys.xpEvents, queryFn: () => api.getXPEvents(50) });
+}
+
+// Invalidate everything that a state change can touch.
+function useInvalidateAll() {
+  const qc = useQueryClient();
+  return () => {
+    qc.invalidateQueries({ queryKey: ["dashboard"] });
+    qc.invalidateQueries({ queryKey: ["attributes"] });
+    qc.invalidateQueries({ queryKey: ["quests"] });
+    qc.invalidateQueries({ queryKey: ["suggestions"] });
+    qc.invalidateQueries({ queryKey: ["xp-events"] });
+  };
+}
+
+export function useCompleteQuest() {
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: (id: number) => api.completeQuest(id),
+    onSuccess: invalidate,
+  });
+}
+
+export function useCreateQuest() {
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: (input: QuestInput) => api.createQuest(input),
+    onSuccess: invalidate,
+  });
+}
+
+export function useUpdateQuest() {
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: number; patch: Partial<QuestInput> & { status?: string } }) =>
+      api.updateQuest(id, patch),
+    onSuccess: invalidate,
+  });
+}
+
+export function useSkipQuest() {
+  const invalidate = useInvalidateAll();
+  return useMutation({ mutationFn: (id: number) => api.skipQuest(id), onSuccess: invalidate });
+}
+
+export function useArchiveQuest() {
+  const invalidate = useInvalidateAll();
+  return useMutation({ mutationFn: (id: number) => api.archiveQuest(id), onSuccess: invalidate });
+}
+
+export function useCreateJournal() {
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: (input: { mood: number; energy: number; notes: string }) => api.createJournal(input),
+    onSuccess: invalidate,
+  });
+}
+
+export function useGenerateSuggestions() {
+  const invalidate = useInvalidateAll();
+  return useMutation({ mutationFn: () => api.generateSuggestions(), onSuccess: invalidate });
+}
+
+export function useAcceptSuggestion() {
+  const invalidate = useInvalidateAll();
+  return useMutation({ mutationFn: (id: number) => api.acceptSuggestion(id), onSuccess: invalidate });
+}
+
+export function useDismissSuggestion() {
+  const invalidate = useInvalidateAll();
+  return useMutation({ mutationFn: (id: number) => api.dismissSuggestion(id), onSuccess: invalidate });
+}
