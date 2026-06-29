@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"sort"
 
-	"liferpg/internal/db"
-	"liferpg/internal/models"
+	"edi/internal/db"
+	"edi/internal/models"
 )
 
 // DailyGoal is the target number of completed quests per day.

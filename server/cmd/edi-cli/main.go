@@ -1,10 +1,10 @@
-// Command liferpg-cli is a terminal client for the Life RPG API. It is a thin
+// Command edi-cli is a terminal client for the Life RPG API. It is a thin
 // HTTP client over the SAME REST endpoints the web UI uses — no direct DB access —
 // demonstrating the "one API for every client" architecture.
 //
 // Usage:
 //
-//	liferpg-cli [--addr URL] <command> [args]
+//	edi-cli [--addr URL] <command> [args]
 //
 // Commands:
 //
@@ -29,12 +29,12 @@ import (
 	"strconv"
 	"strings"
 
-	"liferpg/internal/apiclient"
-	"liferpg/internal/models"
+	"edi/internal/apiclient"
+	"edi/internal/models"
 )
 
 func main() {
-	addr := envOr("LIFERPG_API", "http://localhost:8080")
+	addr := envOr("EDI_API", "http://localhost:8080")
 	// A leading global --addr before the subcommand.
 	args := os.Args[1:]
 	for len(args) >= 2 && (args[0] == "--addr" || args[0] == "-addr") {
@@ -365,10 +365,10 @@ func envOr(k, def string) string {
 }
 
 func usage() {
-	fmt.Fprint(os.Stderr, `liferpg-cli — terminal client for the Life RPG API
+	fmt.Fprint(os.Stderr, `edi-cli — terminal client for the Life RPG API
 
-  usage: liferpg-cli [--addr URL] <command> [args]
-  (default addr: $LIFERPG_API or http://localhost:8080)
+  usage: edi-cli [--addr URL] <command> [args]
+  (default addr: $EDI_API or http://localhost:8080)
 
 commands:
   dashboard                          character, attributes, today's quests, streak

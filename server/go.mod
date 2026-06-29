@@ -1,4 +1,4 @@
-module liferpg
+module edi
 
 go 1.24
 

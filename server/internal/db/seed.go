@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"liferpg/internal/models"
+	"edi/internal/models"
 )
 
 // DefaultAttributes is the canonical attribute set every user starts with.

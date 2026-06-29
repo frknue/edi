@@ -13,19 +13,19 @@ import (
 	"syscall"
 	"time"
 
-	"liferpg/internal/agent"
-	"liferpg/internal/db"
-	"liferpg/internal/handlers"
-	"liferpg/internal/services"
+	"edi/internal/agent"
+	"edi/internal/db"
+	"edi/internal/handlers"
+	"edi/internal/services"
 )
 
 // singleUserID is the fixed user in MVP single-user mode.
 const singleUserID = 1
 
 func main() {
-	addr := envOr("LIFERPG_ADDR", ":8080")
-	dbPath := envOr("LIFERPG_DB", "liferpg.db")
-	clientDir := envOr("LIFERPG_CLIENT_DIR", "../client/dist")
+	addr := envOr("EDI_ADDR", ":8080")
+	dbPath := envOr("EDI_DB", "edi.db")
+	clientDir := envOr("EDI_CLIENT_DIR", "../client/dist")
 
 	store, err := db.Open(dbPath)
 	if err != nil {

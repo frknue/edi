@@ -1,4 +1,4 @@
-# ASCEND — a self-hosted Life RPG
+# edi — a self-hosted Life RPG
 
 Turn real life into an RPG. Complete real actions (workouts, deep work, learning,
 journaling, social, health, projects) → earn XP → level up nine life **attributes**,
@@ -35,7 +35,7 @@ make install
 make dev
 ```
 
-Open **http://localhost:5173**. The database (`server/liferpg.db`) is created and
+Open **http://localhost:5173**. The database (`server/edi.db`) is created and
 seeded with demo data automatically on first run.
 
 ### One self-hosted binary (production-style)
@@ -45,7 +45,7 @@ make prod        # builds the web client + a single Go binary, serves both on :8
 ```
 
 Open **http://localhost:8080**. The Go binary embeds its migrations and serves the
-built SPA — copy `bin/liferpg` + `client/dist` to a server and run it.
+built SPA — copy `bin/edi` + `client/dist` to a server and run it.
 
 ### Other commands
 
@@ -56,8 +56,8 @@ make test        # backend Go tests
 make reset       # delete the SQLite DB (re-seeds on next start)
 ```
 
-Environment variables: `LIFERPG_ADDR` (default `:8080`), `LIFERPG_DB` (default
-`liferpg.db`), `LIFERPG_CLIENT_DIR` (default `../client/dist`).
+Environment variables: `EDI_ADDR` (default `:8080`), `EDI_DB` (default
+`edi.db`), `EDI_CLIENT_DIR` (default `../client/dist`).
 
 ---
 
@@ -138,12 +138,12 @@ make cli ARGS='add --title "Cold plunge" --type daily --reward discipline=25 --r
 make cli ARGS="complete 3"        # shows XP gained + level-ups
 make cli ARGS=suggest-gen
 make cli ARGS=tools               # the agent tool catalog
-# or build once:  ./bin/liferpg-cli dashboard   (after `make build`)
+# or build once:  ./bin/edi-cli dashboard   (after `make build`)
 ```
 
 ### MCP server (AI agent bridge)
 
-`liferpg-mcp` is a Model Context Protocol server (stdio JSON-RPC) that exposes the
+`edi-mcp` is a Model Context Protocol server (stdio JSON-RPC) that exposes the
 13 agent tools to an AI client. It is a pure proxy to `/api/agent/tools` — the agent
 drives the app through the **same service path** as every other client. A quest the
 agent creates is immediately visible to the web UI, CLI, and DB.
@@ -154,9 +154,9 @@ Point an MCP-capable client (Claude Desktop / Claude Code) at it — start the A
 ```jsonc
 {
   "mcpServers": {
-    "liferpg": {
-      "command": "/absolute/path/to/bin/liferpg-mcp",
-      "env": { "LIFERPG_API": "http://localhost:8080" }
+    "edi": {
+      "command": "/absolute/path/to/bin/edi-mcp",
+      "env": { "EDI_API": "http://localhost:8080" }
     }
   }
 }
@@ -193,8 +193,8 @@ client/                 React + Vite + TypeScript + Tailwind v4 SPA
 server/
   main.go               wiring + graceful shutdown + static SPA serving
   migrations/           *.sql (embedded) + schema_migrations runner
-  cmd/liferpg-cli/      terminal client (HTTP, over the REST API)
-  cmd/liferpg-mcp/      MCP stdio server (AI agent bridge, over the tool registry)
+  cmd/edi-cli/      terminal client (HTTP, over the REST API)
+  cmd/edi-mcp/      MCP stdio server (AI agent bridge, over the tool registry)
   internal/db/          Store: connection, migrations, seed, all SQL
   internal/models/      domain entities + API response shapes
   internal/services/    tool-like business logic (the core; fully unit-tested)
@@ -232,7 +232,7 @@ clean console) rather than unit tests — see the validation report in the commi
 - **Due dates** exist in the data model/API but have no UI date-picker yet.
 - **Agent suggestions are rule-based**, not an LLM — by design. Swapping
   `generateSuggestions()` for an LLM call requires no client changes; the MCP bridge
-  (`cmd/liferpg-mcp`) already lets an external AI agent drive the app via the tools.
+  (`cmd/edi-mcp`) already lets an external AI agent drive the app via the tools.
 - **No automated frontend unit tests** (Vitest) yet; UI is covered by browser e2e.
 - SQLite + single connection is intentional for a self-hosted single user; swap
   `db.Store` for Postgres + a pool when scaling to many users.

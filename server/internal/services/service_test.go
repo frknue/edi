@@ -7,8 +7,8 @@ import (
 	"sync"
 	"testing"
 
-	"liferpg/internal/db"
-	"liferpg/internal/models"
+	"edi/internal/db"
+	"edi/internal/models"
 )
 
 // newTestService spins up a fresh, seeded SQLite DB in a temp dir.

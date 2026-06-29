@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"liferpg/migrations"
+	"edi/migrations"
 
 	_ "modernc.org/sqlite" // pure-Go SQLite driver (no CGO)
 )

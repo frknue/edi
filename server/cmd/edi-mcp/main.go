@@ -1,4 +1,4 @@
-// Command liferpg-mcp is a Model Context Protocol (MCP) server that exposes the
+// Command edi-mcp is a Model Context Protocol (MCP) server that exposes the
 // Life RPG agent tools to an AI client (Claude Desktop, Claude Code, etc.) over
 // stdio. It is a thin proxy: tools/list and tools/call forward to the running
 // server's /api/agent/tools registry — the SAME service path the web UI and CLI
@@ -7,7 +7,7 @@
 // Transport: newline-delimited JSON-RPC 2.0 on stdin/stdout (the MCP stdio
 // convention). All logging goes to stderr so stdout stays a clean protocol stream.
 //
-// Configure the target server with LIFERPG_API (default http://localhost:8080).
+// Configure the target server with EDI_API (default http://localhost:8080).
 package main
 
 import (
@@ -17,11 +17,11 @@ import (
 	"log"
 	"os"
 
-	"liferpg/internal/apiclient"
+	"edi/internal/apiclient"
 )
 
 const (
-	serverName      = "liferpg-mcp"
+	serverName      = "edi-mcp"
 	serverVersion   = "0.1.0"
 	protocolVersion = "2024-11-05"
 )
@@ -53,8 +53,8 @@ const (
 
 func main() {
 	log.SetOutput(os.Stderr)
-	log.SetPrefix("[liferpg-mcp] ")
-	addr := envOr("LIFERPG_API", "http://localhost:8080")
+	log.SetPrefix("[edi-mcp] ")
+	addr := envOr("EDI_API", "http://localhost:8080")
 	client := apiclient.New(addr)
 	log.Printf("starting; proxying tools to %s", addr)
 

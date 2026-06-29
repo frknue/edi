@@ -30,7 +30,7 @@ function Logo() {
       </div>
       <div>
         <div className="font-display text-base font-bold leading-none tracking-[0.16em] text-ink">
-          ASCEND
+          edi
         </div>
         <div className="text-[9px] uppercase tracking-[0.3em] text-faint">Life RPG</div>
       </div>

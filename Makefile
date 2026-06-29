@@ -1,10 +1,10 @@
-# ASCEND — Life RPG. Self-hosted dev/build commands.
-DB ?= liferpg.db
+# edi — Life RPG. Self-hosted dev/build commands.
+DB ?= edi.db
 
 .PHONY: install dev backend frontend build prod test reset cli mcp help
 
 help:
-	@echo "ASCEND — Life RPG"
+	@echo "edi — Life RPG"
 	@echo ""
 	@echo "  make install    Install Go + npm dependencies"
 	@echo "  make dev        Run backend (:8080) + frontend (:5173) together"
@@ -25,28 +25,28 @@ dev:
 	./scripts/dev.sh
 
 backend:
-	cd server && LIFERPG_DB=$(DB) go run .
+	cd server && EDI_DB=$(DB) go run .
 
 frontend:
 	cd client && npm run dev
 
 build:
 	cd client && npm run build
-	cd server && go build -o ../bin/liferpg . \
-		&& go build -o ../bin/liferpg-cli ./cmd/liferpg-cli \
-		&& go build -o ../bin/liferpg-mcp ./cmd/liferpg-mcp
+	cd server && go build -o ../bin/edi . \
+		&& go build -o ../bin/edi-cli ./cmd/edi-cli \
+		&& go build -o ../bin/edi-mcp ./cmd/edi-mcp
 
 prod: build
-	LIFERPG_DB=$(DB) LIFERPG_CLIENT_DIR=client/dist ./bin/liferpg
+	EDI_DB=$(DB) EDI_CLIENT_DIR=client/dist ./bin/edi
 
 # Run the CLI against a running server. Example: make cli ARGS="complete 1"
 ARGS ?= dashboard
 cli:
-	cd server && go run ./cmd/liferpg-cli $(ARGS)
+	cd server && go run ./cmd/edi-cli $(ARGS)
 
 # Run the MCP stdio server (point your AI client at this command).
 mcp:
-	cd server && go run ./cmd/liferpg-mcp
+	cd server && go run ./cmd/edi-mcp
 
 test:
 	cd server && go test ./...

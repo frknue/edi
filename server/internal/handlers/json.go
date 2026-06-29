@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"liferpg/internal/services"
+	"edi/internal/services"
 )
 
 // writeJSON encodes v as JSON with the given status.

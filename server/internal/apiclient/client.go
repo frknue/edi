@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"liferpg/internal/models"
+	"edi/internal/models"
 )
 
 // Client talks to a running Life RPG server.

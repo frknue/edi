@@ -1,4 +1,4 @@
-# CLAUDE.md — working in the ASCEND (Life RPG) codebase
+# CLAUDE.md — working in the edi (Life RPG) codebase
 
 Guidance for AI agents (and humans) editing this repo. Read this before changing code.
 
@@ -24,8 +24,8 @@ There is no hidden data layer.** Concretely:
 handler **and** (if it's an action an agent should take) an `agent` tool. Then mirror
 the JSON shape in `client/src/lib/types.ts`.
 
-Two non-web clients already prove this and should keep working: `cmd/liferpg-cli`
-(terminal) and `cmd/liferpg-mcp` (MCP stdio server for AI agents). Both are thin HTTP
+Two non-web clients already prove this and should keep working: `cmd/edi-cli`
+(terminal) and `cmd/edi-mcp` (MCP stdio server for AI agents). Both are thin HTTP
 clients via `internal/apiclient` — they never touch the DB. If you add an endpoint
 the CLI should surface or an agent tool, extend `internal/apiclient` (typed methods)
 and the CLI rather than adding a second data path. The MCP server is a pure proxy to
@@ -37,13 +37,13 @@ and the CLI rather than adding a second data path. The MCP server is a pure prox
 make dev      # backend :8080 + frontend :5173 (Vite proxies /api -> :8080)
 make backend  # API only
 make frontend # Vite only
-make build    # client dist + single Go binary (bin/liferpg)
+make build    # client dist + single Go binary (bin/edi)
 make prod     # build + run the self-hosted binary on :8080
 make test     # go test ./...
 make reset    # delete SQLite db (re-seeds on next start)
 ```
 
-Always run from the repo root. Go module root is `server/` (module `liferpg`).
+Always run from the repo root. Go module root is `server/` (module `edi`).
 
 ## The agentic validation loop (REQUIRED — do not skip)
 
@@ -70,7 +70,7 @@ alternative; don't silently skip the check.
   covers XP math, completion + level-ups, **concurrent** completion with `-race`,
   suggestions, journal, and the JSON array contract).
 - **Live API:** start `make backend`, hit it with `curl`, and **confirm the side
-  effects in the DB**: `sqlite3 server/liferpg.db "<query>"` (e.g. verify xp_events
+  effects in the DB**: `sqlite3 server/edi.db "<query>"` (e.g. verify xp_events
   were written and the audit invariant still holds). Check status codes too —
   client-caused errors must be 400/404, not 500.
 - **Frontend:** `cd client && npm run build` (runs `tsc --noEmit` + Vite build).

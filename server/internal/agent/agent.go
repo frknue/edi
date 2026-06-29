@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"sort"
 
-	"liferpg/internal/models"
-	"liferpg/internal/services"
+	"edi/internal/models"
+	"edi/internal/services"
 )
 
 // Tool is one callable capability.

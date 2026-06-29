@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"liferpg/internal/models"
+	"edi/internal/models"
 )
 
 // dayFormat is the YYYY-MM-DD layout used for streak / daily comparisons.

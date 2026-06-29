@@ -6,9 +6,9 @@ import (
 	"io"
 	"net/http"
 
-	"liferpg/internal/agent"
-	"liferpg/internal/models"
-	"liferpg/internal/services"
+	"edi/internal/agent"
+	"edi/internal/models"
+	"edi/internal/services"
 )
 
 // Handlers holds the dependencies shared by all HTTP handlers.

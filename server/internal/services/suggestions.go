@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"liferpg/internal/db"
-	"liferpg/internal/models"
+	"edi/internal/db"
+	"edi/internal/models"
 )
 
 // Rule-based agent suggestions. This is intentionally a small, explainable engine
