@@ -9,11 +9,20 @@ import {
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUpRight, Sparkles, X } from "lucide-react";
-import type { CompletionResult } from "./types";
+import type { LevelUp, XPEvent } from "./types";
 import { getAttr } from "./theme";
 
+// A generic reward payload so any XP-awarding action (quest, tool, …) can
+// trigger the celebration overlay.
+export interface RewardPayload {
+  title: string;
+  xp_events: XPEvent[];
+  level_ups: LevelUp[];
+  label?: string; // small overline, e.g. "Quest Complete" / "Tool Complete"
+}
+
 interface RewardContextValue {
-  celebrate: (result: CompletionResult) => void;
+  celebrate: (payload: RewardPayload) => void;
 }
 
 const RewardContext = createContext<RewardContextValue>({ celebrate: () => {} });
@@ -23,12 +32,12 @@ export function useReward(): RewardContextValue {
 }
 
 export function RewardProvider({ children }: { children: ReactNode }) {
-  const [active, setActive] = useState<CompletionResult | null>(null);
+  const [active, setActive] = useState<RewardPayload | null>(null);
   const timer = useRef<number | undefined>(undefined);
 
-  const celebrate = useCallback((result: CompletionResult) => {
+  const celebrate = useCallback((payload: RewardPayload) => {
     window.clearTimeout(timer.current);
-    setActive(result);
+    setActive(payload);
     timer.current = window.setTimeout(() => setActive(null), 3200);
   }, []);
 
@@ -46,7 +55,7 @@ function RewardOverlay({
   result,
   onClose,
 }: {
-  result: CompletionResult | null;
+  result: RewardPayload | null;
   onClose: () => void;
 }) {
   const totalXP = result?.xp_events.reduce((sum, e) => sum + e.amount, 0) ?? 0;
@@ -99,10 +108,10 @@ function RewardOverlay({
             </div>
 
             <div className="font-display text-xs uppercase tracking-[0.3em] text-muted">
-              Quest Complete
+              {result.label ?? "Quest Complete"}
             </div>
             <div className="mt-1 truncate px-2 text-lg font-semibold text-ink">
-              {result.completed_quest.title}
+              {result.title}
             </div>
 
             <motion.div

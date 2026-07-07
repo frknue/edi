@@ -1,16 +1,18 @@
 import { useState } from "react";
-import { Bot, BookHeart, LayoutDashboard, ScrollText } from "lucide-react";
+import { Bot, BookHeart, LayoutDashboard, ScrollText, Wrench } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { DashboardPage } from "./pages/Dashboard";
 import { QuestsPage } from "./pages/Quests";
 import { JournalPage } from "./pages/Journal";
 import { SuggestionsPage } from "./pages/Suggestions";
+import { ToolsPage } from "./pages/Tools";
 
-type View = "dashboard" | "quests" | "journal" | "agent";
+type View = "dashboard" | "quests" | "tools" | "journal" | "agent";
 
 const NAV: { id: View; label: string; Icon: LucideIcon }[] = [
   { id: "dashboard", label: "Dashboard", Icon: LayoutDashboard },
   { id: "quests", label: "Quests", Icon: ScrollText },
+  { id: "tools", label: "Tools", Icon: Wrench },
   { id: "journal", label: "Journal", Icon: BookHeart },
   { id: "agent", label: "Agent", Icon: Bot },
 ];
@@ -89,6 +91,7 @@ export default function App() {
           <DashboardPage onGoToQuests={() => setView("quests")} onGoToAgent={() => setView("agent")} />
         )}
         {view === "quests" && <QuestsPage />}
+        {view === "tools" && <ToolsPage />}
         {view === "journal" && <JournalPage />}
         {view === "agent" && <SuggestionsPage />}
       </main>

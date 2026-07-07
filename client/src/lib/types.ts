@@ -133,6 +133,52 @@ export interface OpenAIStatus {
   expires_at?: string;
 }
 
+export interface ToolDefinition {
+  key: string;
+  name: string;
+  tagline: string;
+  description: string;
+  category: string;
+  attribute_rewards: Record<string, number>;
+}
+
+export interface MoodEmotion {
+  category: string;
+  before: number;
+  after: number;
+}
+
+export interface MoodThought {
+  thought: string;
+  belief_before: number;
+  distortions: string[];
+  positive_thought: string;
+  positive_belief: number;
+  belief_after: number;
+}
+
+export interface MoodLog {
+  event: string;
+  emotions: MoodEmotion[];
+  thoughts: MoodThought[];
+}
+
+export interface ToolEntry {
+  id: number;
+  tool_key: string;
+  data: MoodLog;
+  xp_awarded: number;
+  summary?: string;
+  created_at: string;
+}
+
+export interface ToolCompletionResult {
+  entry: ToolEntry;
+  xp_events: XPEvent[];
+  level_ups: LevelUp[];
+  dashboard: Dashboard;
+}
+
 export interface OpenAIModel {
   slug: string;
   display_name: string;

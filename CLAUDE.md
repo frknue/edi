@@ -132,6 +132,18 @@ caught and fixed — keep using it.
 - The `:1455` OAuth callback binds transiently during connect; the "Import from
   Codex CLI" path (`~/.codex/auth.json`) is the no-browser shortcut for testing.
 
+## Tools (guided instruments)
+
+"Tools" are guided exercises that award XP (first: the Daily Mood Log, TEAM-CBT).
+They live in `internal/tools` as a registry: each tool implements `Tool`
+(`Definition()` + `Validate(payload) → (clean, summary, err)`), rewards come from
+the definition. `store.CompleteTool` awards XP the SAME auditable way as quest
+completion (xp_events `source='tool'` + attribute bump + streak, in one tx) — keep
+the invariant. Add a tool = new type in `internal/tools` + register in
+`NewRegistry`; the API (`/api/tools…`) and `tool_entries` storage are generic.
+The reward overlay is generic (`lib/reward.tsx` `RewardPayload`), so any
+XP-awarding action can call `celebrate({title, xp_events, level_ups, label})`.
+
 ## Conventions
 
 ### Backend (Go)

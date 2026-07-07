@@ -4,10 +4,14 @@ import type {
   CompletionResult,
   Dashboard,
   JournalEntry,
+  MoodLog,
   OpenAIModel,
   OpenAIStatus,
   Quest,
   QuestInput,
+  ToolCompletionResult,
+  ToolDefinition,
+  ToolEntry,
   XPEvent,
 } from "./types";
 
@@ -103,6 +107,12 @@ export const api = {
   openaiConfig: (cfg: { model?: string; effort?: string }) =>
     request<OpenAIStatus>("/openai/config", { method: "POST", body: JSON.stringify(cfg) }),
   openaiModels: () => request<{ models: OpenAIModel[] }>("/openai/models"),
+
+  listTools: () => request<{ tools: ToolDefinition[] }>("/tools").then((r) => r.tools),
+  completeTool: (key: string, data: MoodLog) =>
+    request<ToolCompletionResult>(`/tools/${key}/complete`, { method: "POST", body: JSON.stringify(data) }),
+  toolEntries: (key: string, limit = 30) =>
+    request<ToolEntry[]>(`/tools/${key}/entries?limit=${limit}`),
 };
 
 export { ApiError };

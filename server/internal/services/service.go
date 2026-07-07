@@ -11,6 +11,7 @@ import (
 
 	"edi/internal/db"
 	"edi/internal/models"
+	"edi/internal/tools"
 )
 
 // DailyGoal is the target number of completed quests per day.
@@ -39,6 +40,7 @@ func orEmpty[T any](s []T) []T {
 type Service struct {
 	store  *db.Store
 	userID int64
+	tools  *tools.Registry
 
 	// OpenAI "Sign in with ChatGPT" connect state (see openai.go).
 	oauthMu      sync.Mutex
@@ -48,7 +50,7 @@ type Service struct {
 
 // New builds a Service for the given user (1 in single-user mode).
 func New(store *db.Store, userID int64) *Service {
-	return &Service{store: store, userID: userID}
+	return &Service{store: store, userID: userID, tools: tools.NewRegistry()}
 }
 
 var (

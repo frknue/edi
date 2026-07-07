@@ -36,6 +36,11 @@ func NewRouter(h *Handlers, clientDir, apiToken string) http.Handler {
 
 	mux.HandleFunc("GET /api/xp-events", h.getXPEvents)
 
+	// Tools — guided instruments that award XP (e.g. the Daily Mood Log).
+	mux.HandleFunc("GET /api/tools", h.listGuidedTools)
+	mux.HandleFunc("POST /api/tools/{key}/complete", h.completeTool)
+	mux.HandleFunc("GET /api/tools/{key}/entries", h.listToolEntries)
+
 	mux.HandleFunc("GET /api/journal", h.listJournal)
 	mux.HandleFunc("POST /api/journal", h.createJournal)
 

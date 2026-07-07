@@ -234,6 +234,26 @@ reasoning levels drive the effort picker (Fast → Max). Defaults are `gpt-5.5` 
 
 ---
 
+## Tools (guided instruments)
+
+The **Tools** tab holds guided exercises that award XP when completed — like
+quests, but structured and self-scoring. The first is Dr. David Burns'
+**Daily Mood Log** (TEAM-CBT): describe an upsetting moment, rate your emotions
+(% before → after), catch the negative thoughts and tag their cognitive
+distortions (the 10), then write a truer, kinder response and re-rate belief.
+Finishing awards **Health +25 · Spirituality +15 · Discipline +10** (auditable
+`xp_events`, `source='tool'`, with the reward overlay + level-ups + streak).
+
+Tools are an extensible registry (`server/internal/tools`) — add a new tool by
+implementing the `Tool` interface (definition + payload validation) and
+registering it; the API and the entry storage are generic.
+
+```
+GET  /api/tools                    # available tools + XP rewards
+POST /api/tools/{key}/complete     # validate payload, store entry, award XP
+GET  /api/tools/{key}/entries      # history
+```
+
 ## Project structure
 
 ```
@@ -253,6 +273,7 @@ server/
   internal/agent/        service layer exposed as a discoverable tool registry
   internal/apiclient/    typed Go HTTP client shared by the CLI and MCP server
   internal/openai/       "Sign in with ChatGPT" OAuth + responses API client
+  internal/tools/        guided instruments registry (Daily Mood Log)
 scripts/dev.sh          run backend + frontend together
 Makefile                install / dev / build / prod / test / reset
 ```

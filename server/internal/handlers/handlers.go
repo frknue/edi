@@ -214,6 +214,36 @@ func (h *Handlers) dismissSuggestion(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, sug)
 }
 
+// --- tools ------------------------------------------------------------------
+
+func (h *Handlers) listGuidedTools(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"tools": h.svc.ListTools()})
+}
+
+func (h *Handlers) completeTool(w http.ResponseWriter, r *http.Request) {
+	key := r.PathValue("key")
+	var payload json.RawMessage
+	if err := decodeBody(r, &payload); err != nil {
+		writeError(w, err)
+		return
+	}
+	result, err := h.svc.CompleteTool(key, payload)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handlers) listToolEntries(w http.ResponseWriter, r *http.Request) {
+	entries, err := h.svc.ListToolEntries(r.PathValue("key"), queryInt(r, "limit", 30))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, entries)
+}
+
 // --- openai connection ------------------------------------------------------
 
 func (h *Handlers) openaiStatus(w http.ResponseWriter, _ *http.Request) {

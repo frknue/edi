@@ -59,7 +59,16 @@ export function QuestsPage() {
     else create.mutate(input, { onSuccess, onError });
   };
 
-  const handleComplete = (id: number) => complete.mutate(id, { onSuccess: (res) => celebrate(res) });
+  const handleComplete = (id: number) =>
+    complete.mutate(id, {
+      onSuccess: (res) =>
+        celebrate({
+          title: res.completed_quest.title,
+          xp_events: res.xp_events,
+          level_ups: res.level_ups,
+          label: "Quest Complete",
+        }),
+    });
 
   return (
     <div className="space-y-5">

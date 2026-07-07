@@ -4,7 +4,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { api } from "./api";
-import type { QuestInput } from "./types";
+import type { MoodLog, QuestInput } from "./types";
 
 export const keys = {
   dashboard: ["dashboard"] as const,
@@ -142,6 +142,28 @@ export function useDisconnectOpenAI() {
       qc.invalidateQueries({ queryKey: keys.openaiStatus });
       qc.invalidateQueries({ queryKey: ["suggestions"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
+// --- tools (guided instruments) ---------------------------------------------
+
+export function useTools() {
+  return useQuery({ queryKey: ["tools"], queryFn: () => api.listTools() });
+}
+
+export function useToolEntries(key: string) {
+  return useQuery({ queryKey: ["tool-entries", key], queryFn: () => api.toolEntries(key) });
+}
+
+export function useCompleteTool(key: string) {
+  const invalidate = useInvalidateAll();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: MoodLog) => api.completeTool(key, data),
+    onSuccess: () => {
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["tool-entries", key] });
     },
   });
 }

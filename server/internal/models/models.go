@@ -3,7 +3,10 @@
 // the web UI, CLI, mobile client, and AI agent.
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Quest types and difficulties (kept as plain strings for storage simplicity).
 const (
@@ -185,6 +188,60 @@ type CompletionResult struct {
 	XPEvents  []XPEvent `json:"xp_events"`
 	LevelUps  []LevelUp `json:"level_ups"`
 	Dashboard Dashboard `json:"dashboard"`
+}
+
+// ToolDefinition describes a guided instrument that awards XP when completed.
+type ToolDefinition struct {
+	Key              string           `json:"key"`
+	Name             string           `json:"name"`
+	Tagline          string           `json:"tagline"`
+	Description      string           `json:"description"`
+	Category         string           `json:"category"`
+	AttributeRewards map[string]int64 `json:"attribute_rewards"`
+}
+
+// ToolEntry is a stored completion of a tool (its structured data + XP awarded).
+type ToolEntry struct {
+	ID        int64           `json:"id"`
+	ToolKey   string          `json:"tool_key"`
+	Data      json.RawMessage `json:"data"`
+	XPAwarded int64           `json:"xp_awarded"`
+	CreatedAt time.Time       `json:"created_at"`
+	Summary   string          `json:"summary,omitempty"`
+}
+
+// ToolCompletionResult is returned after completing a tool (mirrors quest completion).
+type ToolCompletionResult struct {
+	Entry     ToolEntry `json:"entry"`
+	XPEvents  []XPEvent `json:"xp_events"`
+	LevelUps  []LevelUp `json:"level_ups"`
+	Dashboard Dashboard `json:"dashboard"`
+}
+
+// --- Daily Mood Log (Dr. David Burns / TEAM-CBT) ---------------------------
+
+// MoodEmotion is one rated feeling: intensity before and after (0-100).
+type MoodEmotion struct {
+	Category string `json:"category"` // e.g. "sad", "anxious"
+	Before   int    `json:"before"`
+	After    int    `json:"after"`
+}
+
+// MoodThought is one automatic negative thought worked through the triple column.
+type MoodThought struct {
+	Thought         string   `json:"thought"`
+	BeliefBefore    int      `json:"belief_before"` // 0-100
+	Distortions     []string `json:"distortions"`   // distortion codes
+	PositiveThought string   `json:"positive_thought"`
+	PositiveBelief  int      `json:"positive_belief"` // 0-100
+	BeliefAfter     int      `json:"belief_after"`    // 0-100, re-rated negative belief
+}
+
+// MoodLog is the full Daily Mood Log payload.
+type MoodLog struct {
+	Event    string        `json:"event"`
+	Emotions []MoodEmotion `json:"emotions"`
+	Thoughts []MoodThought `json:"thoughts"`
 }
 
 // OpenAIStatus describes the ChatGPT-subscription connection powering AI features.

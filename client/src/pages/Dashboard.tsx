@@ -35,7 +35,15 @@ export function DashboardPage({
   }
 
   const handleComplete = (id: number) =>
-    complete.mutate(id, { onSuccess: (res) => celebrate(res) });
+    complete.mutate(id, {
+      onSuccess: (res) =>
+        celebrate({
+          title: res.completed_quest.title,
+          xp_events: res.xp_events,
+          level_ups: res.level_ups,
+          label: "Quest Complete",
+        }),
+    });
 
   const rec = data.recommended_quest;
 
