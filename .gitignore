@@ -19,3 +19,6 @@ client/node_modules/
 .DS_Store
 .idea/
 .vscode/
+
+# local API token (never commit)
+.edi-token

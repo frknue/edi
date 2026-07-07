@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"crypto/subtle"
 	"log"
 	"net/http"
 	"os"
@@ -13,7 +14,12 @@ import (
 // If clientDir is non-empty and exists, the built SPA is served from it (true
 // single-binary self-hosting); otherwise only the API is served (dev mode uses
 // the Vite dev server + proxy).
-func NewRouter(h *Handlers, clientDir string) http.Handler {
+//
+// apiToken, when non-empty, gates every /api route (except /api/health) behind
+// `Authorization: Bearer <token>` — the shared-secret auth that lets external
+// agents (Codex, OpenClaw-style bots, remote CLIs) connect safely. Empty token
+// preserves the tokenless localhost default.
+func NewRouter(h *Handlers, clientDir, apiToken string) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/health", h.health)
@@ -49,7 +55,40 @@ func NewRouter(h *Handlers, clientDir string) http.Handler {
 		}
 	}
 
-	return withMiddleware(mux)
+	return withMiddleware(authMW(apiToken, mux))
+}
+
+// authMW enforces bearer-token auth on /api routes when a token is configured.
+// /api/health stays open for liveness probes; static SPA assets are not gated
+// (the app shell is public, the data behind it is not).
+func authMW(token string, next http.Handler) http.Handler {
+	if token == "" {
+		return next
+	}
+	tok := []byte(token)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api/health" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		got := bearerToken(r)
+		if got == "" || subtle.ConstantTimeCompare([]byte(got), tok) != 1 {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="edi"`)
+			writeJSON(w, http.StatusUnauthorized, errorBody{Error: "missing or invalid API token"})
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// bearerToken extracts the credential from "Authorization: Bearer <t>" or,
+// as a fallback for simple clients, the X-API-Key header.
+func bearerToken(r *http.Request) string {
+	auth := r.Header.Get("Authorization")
+	if len(auth) > 7 && strings.EqualFold(auth[:7], "Bearer ") {
+		return strings.TrimSpace(auth[7:])
+	}
+	return r.Header.Get("X-API-Key")
 }
 
 // spaFileServer serves static assets and falls back to index.html for client-side routes.

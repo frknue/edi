@@ -56,7 +56,8 @@ func main() {
 	log.SetPrefix("[edi-mcp] ")
 	addr := envOr("EDI_API", "http://localhost:8080")
 	client := apiclient.New(addr)
-	log.Printf("starting; proxying tools to %s", addr)
+	client.Token = os.Getenv("EDI_TOKEN") // optional bearer auth (server started with EDI_TOKEN)
+	log.Printf("starting; proxying tools to %s (auth: %v)", addr, client.Token != "")
 
 	in := bufio.NewScanner(os.Stdin)
 	in.Buffer(make([]byte, 0, 64*1024), 8*1024*1024) // allow large messages

@@ -57,7 +57,25 @@ make reset       # delete the SQLite DB (re-seeds on next start)
 ```
 
 Environment variables: `EDI_ADDR` (default `:8080`), `EDI_DB` (default
-`edi.db`), `EDI_CLIENT_DIR` (default `../client/dist`).
+`edi.db`), `EDI_CLIENT_DIR` (default `../client/dist`), `EDI_TOKEN` (optional —
+see below; empty means no auth, the localhost default).
+
+### API token auth (for connecting agents / remote clients)
+
+Start the server with a shared secret and every `/api` route (except
+`/api/health`) requires `Authorization: Bearer <token>`:
+
+```bash
+openssl rand -hex 24 > .edi-token          # generate once (gitignored)
+EDI_TOKEN=$(cat .edi-token) make backend   # 401 without the token, 200 with it
+```
+
+All clients understand it:
+
+- **curl:** `curl -H "Authorization: Bearer $(cat .edi-token)" localhost:8080/api/dashboard`
+- **CLI / MCP:** set `EDI_TOKEN` in the environment (`EDI_TOKEN=$(cat .edi-token) ./bin/edi-cli dashboard`)
+- **Web UI:** open `http://host:8080/#token=<secret>` once — the token is stored
+  in localStorage and sent automatically afterwards.
 
 ---
 
@@ -167,6 +185,21 @@ Point an MCP-capable client (Claude Desktop / Claude Code) at it — start the A
 `create_journal_entry`, `list_journal_entries`, `get_weakest_attribute`,
 `generate_suggestions`, `accept_suggestion`, `dismiss_suggestion`, `update_quest`.
 
+#### Example: connecting the OpenAI Codex CLI
+
+```bash
+codex mcp add edi \
+  --env EDI_API=http://localhost:8080 \
+  --env EDI_TOKEN=$(cat .edi-token) \
+  -- /absolute/path/to/bin/edi-mcp
+
+codex exec "Call the edi get_weakest_attribute tool and report the result."
+```
+
+Add `EDI_TOKEN` only if the server runs with auth enabled; against a tokenless
+localhost server it is simply ignored. The same pattern works for any MCP-capable
+agent (Claude Desktop/Code, OpenClaw-style bots, …).
+
 ---
 
 ## Rule-based suggestions (MVP)
@@ -227,8 +260,10 @@ clean console) rather than unit tests — see the validation report in the commi
 
 ## Known limitations (MVP scope)
 
-- **Single-user, no auth.** Fixed user id 1. CORS is restricted to loopback origins;
-  do not expose this to the public internet as-is.
+- **Single-user.** Fixed user id 1. Auth is an optional shared bearer token
+  (`EDI_TOKEN`); CORS is restricted to loopback origins. Set a token (and use
+  HTTPS via a reverse proxy) before exposing beyond localhost — there are no
+  per-user accounts.
 - **Due dates** exist in the data model/API but have no UI date-picker yet.
 - **Agent suggestions are rule-based**, not an LLM — by design. Swapping
   `generateSuggestions()` for an LLM call requires no client changes; the MCP bridge

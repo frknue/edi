@@ -26,6 +26,7 @@ func main() {
 	addr := envOr("EDI_ADDR", ":8080")
 	dbPath := envOr("EDI_DB", "edi.db")
 	clientDir := envOr("EDI_CLIENT_DIR", "../client/dist")
+	apiToken := os.Getenv("EDI_TOKEN") // empty = no auth (localhost default)
 
 	store, err := db.Open(dbPath)
 	if err != nil {
@@ -39,7 +40,10 @@ func main() {
 
 	svc := services.New(store, singleUserID)
 	registry := agent.NewRegistry(svc)
-	router := handlers.NewRouter(handlers.New(svc, registry), clientDir)
+	router := handlers.NewRouter(handlers.New(svc, registry), clientDir, apiToken)
+	if apiToken != "" {
+		log.Println("API token auth enabled (EDI_TOKEN set)")
+	}
 
 	srv := &http.Server{
 		Addr:              addr,

@@ -13,6 +13,25 @@ import type {
 // route /api to the backend. No hidden client — every call hits the documented API.
 const API = "/api";
 
+// Optional bearer auth: when the server runs with EDI_TOKEN, open the app once
+// as http://host:8080/#token=<secret> — the token is stored locally and sent on
+// every request from then on. Tokenless servers ignore the header.
+const TOKEN_KEY = "edi_token";
+
+function captureTokenFromHash(): void {
+  const match = window.location.hash.match(/#token=([^&]+)/);
+  if (match) {
+    localStorage.setItem(TOKEN_KEY, decodeURIComponent(match[1]));
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+  }
+}
+captureTokenFromHash();
+
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem(TOKEN_KEY);
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -23,8 +42,8 @@ class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...init,
+    headers: { "Content-Type": "application/json", ...authHeaders(), ...init?.headers },
   });
   if (!res.ok) {
     let msg = `${res.status} ${res.statusText}`;

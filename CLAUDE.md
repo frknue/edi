@@ -137,11 +137,19 @@ caught and fixed — keep using it.
   states (`Spinner`, `EmptyState`, `ErrorBoundary`, toasts). Don't hide backend failures.
 - Strict TS (`noUnusedLocals`/`noUnusedParameters`); the build fails on unused symbols.
 
-## Single-user mode
+## Single-user mode & auth
 
-Fixed `userID = 1` (`main.go`). No auth. CORS is restricted to loopback origins
-(`isLoopbackOrigin` in `router.go`) — do not open it up or expose publicly without
-adding auth first.
+Fixed `userID = 1` (`main.go`). Auth is an **optional shared bearer token**: set
+`EDI_TOKEN` on the server and every `/api` route except `/api/health` requires
+`Authorization: Bearer <token>` (`authMW` in `router.go`, constant-time compare).
+Empty `EDI_TOKEN` = tokenless localhost default. All clients already send it when
+the env var is set (apiclient/CLI/MCP) or via `#token=` → localStorage (web UI) —
+keep that behavior when adding endpoints. The local secret lives in `.edi-token`
+(gitignored); never commit it. CORS stays restricted to loopback origins
+(`isLoopbackOrigin`) — a token is not a reason to loosen it.
+
+External agents connect through the MCP server with the token, e.g.
+`codex mcp add edi --env EDI_API=... --env EDI_TOKEN=... -- bin/edi-mcp`.
 
 ## Don't
 

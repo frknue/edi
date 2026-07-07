@@ -20,7 +20,10 @@ import (
 // Client talks to a running Life RPG server.
 type Client struct {
 	BaseURL string
-	HTTP    *http.Client
+	// Token, when non-empty, is sent as `Authorization: Bearer <Token>` so the
+	// client can talk to a server started with EDI_TOKEN auth enabled.
+	Token string
+	HTTP  *http.Client
 }
 
 // New returns a client for baseURL (e.g. "http://localhost:8080").
@@ -46,6 +49,9 @@ func (c *Client) do(method, path string, body any, out any) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
 
 	resp, err := c.HTTP.Do(req)
 	if err != nil {

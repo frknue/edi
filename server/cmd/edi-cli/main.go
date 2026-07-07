@@ -47,6 +47,7 @@ func main() {
 	}
 
 	c := apiclient.New(addr)
+	c.Token = os.Getenv("EDI_TOKEN") // optional bearer auth (server started with EDI_TOKEN)
 	cmd, rest := args[0], args[1:]
 	if err := run(c, cmd, rest); err != nil {
 		fmt.Fprintln(os.Stderr, red("error: ")+err.Error())
