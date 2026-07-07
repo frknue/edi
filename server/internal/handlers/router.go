@@ -44,6 +44,12 @@ func NewRouter(h *Handlers, clientDir, apiToken string) http.Handler {
 	mux.HandleFunc("POST /api/agent/suggestions/{id}/accept", h.acceptSuggestion)
 	mux.HandleFunc("POST /api/agent/suggestions/{id}/dismiss", h.dismissSuggestion)
 
+	// OpenAI (ChatGPT subscription) connection powering AI features.
+	mux.HandleFunc("GET /api/openai/status", h.openaiStatus)
+	mux.HandleFunc("POST /api/openai/connect", h.openaiConnect)
+	mux.HandleFunc("POST /api/openai/import-codex", h.openaiImportCodex)
+	mux.HandleFunc("POST /api/openai/disconnect", h.openaiDisconnect)
+
 	// Agent-ready tool interface (discovery + invocation).
 	mux.HandleFunc("GET /api/agent/tools", h.listTools)
 	mux.HandleFunc("POST /api/agent/tools/{name}/invoke", h.invokeTool)

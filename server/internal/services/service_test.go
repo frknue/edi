@@ -2,6 +2,7 @@ package services
 
 import (
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -192,17 +193,28 @@ func TestCompleteQuestLevelUp(t *testing.T) {
 	}
 }
 
+// insertTestSuggestion adds a pending suggestion directly via the store (suggestions
+// are normally produced by the LLM, which is unavailable/undesired in unit tests).
+func insertTestSuggestion(t *testing.T, svc *Service) models.AgentSuggestion {
+	t.Helper()
+	sug, err := svc.store.InsertSuggestion(1, models.AgentSuggestion{
+		Type:   "low_attribute",
+		Title:  "Add a Health quest",
+		Reason: "Health is your lowest attribute.",
+		SuggestedQuest: models.QuestInput{
+			Title: "Drink water & 15-min mobility", Type: "daily", Difficulty: "easy",
+			AttributeRewards: map[string]int64{"health": 30},
+		},
+	})
+	if err != nil {
+		t.Fatalf("insert suggestion: %v", err)
+	}
+	return sug
+}
+
 func TestAcceptSuggestionCreatesQuest(t *testing.T) {
 	svc := newTestService(t)
-
-	pending, err := svc.ListSuggestions("pending")
-	if err != nil {
-		t.Fatalf("list suggestions: %v", err)
-	}
-	if len(pending) < 1 {
-		t.Fatalf("expected seeded pending suggestions, got %d", len(pending))
-	}
-	target := pending[0]
+	target := insertTestSuggestion(t, svc)
 
 	questsBefore, _ := svc.ListQuests("", "")
 
@@ -242,11 +254,7 @@ func TestAcceptSuggestionCreatesQuest(t *testing.T) {
 
 func TestDismissSuggestion(t *testing.T) {
 	svc := newTestService(t)
-	pending, _ := svc.ListSuggestions("pending")
-	if len(pending) == 0 {
-		t.Skip("no pending suggestions")
-	}
-	target := pending[len(pending)-1]
+	target := insertTestSuggestion(t, svc)
 	sug, err := svc.DismissSuggestion(target.ID)
 	if err != nil {
 		t.Fatalf("dismiss: %v", err)
@@ -256,19 +264,23 @@ func TestDismissSuggestion(t *testing.T) {
 	}
 }
 
-func TestGenerateSuggestionsDedupes(t *testing.T) {
+// AI features must be gated on a connected OpenAI account — no offline fallback.
+func TestGenerateSuggestionsRequiresOpenAI(t *testing.T) {
 	svc := newTestService(t)
-	first, err := svc.GenerateSuggestions()
-	if err != nil {
-		t.Fatalf("generate: %v", err)
+	_, err := svc.GenerateSuggestions()
+	if !errors.Is(err, ErrOpenAINotConnected) {
+		t.Fatalf("GenerateSuggestions without OpenAI = %v, want ErrOpenAINotConnected", err)
 	}
-	second, err := svc.GenerateSuggestions()
-	if err != nil {
-		t.Fatalf("generate again: %v", err)
+	if !errors.Is(err, ErrValidation) {
+		t.Errorf("ErrOpenAINotConnected should map to a 400 (wrap ErrValidation), got %v", err)
 	}
-	// Generating twice must not duplicate pending suggestions of the same type.
-	if len(second) != len(first) {
-		t.Errorf("pending after second generate = %d, want %d (no duplicates)", len(second), len(first))
+
+	status, err := svc.OpenAIStatus()
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if status.Connected {
+		t.Error("OpenAIStatus.Connected = true on a fresh DB, want false")
 	}
 }
 

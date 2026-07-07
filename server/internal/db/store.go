@@ -587,6 +587,13 @@ func (s *Store) ListSuggestions(userID int64, status string) ([]models.AgentSugg
 	return out, rows.Err()
 }
 
+// DeletePendingSuggestions removes all still-pending suggestions for a user
+// (used to refresh the set when regenerating).
+func (s *Store) DeletePendingSuggestions(userID int64) error {
+	_, err := s.db.Exec(`DELETE FROM agent_suggestions WHERE user_id = ? AND status = 'pending'`, userID)
+	return err
+}
+
 // HasPendingSuggestionOfType reports whether a pending suggestion of the given
 // type already exists (used to avoid duplicate suggestions).
 func (s *Store) HasPendingSuggestionOfType(userID int64, sugType string, sourceQuestID *int64) (bool, error) {

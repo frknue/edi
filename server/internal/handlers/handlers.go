@@ -214,6 +214,43 @@ func (h *Handlers) dismissSuggestion(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, sug)
 }
 
+// --- openai connection ------------------------------------------------------
+
+func (h *Handlers) openaiStatus(w http.ResponseWriter, _ *http.Request) {
+	status, err := h.svc.OpenAIStatus()
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, status)
+}
+
+func (h *Handlers) openaiConnect(w http.ResponseWriter, _ *http.Request) {
+	authURL, err := h.svc.StartOpenAIConnect()
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"auth_url": authURL})
+}
+
+func (h *Handlers) openaiImportCodex(w http.ResponseWriter, _ *http.Request) {
+	status, err := h.svc.ImportCodexCredentials()
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, status)
+}
+
+func (h *Handlers) openaiDisconnect(w http.ResponseWriter, _ *http.Request) {
+	if err := h.svc.DisconnectOpenAI(); err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"connected": false})
+}
+
 // --- agent tool interface ---------------------------------------------------
 
 // listTools exposes the agent-ready tool catalog (names, descriptions, schemas).

@@ -107,6 +107,24 @@ caught and fixed — keep using it.
 - **Level formula** (don't change without updating tests): `level = floor(sqrt(total_xp/100)) + 1`.
   All level math lives in `services/xp.go` as pure functions.
 
+## AI features (ChatGPT-subscription LLM)
+
+- AI runs on the user's own ChatGPT account via "Sign in with ChatGPT" (Codex
+  OAuth). All OpenAI code is in `internal/openai` (OAuth PKCE + the `responses`
+  API client); tokens live in the `openai_credentials` table (`db/openai_store.go`),
+  auto-refreshed in `services/openai.go` (`accessToken`/`completeWithOpenAI`).
+- **AI features are gated on a connection — there is no offline/rule fallback.**
+  Anything needing the LLM returns `ErrOpenAINotConnected` (→400) when disconnected.
+  `GenerateSuggestions` builds a prompt from live state and asks for strict JSON.
+- Model is `gpt-5.5` (`openai.DefaultModel`, override `EDI_OPENAI_MODEL`). Only
+  plain `gpt-5.x`/`gpt-5.5` are accepted for ChatGPT accounts — `*-codex` ids 400.
+- These are OpenAI's **undocumented** endpoints (`chatgpt.com/backend-api/codex/
+  responses`, `auth.openai.com`). Verify changes with the opt-in live tests:
+  `EDI_LIVE_TEST=1 go test ./internal/openai ./internal/services -run Live`.
+  Normal `go test` stays offline (the live tests skip without the env var).
+- The `:1455` OAuth callback binds transiently during connect; the "Import from
+  Codex CLI" path (`~/.codex/auth.json`) is the no-browser shortcut for testing.
+
 ## Conventions
 
 ### Backend (Go)

@@ -4,6 +4,7 @@ import type {
   CompletionResult,
   Dashboard,
   JournalEntry,
+  OpenAIStatus,
   Quest,
   QuestInput,
   XPEvent,
@@ -93,6 +94,11 @@ export const api = {
     request<Quest>(`/agent/suggestions/${id}/accept`, { method: "POST" }),
   dismissSuggestion: (id: number) =>
     request<AgentSuggestion>(`/agent/suggestions/${id}/dismiss`, { method: "POST" }),
+
+  openaiStatus: () => request<OpenAIStatus>("/openai/status"),
+  openaiConnect: () => request<{ auth_url: string }>("/openai/connect", { method: "POST" }),
+  openaiImportCodex: () => request<OpenAIStatus>("/openai/import-codex", { method: "POST" }),
+  openaiDisconnect: () => request<{ connected: boolean }>("/openai/disconnect", { method: "POST" }),
 };
 
 export { ApiError };

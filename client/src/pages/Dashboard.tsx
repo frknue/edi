@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { ArrowRight, Sparkles, Swords, Zap } from "lucide-react";
-import { useDashboard, useCompleteQuest, useSkipQuest, useAcceptSuggestion } from "../lib/queries";
+import { useDashboard, useCompleteQuest, useSkipQuest, useAcceptSuggestion, useOpenAIStatus } from "../lib/queries";
 import { useReward } from "../lib/reward";
 import { CharacterHeader } from "../components/CharacterHeader";
 import { AttributeCard } from "../components/AttributeCard";
@@ -10,8 +10,15 @@ import { SuggestionCard } from "../components/SuggestionCard";
 import { Btn, EmptyState, SectionTitle, Spinner, RewardChips } from "../components/ui";
 import { pushToast } from "../lib/toast";
 
-export function DashboardPage({ onGoToQuests }: { onGoToQuests: () => void }) {
+export function DashboardPage({
+  onGoToQuests,
+  onGoToAgent,
+}: {
+  onGoToQuests: () => void;
+  onGoToAgent: () => void;
+}) {
   const { data, isLoading, isError, error } = useDashboard();
+  const { data: openai } = useOpenAIStatus();
   const complete = useCompleteQuest();
   const skip = useSkipQuest();
   const accept = useAcceptSuggestion();
@@ -125,8 +132,16 @@ export function DashboardPage({ onGoToQuests }: { onGoToQuests: () => void }) {
           </section>
 
           <section>
-            <SectionTitle hint="Rule-based, from the agent engine.">Suggestions</SectionTitle>
-            {data.pending_suggestions.length === 0 ? (
+            <SectionTitle hint="From your ChatGPT model.">AI Suggestions</SectionTitle>
+            {openai && !openai.connected ? (
+              <button
+                onClick={onGoToAgent}
+                className="flex w-full items-center gap-2 rounded-xl border border-dashed border-edge px-4 py-3 text-left text-xs text-muted transition-colors hover:border-edge2 hover:text-ink"
+              >
+                <Sparkles size={15} style={{ color: "#b18bff" }} />
+                Connect your ChatGPT account on the Agent tab to unlock AI suggestions.
+              </button>
+            ) : data.pending_suggestions.length === 0 ? (
               <EmptyState title="No suggestions" hint="Generate some on the Agent tab." />
             ) : (
               <div className="space-y-3">

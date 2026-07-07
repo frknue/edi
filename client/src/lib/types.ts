@@ -122,3 +122,11 @@ export interface CompletionResult {
   level_ups: LevelUp[];
   dashboard: Dashboard;
 }
+
+export interface OpenAIStatus {
+  connected: boolean;
+  email?: string;
+  account_id?: string;
+  model?: string;
+  expires_at?: string;
+}

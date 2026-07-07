@@ -85,7 +85,9 @@ export default function App() {
 
       {/* Main content */}
       <main className="flex-1 px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-10 lg:pt-8">
-        {view === "dashboard" && <DashboardPage onGoToQuests={() => setView("quests")} />}
+        {view === "dashboard" && (
+          <DashboardPage onGoToQuests={() => setView("quests")} onGoToAgent={() => setView("agent")} />
+        )}
         {view === "quests" && <QuestsPage />}
         {view === "journal" && <JournalPage />}
         {view === "agent" && <SuggestionsPage />}

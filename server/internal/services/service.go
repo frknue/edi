@@ -6,7 +6,8 @@ package services
 import (
 	"errors"
 	"fmt"
-	"sort"
+	"net/http"
+	"sync"
 
 	"edi/internal/db"
 	"edi/internal/models"
@@ -38,6 +39,11 @@ func orEmpty[T any](s []T) []T {
 type Service struct {
 	store  *db.Store
 	userID int64
+
+	// OpenAI "Sign in with ChatGPT" connect state (see openai.go).
+	oauthMu      sync.Mutex
+	oauthPending *oauthPending
+	oauthServer  *http.Server
 }
 
 // New builds a Service for the given user (1 in single-user mode).
@@ -359,14 +365,4 @@ func recommendQuest(quests []models.Quest, attrs []models.Attribute) *models.Que
 		}
 	}
 	return &quests[0]
-}
-
-// sortAttributesByWeeklyXP is a helper used by the suggestion engine.
-func sortAttributesByWeeklyXP(weekly map[string]int64, attrs []models.Attribute) []models.Attribute {
-	sorted := make([]models.Attribute, len(attrs))
-	copy(sorted, attrs)
-	sort.SliceStable(sorted, func(i, j int) bool {
-		return weekly[sorted[i].Key] < weekly[sorted[j].Key]
-	})
-	return sorted
 }

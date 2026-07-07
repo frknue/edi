@@ -13,6 +13,7 @@ export const keys = {
   journal: ["journal"] as const,
   suggestions: (status?: string) => ["suggestions", status ?? "all"] as const,
   xpEvents: ["xp-events"] as const,
+  openaiStatus: ["openai-status"] as const,
 };
 
 export function useDashboard() {
@@ -109,4 +110,38 @@ export function useAcceptSuggestion() {
 export function useDismissSuggestion() {
   const invalidate = useInvalidateAll();
   return useMutation({ mutationFn: (id: number) => api.dismissSuggestion(id), onSuccess: invalidate });
+}
+
+// --- OpenAI (ChatGPT subscription) connection -------------------------------
+
+export function useOpenAIStatus(pollWhileConnecting = false) {
+  return useQuery({
+    queryKey: keys.openaiStatus,
+    queryFn: api.openaiStatus,
+    refetchInterval: pollWhileConnecting ? 2000 : false,
+  });
+}
+
+export function useConnectOpenAI() {
+  return useMutation({ mutationFn: () => api.openaiConnect() });
+}
+
+export function useImportCodex() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.openaiImportCodex(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.openaiStatus }),
+  });
+}
+
+export function useDisconnectOpenAI() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.openaiDisconnect(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.openaiStatus });
+      qc.invalidateQueries({ queryKey: ["suggestions"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
 }

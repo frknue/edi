@@ -110,35 +110,8 @@ func (s *Store) Seed() error {
 		return err
 	}
 
-	// Two pending agent suggestions.
-	suggestions := []models.AgentSuggestion{
-		{
-			Type:   "low_attribute",
-			Title:  "Add a Health quest",
-			Reason: "Health is your lowest attribute. A small daily habit will move it fast.",
-			SuggestedQuest: models.QuestInput{
-				Title: "Drink water & 15-min mobility", Description: "Hydrate and loosen up.", Type: "daily", Difficulty: "easy",
-				AttributeRewards: map[string]int64{"health": 30},
-			},
-		},
-		{
-			Type:   "recovery",
-			Title:  "Schedule a recovery day",
-			Reason: "You've been active several days in a row — protect the streak with intentional recovery.",
-			SuggestedQuest: models.QuestInput{
-				Title: "Recovery walk & stretch", Description: "Easy movement, no targets.", Type: "recovery", Difficulty: "trivial",
-				AttributeRewards: map[string]int64{"health": 20, "spirituality": 15},
-			},
-		},
-	}
-	for _, sug := range suggestions {
-		tmpl, _ := json.Marshal(sug.SuggestedQuest)
-		if _, err := tx.Exec(
-			`INSERT INTO agent_suggestions(user_id, type, title, reason, suggested_quest, status, created_at) VALUES(?, ?, ?, ?, ?, 'pending', ?)`,
-			userID, sug.Type, sug.Title, sug.Reason, string(tmpl), formatTime(now.AddDate(0, 0, -1))); err != nil {
-			return err
-		}
-	}
+	// No seeded agent suggestions — they are generated on demand by the user's
+	// connected ChatGPT model (see services/suggestions.go).
 
 	return tx.Commit()
 }
