@@ -189,9 +189,11 @@ type CompletionResult struct {
 
 // OpenAIStatus describes the ChatGPT-subscription connection powering AI features.
 type OpenAIStatus struct {
-	Connected bool       `json:"connected"`
-	Email     string     `json:"email,omitempty"`
-	AccountID string     `json:"account_id,omitempty"`
-	Model     string     `json:"model,omitempty"`
-	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	Connected     bool       `json:"connected"`
+	Email         string     `json:"email,omitempty"`
+	AccountID     string     `json:"account_id,omitempty"`
+	Model         string     `json:"model,omitempty"`
+	Effort        string     `json:"effort,omitempty"`
+	EffortOptions []string   `json:"effort_options,omitempty"`
+	ExpiresAt     *time.Time `json:"expires_at,omitempty"`
 }

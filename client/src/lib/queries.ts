@@ -145,3 +145,11 @@ export function useDisconnectOpenAI() {
     },
   });
 }
+
+export function useSetOpenAIConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (cfg: { model?: string; effort?: string }) => api.openaiConfig(cfg),
+    onSuccess: (status) => qc.setQueryData(keys.openaiStatus, status),
+  });
+}

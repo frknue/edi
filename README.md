@@ -219,11 +219,17 @@ connection; there is no offline fallback.
 - **Disconnect** — `POST /api/openai/disconnect` clears the stored tokens.
 
 `generateSuggestions()` builds a prompt from your attributes, weekly XP, streak,
-active quests, and recent journal entries, asks the model (default **gpt-5.5**,
-override with `EDI_OPENAI_MODEL`) for 2–4 tailored quests as strict JSON, and
-stores them as pending. Accepting one creates a real quest. Under the hood it
-calls the ChatGPT backend `responses` endpoint — the same subscription-billed
-surface Codex uses. These OpenAI endpoints are undocumented and may change.
+active quests, and recent journal entries, asks the model for 2–4 tailored quests
+as strict JSON, and stores them as pending. Accepting one creates a real quest.
+Under the hood it calls the ChatGPT backend `responses` endpoint — the same
+subscription-billed surface Codex uses. These OpenAI endpoints are undocumented
+and may change.
+
+**Reasoning effort** is selectable in the connected bar (Instant → Max, default
+Balanced) and persists per user (`POST /api/openai/config`). The ChatGPT-account
+endpoint only accepts the **gpt-5.5** model (other/`*-codex` ids are rejected), so
+depth — not model choice — is the useful knob; override the model with
+`EDI_OPENAI_MODEL` and the default effort with `EDI_OPENAI_EFFORT` if needed.
 
 ---
 

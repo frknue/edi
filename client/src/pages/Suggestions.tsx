@@ -9,10 +9,22 @@ import {
   useConnectOpenAI,
   useImportCodex,
   useDisconnectOpenAI,
+  useSetOpenAIConfig,
 } from "../lib/queries";
 import { SuggestionCard } from "../components/SuggestionCard";
 import { Btn, EmptyState, SectionTitle, Spinner } from "../components/ui";
 import { pushToast } from "../lib/toast";
+import type { OpenAIStatus } from "../lib/types";
+
+// Reasoning-effort tiers (the ChatGPT backend accepts only gpt-5.5, so depth is
+// the meaningful knob). Fastest → deepest.
+const EFFORT_META: Record<string, { label: string; hint: string }> = {
+  none: { label: "Instant", hint: "No reasoning — fastest" },
+  low: { label: "Fast", hint: "Light reasoning" },
+  medium: { label: "Balanced", hint: "Default" },
+  high: { label: "Deep", hint: "More reasoning" },
+  xhigh: { label: "Max", hint: "Deepest, slowest" },
+};
 
 export function SuggestionsPage() {
   const [connecting, setConnecting] = useState(false);
@@ -63,7 +75,7 @@ export function SuggestionsPage() {
         <ConnectCard connecting={connecting} setConnecting={setConnecting} />
       ) : (
         <>
-          <ConnectedBar email={status?.email} model={status?.model} />
+          {status && <ConnectedBar status={status} />}
 
           {isLoading ? (
             <Spinner />
@@ -180,20 +192,63 @@ function ConnectCard({
   );
 }
 
-function ConnectedBar({ email, model }: { email?: string; model?: string }) {
+function ConnectedBar({ status }: { status: OpenAIStatus }) {
   const disconnect = useDisconnectOpenAI();
+  const setConfig = useSetOpenAIConfig();
+  const options = status.effort_options ?? ["none", "low", "medium", "high", "xhigh"];
+  const current = status.effort ?? "medium";
+
   return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border border-edge bg-white/[0.02] px-4 py-2.5">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-edge bg-white/[0.02] px-4 py-2.5">
       <div className="flex items-center gap-2 text-sm">
         <span className="grid h-6 w-6 place-items-center rounded-full" style={{ background: "rgba(62,229,148,0.16)", color: "#3ee594" }}>
           <Check size={13} />
         </span>
-        <span className="text-ink">{email || "ChatGPT connected"}</span>
-        {model && <span className="tabnum text-[11px] text-faint">· {model}</span>}
+        <span className="text-ink">{status.email || "ChatGPT connected"}</span>
+        {status.model && (
+          <span
+            className="tabnum rounded px-1.5 py-0.5 text-[10px] text-faint"
+            style={{ background: "rgba(255,255,255,0.05)" }}
+            title="The only model your ChatGPT account exposes to this endpoint"
+          >
+            {status.model}
+          </span>
+        )}
       </div>
-      <Btn variant="soft" disabled={disconnect.isPending} onClick={() => disconnect.mutate()} data-testid="disconnect-openai">
-        <Unplug size={14} /> Disconnect
-      </Btn>
+
+      <div className="flex items-center gap-2">
+        <span className="hidden text-[11px] text-faint sm:inline">Reasoning</span>
+        <div className="flex rounded-lg border border-edge bg-void/40 p-0.5" role="group" aria-label="Reasoning effort">
+          {options.map((e) => {
+            const meta = EFFORT_META[e] ?? { label: e, hint: "" };
+            const active = e === current;
+            return (
+              <button
+                key={e}
+                title={meta.hint}
+                disabled={setConfig.isPending}
+                onClick={() =>
+                  setConfig.mutate(
+                    { effort: e },
+                    { onSuccess: () => pushToast(`Reasoning set to ${meta.label}`, "success") },
+                  )
+                }
+                data-testid={`effort-${e}`}
+                className="rounded-md px-2 py-1 text-[11px] font-medium transition-colors"
+                style={{
+                  background: active ? "rgba(177,139,255,0.18)" : "transparent",
+                  color: active ? "#c4a8ff" : "var(--color-faint)",
+                }}
+              >
+                {meta.label}
+              </button>
+            );
+          })}
+        </div>
+        <Btn variant="soft" disabled={disconnect.isPending} onClick={() => disconnect.mutate()} data-testid="disconnect-openai">
+          <Unplug size={14} /> Disconnect
+        </Btn>
+      </div>
     </div>
   );
 }

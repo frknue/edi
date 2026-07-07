@@ -99,6 +99,8 @@ export const api = {
   openaiConnect: () => request<{ auth_url: string }>("/openai/connect", { method: "POST" }),
   openaiImportCodex: () => request<OpenAIStatus>("/openai/import-codex", { method: "POST" }),
   openaiDisconnect: () => request<{ connected: boolean }>("/openai/disconnect", { method: "POST" }),
+  openaiConfig: (cfg: { model?: string; effort?: string }) =>
+    request<OpenAIStatus>("/openai/config", { method: "POST", body: JSON.stringify(cfg) }),
 };
 
 export { ApiError };

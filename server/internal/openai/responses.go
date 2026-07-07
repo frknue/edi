@@ -27,8 +27,9 @@ func (e ErrUnauthorized) Error() string {
 
 // Complete sends a single-turn prompt and returns the model's text output. It
 // speaks the streaming (SSE) protocol the backend requires (store=false) but
-// accumulates the full text before returning.
-func Complete(accessToken, accountID, model, instructions, prompt string) (string, error) {
+// accumulates the full text before returning. effort selects the reasoning
+// depth ("minimal"|"low"|"medium"|"high"); empty uses the model default.
+func Complete(accessToken, accountID, model, effort, instructions, prompt string) (string, error) {
 	if model == "" {
 		model = DefaultModel
 	}
@@ -46,6 +47,9 @@ func Complete(accessToken, accountID, model, instructions, prompt string) (strin
 		"store":   false,
 		"stream":  true,
 		"include": []string{"reasoning.encrypted_content"},
+	}
+	if effort != "" {
+		reqBody["reasoning"] = map[string]any{"effort": effort}
 	}
 	buf, _ := json.Marshal(reqBody)
 

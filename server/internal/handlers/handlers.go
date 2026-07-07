@@ -251,6 +251,23 @@ func (h *Handlers) openaiDisconnect(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"connected": false})
 }
 
+func (h *Handlers) openaiConfig(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Model  string `json:"model"`
+		Effort string `json:"effort"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		writeError(w, err)
+		return
+	}
+	status, err := h.svc.SetOpenAIConfig(body.Model, body.Effort)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, status)
+}
+
 // --- agent tool interface ---------------------------------------------------
 
 // listTools exposes the agent-ready tool catalog (names, descriptions, schemas).

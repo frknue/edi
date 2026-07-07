@@ -25,15 +25,68 @@ type oauthPending struct {
 	expiresAt time.Time
 }
 
-// OpenAIModel returns the model AI features use (override with EDI_OPENAI_MODEL).
-func OpenAIModel() string {
+// Settings keys.
+const (
+	settingModel  = "openai_model"
+	settingEffort = "openai_effort"
+)
+
+// EffortLevels are the reasoning depths the ChatGPT backend accepts (verified
+// live), fastest→deepest. "medium" is the default.
+var EffortLevels = []string{"none", "low", "medium", "high", "xhigh"}
+
+func validEffort(e string) bool {
+	for _, v := range EffortLevels {
+		if v == e {
+			return true
+		}
+	}
+	return false
+}
+
+// openAIModel returns the configured model (setting → EDI_OPENAI_MODEL → default).
+func (s *Service) openAIModel() string {
+	if m, _ := s.store.GetSetting(s.userID, settingModel); m != "" {
+		return m
+	}
 	if m := os.Getenv("EDI_OPENAI_MODEL"); m != "" {
 		return m
 	}
 	return openai.DefaultModel
 }
 
-// OpenAIStatus reports whether a ChatGPT subscription is connected.
+// openAIEffort returns the configured reasoning effort (setting → env → medium).
+func (s *Service) openAIEffort() string {
+	if e, _ := s.store.GetSetting(s.userID, settingEffort); validEffort(e) {
+		return e
+	}
+	if e := os.Getenv("EDI_OPENAI_EFFORT"); validEffort(e) {
+		return e
+	}
+	return "medium"
+}
+
+// SetOpenAIConfig updates the model and/or reasoning effort. Empty fields are
+// left unchanged; an invalid effort is rejected.
+func (s *Service) SetOpenAIConfig(model, effort string) (models.OpenAIStatus, error) {
+	if effort != "" {
+		if !validEffort(effort) {
+			return models.OpenAIStatus{}, validationErr("invalid effort %q (allowed: %v)", effort, EffortLevels)
+		}
+		if err := s.store.SetSetting(s.userID, settingEffort, effort); err != nil {
+			return models.OpenAIStatus{}, err
+		}
+	}
+	if model != "" {
+		if err := s.store.SetSetting(s.userID, settingModel, model); err != nil {
+			return models.OpenAIStatus{}, err
+		}
+	}
+	return s.OpenAIStatus()
+}
+
+// OpenAIStatus reports whether a ChatGPT subscription is connected and the
+// current model/effort configuration.
 func (s *Service) OpenAIStatus() (models.OpenAIStatus, error) {
 	creds, err := s.store.GetOpenAICredentials(s.userID)
 	if err != nil {
@@ -44,11 +97,13 @@ func (s *Service) OpenAIStatus() (models.OpenAIStatus, error) {
 	}
 	exp := creds.ExpiresAt
 	return models.OpenAIStatus{
-		Connected: true,
-		Email:     creds.Email,
-		AccountID: creds.AccountID,
-		Model:     OpenAIModel(),
-		ExpiresAt: &exp,
+		Connected:     true,
+		Email:         creds.Email,
+		AccountID:     creds.AccountID,
+		Model:         s.openAIModel(),
+		Effort:        s.openAIEffort(),
+		EffortOptions: EffortLevels,
+		ExpiresAt:     &exp,
 	}, nil
 }
 
@@ -244,7 +299,8 @@ func (s *Service) completeWithOpenAI(instructions, prompt string) (string, error
 	if err != nil {
 		return "", err
 	}
-	out, err := openai.Complete(token, accountID, OpenAIModel(), instructions, prompt)
+	model, effort := s.openAIModel(), s.openAIEffort()
+	out, err := openai.Complete(token, accountID, model, effort, instructions, prompt)
 	var unauth openai.ErrUnauthorized
 	if errors.As(err, &unauth) {
 		// Force a refresh and retry once.
@@ -262,7 +318,7 @@ func (s *Service) completeWithOpenAI(instructions, prompt string) (string, error
 		if e := s.saveTokens(refreshed); e != nil {
 			return "", e
 		}
-		out, err = openai.Complete(refreshed.AccessToken, refreshed.AccountID, OpenAIModel(), instructions, prompt)
+		out, err = openai.Complete(refreshed.AccessToken, refreshed.AccountID, model, effort, instructions, prompt)
 	}
 	return out, err
 }

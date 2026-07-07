@@ -58,3 +58,22 @@ func (s *Store) DeleteOpenAICredentials(userID int64) error {
 	_, err := s.db.Exec(`DELETE FROM openai_credentials WHERE user_id = ?`, userID)
 	return err
 }
+
+// GetSetting returns a per-user setting value, or "" if unset.
+func (s *Store) GetSetting(userID int64, key string) (string, error) {
+	var v string
+	err := s.db.QueryRow(`SELECT value FROM app_settings WHERE user_id = ? AND key = ?`, userID, key).Scan(&v)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return v, err
+}
+
+// SetSetting upserts a per-user setting.
+func (s *Store) SetSetting(userID int64, key, value string) error {
+	_, err := s.db.Exec(
+		`INSERT INTO app_settings(user_id, key, value) VALUES(?, ?, ?)
+		 ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value`,
+		userID, key, value)
+	return err
+}

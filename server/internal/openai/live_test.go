@@ -48,26 +48,14 @@ func TestLiveComplete(t *testing.T) {
 	}
 	t.Logf("account_id=%s email=%s", tok.AccountID, tok.Email)
 
-	candidates := []string{"gpt-5.5-codex", "gpt-5.5", "gpt-5.2-codex", "gpt-5.2", "gpt-5-codex", "gpt-5", "codex-mini-latest"}
-	if m := os.Getenv("EDI_OPENAI_MODEL"); m != "" {
-		candidates = []string{m}
+	out, err := Complete(tok.AccessToken, tok.AccountID, DefaultModel, "low",
+		"You are a terse test probe.",
+		"Reply with exactly the single word: PONG")
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
 	}
-	var worked string
-	for _, m := range candidates {
-		out, err := Complete(tok.AccessToken, tok.AccountID, m,
-			"You are a terse test probe.",
-			"Reply with exactly the single word: PONG")
-		if err != nil {
-			t.Logf("  %-18s -> ERR %s", m, truncate(err.Error(), 120))
-			continue
-		}
-		t.Logf("  %-18s -> OK %q", m, truncate(out, 60))
-		if strings.Contains(strings.ToUpper(out), "PONG") && worked == "" {
-			worked = m
-		}
+	t.Logf("model output: %q", out)
+	if !strings.Contains(strings.ToUpper(out), "PONG") {
+		t.Errorf("expected PONG, got %q", out)
 	}
-	if worked == "" {
-		t.Fatal("no candidate model worked")
-	}
-	t.Logf("WORKING MODEL: %s", worked)
 }

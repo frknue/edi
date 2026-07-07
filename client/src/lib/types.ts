@@ -128,5 +128,7 @@ export interface OpenAIStatus {
   email?: string;
   account_id?: string;
   model?: string;
+  effort?: string;
+  effort_options?: string[];
   expires_at?: string;
 }
