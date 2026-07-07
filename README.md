@@ -244,6 +244,15 @@ distortions (the 10), then write a truer, kinder response and re-rate belief.
 Finishing awards **Health +25 · Spirituality +15 · Discipline +10** (auditable
 `xp_events`, `source='tool'`, with the reward overlay + level-ups + streak).
 
+**Optional AI coach** (when a ChatGPT account is connected): each negative
+thought has a **✨ Find distortions** helper (the model tags which of the 10
+distortions are present, with a one-line why) and **✨ Suggest a response**
+(2–3 rational responses, each labeled with the TEAM-CBT method it uses — Examine
+the Evidence, Double-Standard, Socratic, …). You always edit/accept; the AI never
+auto-fills. It's framed as a supportive coach, **not therapy** — a one-time
+privacy opt-in gates it, and content signaling crisis routes to support
+resources (988 in the US) instead of coaching. The tool works fully without AI.
+
 Tools are an extensible registry (`server/internal/tools`) — add a new tool by
 implementing the `Tool` interface (definition + payload validation) and
 registering it; the API and the entry storage are generic.
@@ -252,6 +261,7 @@ registering it; the API and the entry storage are generic.
 GET  /api/tools                    # available tools + XP rewards
 POST /api/tools/{key}/complete     # validate payload, store entry, award XP
 GET  /api/tools/{key}/entries      # history
+POST /api/tools/{key}/assist       # AI coach: {mode:distortions|responses,…} (needs OpenAI)
 ```
 
 ## Project structure

@@ -40,6 +40,7 @@ func NewRouter(h *Handlers, clientDir, apiToken string) http.Handler {
 	mux.HandleFunc("GET /api/tools", h.listGuidedTools)
 	mux.HandleFunc("POST /api/tools/{key}/complete", h.completeTool)
 	mux.HandleFunc("GET /api/tools/{key}/entries", h.listToolEntries)
+	mux.HandleFunc("POST /api/tools/{key}/assist", h.toolAssist)
 
 	mux.HandleFunc("GET /api/journal", h.listJournal)
 	mux.HandleFunc("POST /api/journal", h.createJournal)

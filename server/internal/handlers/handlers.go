@@ -244,6 +244,20 @@ func (h *Handlers) listToolEntries(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, entries)
 }
 
+func (h *Handlers) toolAssist(w http.ResponseWriter, r *http.Request) {
+	var payload json.RawMessage
+	if err := decodeBody(r, &payload); err != nil {
+		writeError(w, err)
+		return
+	}
+	result, err := h.svc.ToolAssist(r.PathValue("key"), payload)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
 // --- openai connection ------------------------------------------------------
 
 func (h *Handlers) openaiStatus(w http.ResponseWriter, _ *http.Request) {

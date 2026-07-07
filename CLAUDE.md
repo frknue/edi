@@ -144,6 +144,16 @@ the invariant. Add a tool = new type in `internal/tools` + register in
 The reward overlay is generic (`lib/reward.tsx` `RewardPayload`), so any
 XP-awarding action can call `celebrate({title, xp_events, level_ups, label})`.
 
+Tools can have an **optional AI coach** (`services/tool_assist.go`,
+`POST /api/tools/{key}/assist`) that reuses `completeWithOpenAI` (gated on the
+ChatGPT connection). Two rules are load-bearing and must not regress: (1) AI
+**suggests, never auto-fills** — it proposes distortions/responses the user
+edits/accepts; (2) it is self-help, **not therapy** — every prompt carries the
+`safetyPreamble`, crisis content returns `crisis=true` (support resources, no
+coaching), and the UI requires a one-time privacy opt-in (`lib/aiConsent.tsx`)
+before sending private entry text to OpenAI. AI assist is always optional; the
+tool works fully without a connection.
+
 ## Conventions
 
 ### Backend (Go)

@@ -179,6 +179,24 @@ export interface ToolCompletionResult {
   dashboard: Dashboard;
 }
 
+export interface MoodDistortionHit {
+  code: string;
+  why: string;
+}
+
+export interface MoodResponseIdea {
+  technique: string;
+  text: string;
+}
+
+export interface MoodAssistResult {
+  mode: string;
+  distortions?: MoodDistortionHit[];
+  responses?: MoodResponseIdea[];
+  crisis: boolean;
+  crisis_message?: string;
+}
+
 export interface OpenAIModel {
   slug: string;
   display_name: string;

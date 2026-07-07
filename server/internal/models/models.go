@@ -244,6 +244,38 @@ type MoodLog struct {
 	Thoughts []MoodThought `json:"thoughts"`
 }
 
+// MoodAssistInput asks the AI coach to help with one negative thought. Mode is
+// "distortions" (identify the distortions) or "responses" (suggest rational
+// responses). Event/Emotions give optional context.
+type MoodAssistInput struct {
+	Mode        string   `json:"mode"`
+	Event       string   `json:"event"`
+	Thought     string   `json:"thought"`
+	Distortions []string `json:"distortions"`
+}
+
+// MoodDistortionHit is one detected cognitive distortion with a short rationale.
+type MoodDistortionHit struct {
+	Code string `json:"code"`
+	Why  string `json:"why"`
+}
+
+// MoodResponseIdea is one suggested rational response tagged with the CBT method.
+type MoodResponseIdea struct {
+	Technique string `json:"technique"`
+	Text      string `json:"text"`
+}
+
+// MoodAssistResult is the AI coach's reply. When Crisis is true the coaching
+// fields are empty and CrisisMessage carries a supportive, resource-pointing note.
+type MoodAssistResult struct {
+	Mode          string              `json:"mode"`
+	Distortions   []MoodDistortionHit `json:"distortions,omitempty"`
+	Responses     []MoodResponseIdea  `json:"responses,omitempty"`
+	Crisis        bool                `json:"crisis"`
+	CrisisMessage string              `json:"crisis_message,omitempty"`
+}
+
 // OpenAIStatus describes the ChatGPT-subscription connection powering AI features.
 type OpenAIStatus struct {
 	Connected     bool       `json:"connected"`

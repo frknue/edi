@@ -4,6 +4,7 @@ import type {
   CompletionResult,
   Dashboard,
   JournalEntry,
+  MoodAssistResult,
   MoodLog,
   OpenAIModel,
   OpenAIStatus,
@@ -113,6 +114,10 @@ export const api = {
     request<ToolCompletionResult>(`/tools/${key}/complete`, { method: "POST", body: JSON.stringify(data) }),
   toolEntries: (key: string, limit = 30) =>
     request<ToolEntry[]>(`/tools/${key}/entries?limit=${limit}`),
+  toolAssist: (
+    key: string,
+    body: { mode: "distortions" | "responses"; event: string; thought: string; distortions: string[] },
+  ) => request<MoodAssistResult>(`/tools/${key}/assist`, { method: "POST", body: JSON.stringify(body) }),
 };
 
 export { ApiError };

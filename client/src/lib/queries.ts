@@ -156,6 +156,17 @@ export function useToolEntries(key: string) {
   return useQuery({ queryKey: ["tool-entries", key], queryFn: () => api.toolEntries(key) });
 }
 
+export function useMoodAssist() {
+  return useMutation({
+    mutationFn: (body: {
+      mode: "distortions" | "responses";
+      event: string;
+      thought: string;
+      distortions: string[];
+    }) => api.toolAssist("daily_mood_log", body),
+  });
+}
+
 export function useCompleteTool(key: string) {
   const invalidate = useInvalidateAll();
   const qc = useQueryClient();

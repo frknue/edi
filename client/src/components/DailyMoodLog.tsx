@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, Plus, Sparkles, Trash2, X } from "lucide-react";
-import { useCompleteTool } from "../lib/queries";
+import { ArrowLeft, ArrowRight, Check, HeartHandshake, Loader2, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { useCompleteTool, useMoodAssist, useOpenAIStatus } from "../lib/queries";
 import { useReward } from "../lib/reward";
+import { useAiConsent } from "../lib/aiConsent";
+import { pushToast } from "../lib/toast";
 import { EMOTIONS, DISTORTIONS } from "../lib/cbt";
-import type { MoodThought } from "../lib/types";
+import type { MoodDistortionHit, MoodResponseIdea, MoodThought } from "../lib/types";
 import { Btn } from "./ui";
 
 interface EmotionState {
@@ -32,6 +34,8 @@ export function DailyMoodLog({ onClose }: { onClose: () => void }) {
 
   const complete = useCompleteTool("daily_mood_log");
   const { celebrate } = useReward();
+  const { data: openai } = useOpenAIStatus();
+  const aiEnabled = !!openai?.connected;
 
   const chosenEmotions = useMemo(() => Object.keys(emotions), [emotions]);
   const validThoughts = thoughts.filter((t) => t.thought.trim() !== "");
@@ -168,6 +172,8 @@ export function DailyMoodLog({ onClose }: { onClose: () => void }) {
                 key={i}
                 index={i}
                 thought={t}
+                event={event}
+                aiEnabled={aiEnabled}
                 canRemove={thoughts.length > 1}
                 onChange={(next) => setThoughts((ts) => ts.map((x, j) => (j === i ? next : x)))}
                 onRemove={() => setThoughts((ts) => ts.filter((_, j) => j !== i))}
@@ -240,12 +246,16 @@ export function DailyMoodLog({ onClose }: { onClose: () => void }) {
 function ThoughtEditor({
   index,
   thought,
+  event,
+  aiEnabled,
   canRemove,
   onChange,
   onRemove,
 }: {
   index: number;
   thought: MoodThought;
+  event: string;
+  aiEnabled: boolean;
   canRemove: boolean;
   onChange: (t: MoodThought) => void;
   onRemove: () => void;
@@ -257,6 +267,42 @@ function ThoughtEditor({
         ? thought.distortions.filter((c) => c !== code)
         : [...thought.distortions, code],
     });
+
+  const assist = useMoodAssist();
+  const { requestConsent } = useAiConsent();
+  const [hits, setHits] = useState<MoodDistortionHit[]>([]);
+  const [candidates, setCandidates] = useState<MoodResponseIdea[]>([]);
+  const [crisis, setCrisis] = useState<string | null>(null);
+  const loadingMode = assist.isPending ? assist.variables?.mode : undefined;
+
+  const runAssist = async (mode: "distortions" | "responses") => {
+    if (thought.thought.trim() === "") {
+      pushToast("Write the negative thought first", "info");
+      return;
+    }
+    if (!(await requestConsent())) return;
+    assist.mutate(
+      { mode, event, thought: thought.thought, distortions: thought.distortions },
+      {
+        onSuccess: (res) => {
+          if (res.crisis) {
+            setCrisis(res.crisis_message ?? "Please reach out for support.");
+            setHits([]);
+            setCandidates([]);
+            return;
+          }
+          setCrisis(null);
+          if (mode === "distortions") {
+            const codes = (res.distortions ?? []).map((d) => d.code);
+            set({ distortions: Array.from(new Set([...thought.distortions, ...codes])) });
+            setHits(res.distortions ?? []);
+          } else {
+            setCandidates(res.responses ?? []);
+          }
+        },
+      },
+    );
+  };
 
   return (
     <div className="hud-panel space-y-3 p-4">
@@ -282,8 +328,18 @@ function ThoughtEditor({
         </div>
       </div>
 
+      {crisis && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-[#ff7d9d]/30 bg-[#ff3b6b]/[0.06] p-3">
+          <HeartHandshake size={18} className="mt-0.5 shrink-0 text-[#ff7d9d]" />
+          <p className="text-[13px] leading-relaxed text-ink">{crisis}</p>
+        </div>
+      )}
+
       <div>
-        <div className="mb-1.5 text-[11px] text-muted">Distortions in this thought</div>
+        <div className="mb-1.5 flex items-center justify-between">
+          <span className="text-[11px] text-muted">Distortions in this thought</span>
+          {aiEnabled && <AssistButton label="Find distortions" loading={loadingMode === "distortions"} onClick={() => runAssist("distortions")} />}
+        </div>
         <div className="flex flex-wrap gap-1.5">
           {DISTORTIONS.map((d) => {
             const active = thought.distortions.includes(d.code);
@@ -304,16 +360,54 @@ function ThoughtEditor({
             );
           })}
         </div>
+        {hits.length > 0 && (
+          <ul className="mt-2 space-y-1">
+            {hits.map((h) => {
+              const meta = DISTORTIONS.find((d) => d.code === h.code);
+              return (
+                <li key={h.code} className="text-[11px] text-muted">
+                  <span className="text-[#c4a8ff]">{meta?.name ?? h.code}</span> — {h.why}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
 
       <div className="rounded-lg border border-[var(--color-health)]/25 bg-[var(--color-health)]/[0.05] p-2.5">
+        <div className="mb-1.5 flex items-center justify-between">
+          <span className="text-[11px] text-muted">A truer, kinder response</span>
+          {aiEnabled && <AssistButton label="Suggest a response" loading={loadingMode === "responses"} onClick={() => runAssist("responses")} />}
+        </div>
         <textarea
           value={thought.positive_thought}
           onChange={(e) => set({ positive_thought: e.target.value })}
           rows={2}
-          placeholder="A truer, kinder response — must be 100% true."
+          placeholder="Must be 100% true — the kind of thing you'd tell a friend."
           className="w-full resize-none rounded-lg border border-edge bg-white/[0.03] px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-[var(--color-health)] focus:outline-none"
         />
+        {candidates.length > 0 && (
+          <div className="mt-2 space-y-1.5">
+            {candidates.map((c, i) => (
+              <button
+                key={i}
+                onClick={() => {
+                  set({ positive_thought: c.text });
+                  setCandidates([]);
+                }}
+                data-testid={`use-response-${index}-${i}`}
+                className="block w-full rounded-lg border border-edge bg-white/[0.02] p-2 text-left transition-colors hover:border-[var(--color-health)]/50"
+              >
+                <span className="mb-0.5 inline-block rounded px-1.5 py-0.5 text-[9px] uppercase tracking-wide"
+                  style={{ background: "rgba(62,229,148,0.14)", color: "var(--color-health)" }}>
+                  {c.technique}
+                </span>
+                <p className="text-[13px] leading-snug text-ink">{c.text}</p>
+              </button>
+            ))}
+            <p className="text-[10px] text-faint">Tap one to use it, then make it your own.</p>
+          </div>
+        )}
         <div className="mt-2 space-y-2">
           <LabeledSlider
             label="I believe the response"
@@ -330,6 +424,21 @@ function ThoughtEditor({
         </div>
       </div>
     </div>
+  );
+}
+
+function AssistButton({ label, loading, onClick }: { label: string; loading?: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={loading}
+      data-testid={`assist-${label.toLowerCase().replace(/\s+/g, "-")}`}
+      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium transition-colors disabled:opacity-60"
+      style={{ color: "var(--color-spirituality)" }}
+    >
+      {loading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+      {label}
+    </button>
   );
 }
 

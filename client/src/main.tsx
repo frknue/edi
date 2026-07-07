@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RewardProvider } from "./lib/reward";
+import { AiConsentProvider } from "./lib/aiConsent";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Toaster, pushToast } from "./lib/toast";
 import App from "./App";
@@ -27,7 +28,9 @@ createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
         <RewardProvider>
-          <App />
+          <AiConsentProvider>
+            <App />
+          </AiConsentProvider>
           <Toaster />
         </RewardProvider>
       </ErrorBoundary>
