@@ -4,6 +4,7 @@ import type {
   CompletionResult,
   Dashboard,
   JournalEntry,
+  OpenAIModel,
   OpenAIStatus,
   Quest,
   QuestInput,
@@ -101,6 +102,7 @@ export const api = {
   openaiDisconnect: () => request<{ connected: boolean }>("/openai/disconnect", { method: "POST" }),
   openaiConfig: (cfg: { model?: string; effort?: string }) =>
     request<OpenAIStatus>("/openai/config", { method: "POST", body: JSON.stringify(cfg) }),
+  openaiModels: () => request<{ models: OpenAIModel[] }>("/openai/models"),
 };
 
 export { ApiError };

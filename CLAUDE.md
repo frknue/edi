@@ -116,13 +116,15 @@ caught and fixed — keep using it.
 - **AI features are gated on a connection — there is no offline/rule fallback.**
   Anything needing the LLM returns `ErrOpenAINotConnected` (→400) when disconnected.
   `GenerateSuggestions` builds a prompt from live state and asks for strict JSON.
-- Model is `gpt-5.5` (`openai.DefaultModel`, override `EDI_OPENAI_MODEL`). The
-  ChatGPT-account endpoint accepts **only `gpt-5.5`** — every other id (incl.
-  `*-codex`, `gpt-5.1`, `gpt-5`) returns 400. So the user-facing knob is **reasoning
-  effort** (`none/low/medium/high/xhigh`; `minimal` 400s), stored per user in the
-  `app_settings` table and set via `POST /api/openai/config`. `s.openAIModel()` /
-  `s.openAIEffort()` resolve setting → env (`EDI_OPENAI_MODEL`/`EDI_OPENAI_EFFORT`)
-  → default. Effort is passed into `openai.Complete`.
+- **Model and reasoning effort are both user-selectable** and stored per user in
+  the `app_settings` table (`POST /api/openai/config`). Available models come from
+  the account via `openai.ListModels` (`codex/models?client_version=…`, exposed at
+  `GET /api/openai/models`) — the request needs a recent `CodexClientVersion`
+  (bump it if the endpoint returns `[]`). Only ids the account lists actually work
+  (e.g. `gpt-5.5`/`gpt-5.4`/`gpt-5.4-mini`; arbitrary/`*-codex` ids 400 at generate).
+  `s.openAIModel()`/`s.openAIEffort()` resolve setting → env (`EDI_OPENAI_MODEL`/
+  `EDI_OPENAI_EFFORT`) → default (`gpt-5.5`/`medium`); both are passed into
+  `openai.Complete`.
 - These are OpenAI's **undocumented** endpoints (`chatgpt.com/backend-api/codex/
   responses`, `auth.openai.com`). Verify changes with the opt-in live tests:
   `EDI_LIVE_TEST=1 go test ./internal/openai ./internal/services -run Live`.

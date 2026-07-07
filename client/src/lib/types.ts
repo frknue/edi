@@ -132,3 +132,11 @@ export interface OpenAIStatus {
   effort_options?: string[];
   expires_at?: string;
 }
+
+export interface OpenAIModel {
+  slug: string;
+  display_name: string;
+  description?: string;
+  efforts: string[];
+  default_effort?: string;
+}

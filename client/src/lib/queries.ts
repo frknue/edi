@@ -146,6 +146,15 @@ export function useDisconnectOpenAI() {
   });
 }
 
+export function useOpenAIModels(enabled: boolean) {
+  return useQuery({
+    queryKey: ["openai-models"],
+    queryFn: () => api.openaiModels().then((r) => r.models),
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useSetOpenAIConfig() {
   const qc = useQueryClient();
   return useMutation({

@@ -85,6 +85,46 @@ func (s *Service) SetOpenAIConfig(model, effort string) (models.OpenAIStatus, er
 	return s.OpenAIStatus()
 }
 
+// ListOpenAIModels returns the models available to the connected account (with
+// each model's supported reasoning efforts). Requires a connection.
+func (s *Service) ListOpenAIModels() ([]openai.Model, error) {
+	token, accountID, err := s.accessToken()
+	if err != nil {
+		return nil, err
+	}
+	list, err := openai.ListModels(token, accountID)
+	if err != nil {
+		var unauth openai.ErrUnauthorized
+		if errors.As(err, &unauth) {
+			refreshed, e := s.refreshCreds()
+			if e != nil {
+				return nil, e
+			}
+			list, err = openai.ListModels(refreshed.AccessToken, refreshed.AccountID)
+		}
+	}
+	return list, err
+}
+
+// refreshCreds forces a token refresh and persists the result.
+func (s *Service) refreshCreds() (openai.Tokens, error) {
+	creds, err := s.store.GetOpenAICredentials(s.userID)
+	if err != nil || creds == nil {
+		return openai.Tokens{}, ErrOpenAINotConnected
+	}
+	refreshed, err := openai.Refresh(creds.RefreshToken)
+	if err != nil {
+		return openai.Tokens{}, fmt.Errorf("%w: OpenAI session expired, please reconnect", ErrValidation)
+	}
+	if refreshed.AccountID == "" {
+		refreshed.AccountID = creds.AccountID
+	}
+	if err := s.saveTokens(refreshed); err != nil {
+		return openai.Tokens{}, err
+	}
+	return refreshed, nil
+}
+
 // OpenAIStatus reports whether a ChatGPT subscription is connected and the
 // current model/effort configuration.
 func (s *Service) OpenAIStatus() (models.OpenAIStatus, error) {

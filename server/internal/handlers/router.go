@@ -49,6 +49,7 @@ func NewRouter(h *Handlers, clientDir, apiToken string) http.Handler {
 	mux.HandleFunc("POST /api/openai/connect", h.openaiConnect)
 	mux.HandleFunc("POST /api/openai/import-codex", h.openaiImportCodex)
 	mux.HandleFunc("POST /api/openai/disconnect", h.openaiDisconnect)
+	mux.HandleFunc("GET /api/openai/models", h.openaiModels)
 	mux.HandleFunc("POST /api/openai/config", h.openaiConfig)
 
 	// Agent-ready tool interface (discovery + invocation).

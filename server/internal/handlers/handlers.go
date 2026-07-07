@@ -251,6 +251,15 @@ func (h *Handlers) openaiDisconnect(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"connected": false})
 }
 
+func (h *Handlers) openaiModels(w http.ResponseWriter, _ *http.Request) {
+	list, err := h.svc.ListOpenAIModels()
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"models": list})
+}
+
 func (h *Handlers) openaiConfig(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Model  string `json:"model"`

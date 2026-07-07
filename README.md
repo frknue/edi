@@ -225,11 +225,12 @@ Under the hood it calls the ChatGPT backend `responses` endpoint — the same
 subscription-billed surface Codex uses. These OpenAI endpoints are undocumented
 and may change.
 
-**Reasoning effort** is selectable in the connected bar (Instant → Max, default
-Balanced) and persists per user (`POST /api/openai/config`). The ChatGPT-account
-endpoint only accepts the **gpt-5.5** model (other/`*-codex` ids are rejected), so
-depth — not model choice — is the useful knob; override the model with
-`EDI_OPENAI_MODEL` and the default effort with `EDI_OPENAI_EFFORT` if needed.
+**Model and reasoning effort** are both selectable in the connected bar and
+persist per user (`POST /api/openai/config`). The available models come straight
+from your account (`GET /api/openai/models` → the ChatGPT `codex/models`
+endpoint) — e.g. GPT-5.5 / GPT-5.4 / GPT-5.4-Mini — and each model's supported
+reasoning levels drive the effort picker (Fast → Max). Defaults are `gpt-5.5` /
+`medium`; override with `EDI_OPENAI_MODEL` / `EDI_OPENAI_EFFORT`.
 
 ---
 
