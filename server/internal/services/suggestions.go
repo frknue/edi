@@ -92,15 +92,18 @@ func (s *Service) GenerateSuggestions() ([]models.AgentSuggestion, error) {
 const suggestionInstructions = `You are the in-game coach for "edi", a life-RPG habit app. The user completes ` +
 	`real-life "quests" that award XP to nine attributes (strength, discipline, focus, health, wealth, ` +
 	`relationships, learning, creativity, spirituality), which level up. Suggest concrete, motivating next ` +
-	`quests tailored to their current state — rebalance weak attributes, build on momentum, and protect ` +
-	`against burnout with recovery when activity is high. Be specific and encouraging, never generic.
+	`quests tailored to their current state. Be specific and encouraging, never generic; the reason must ` +
+	`cite a real number or detail from their data.
 
 Respond with ONLY a JSON object, no prose or markdown fences, matching exactly:
 {"suggestions":[{"type":"string short slug","title":"string","reason":"one motivating sentence referencing their data","suggested_quest":{"title":"string","description":"string","type":"daily|weekly|main|side|boss|recovery","difficulty":"trivial|easy|medium|hard|boss","attribute_rewards":{"<attribute_key>":<integer 5-100>}}}]}
 
-Rules: return 2 to 4 suggestions. attribute_rewards keys MUST be from the nine attribute keys above. ` +
-	`Reward totals should scale with difficulty (trivial ~15, easy ~30, medium ~50, hard ~90, boss ~150+). ` +
-	`Recovery quests should feel soft and restful.`
+Rules:
+- Return 3 to 4 suggestions. attribute_rewards keys MUST be from the nine attribute keys above.
+- Do NOT duplicate or closely overlap any of the user's ACTIVE quests listed in the input — propose genuinely new, distinct actions (a different activity, not a reworded version of one they already have).
+- Make the batch VARIED: mix quest types AND difficulties. Cover more than one theme — don't propose two similar quests. At most ONE recovery quest, and only when energy is low or activity is high (never if recovery quests are already active).
+- Include at least one AMBITIOUS quest (difficulty medium/hard/boss, type main/side/boss) that builds on a STRENGTH the user is already crushing — a real challenge, not just rebalancing weak stats.
+- Reward totals scale with difficulty: trivial ~15, easy ~30, medium ~50, hard ~90, boss ~150+. Recovery quests feel soft and restful.`
 
 // buildSuggestionPrompt renders the user's current state as the model's input.
 func (s *Service) buildSuggestionPrompt() (string, error) {
@@ -127,7 +130,7 @@ func (s *Service) buildSuggestionPrompt() (string, error) {
 		fmt.Fprintf(&b, "- %s (key=%s): Lv%d, %d XP total, %d XP this week\n", a.Name, a.Key, a.Level, a.TotalXP, weekly[a.Key])
 	}
 
-	b.WriteString("\nActive quests right now:\n")
+	b.WriteString("\nActive quests right now — do NOT duplicate or reword these; suggest different actions:\n")
 	if len(dash.TodayQuests) == 0 {
 		b.WriteString("- (none)\n")
 	}
