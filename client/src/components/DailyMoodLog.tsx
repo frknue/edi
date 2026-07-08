@@ -79,7 +79,7 @@ export function DailyMoodLog({ onClose }: { onClose: () => void }) {
       {/* Header */}
       <div className="mb-5 flex items-center justify-between">
         <button onClick={onClose} className="flex items-center gap-1.5 text-sm text-muted hover:text-ink">
-          <ArrowLeft size={16} /> Tools
+          <ArrowLeft size={16} /> Back
         </button>
         <div className="flex items-center gap-1.5">
           {STEPS.map((_, i) => (
