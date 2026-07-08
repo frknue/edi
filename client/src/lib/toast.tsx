@@ -30,9 +30,9 @@ function subscribe(l: Listener): () => void {
 }
 
 const styles: Record<ToastType, { color: string; Icon: typeof CheckCircle2 }> = {
-  error: { color: "#ff7d9d", Icon: TriangleAlert },
-  success: { color: "#3ee594", Icon: CheckCircle2 },
-  info: { color: "#2dd4ff", Icon: CheckCircle2 },
+  error: { color: "#ff8a80", Icon: TriangleAlert },
+  success: { color: "#4bff7e", Icon: CheckCircle2 },
+  info: { color: "#35e0ff", Icon: CheckCircle2 },
 };
 
 export function Toaster() {

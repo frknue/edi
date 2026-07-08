@@ -274,7 +274,7 @@ export function QuestFormModal({ open, initial, busy, error, onClose, onSubmit }
                                 setSubtasks((ss) => ss.filter((_, j) => j !== i));
                                 setExpandedSub(null);
                               }}
-                              className="text-faint hover:text-[#ff7d9d]"
+                              className="text-faint hover:text-[#ff8a80]"
                               aria-label="Remove subtask"
                             >
                               <Trash2 size={13} />
@@ -322,7 +322,7 @@ export function QuestFormModal({ open, initial, busy, error, onClose, onSubmit }
                 )}
               </div>
 
-              {error && <p className="text-xs text-[#ff7d9d]">{error}</p>}
+              {error && <p className="text-xs text-[#ff8a80]">{error}</p>}
             </div>
 
             <div className="flex items-center justify-end gap-2 border-t border-edge px-5 py-3.5">

@@ -38,6 +38,8 @@ export function ProgressBar({
 
 type BtnVariant = "primary" | "ghost" | "danger" | "soft";
 
+// Terminal buttons: bracketed commands. Primary is amber phosphor that inverts
+// to "inverse video" on hover, like selecting a menu item on a CRT.
 export function Btn({
   variant = "ghost",
   className = "",
@@ -45,23 +47,23 @@ export function Btn({
   ...rest
 }: { variant?: BtnVariant; children: ReactNode } & ButtonHTMLAttributes<HTMLButtonElement>) {
   const base =
-    "inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none";
+    "btn-term inline-flex items-center justify-center gap-2 rounded-sm px-3.5 py-2 text-[13px] font-medium uppercase tracking-wide transition-all duration-100 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none";
   const variants: Record<BtnVariant, string> = {
     primary:
-      "text-[#1a1305] shadow-[0_8px_24px_-10px_rgba(244,183,64,0.8)] hover:brightness-110 active:scale-[0.98]",
+      "border border-[var(--color-gold)] bg-[rgba(255,176,0,0.08)] text-[var(--color-goldhi)] shadow-[0_0_14px_-6px_rgba(255,176,0,0.8)] hover:bg-[var(--color-gold)] hover:text-[#1a1200] hover:shadow-[0_0_18px_-2px_rgba(255,176,0,0.9)] active:scale-[0.99]",
     ghost:
-      "border border-edge bg-white/[0.02] text-ink hover:border-edge2 hover:bg-white/[0.05] active:scale-[0.98]",
+      "border border-edge bg-transparent text-ink hover:border-edge2 hover:bg-[rgba(75,255,126,0.06)] active:scale-[0.99]",
     danger:
-      "border border-transparent bg-[#ff3b6b]/10 text-[#ff7d9d] hover:bg-[#ff3b6b]/20 active:scale-[0.98]",
-    soft: "bg-white/[0.04] text-muted hover:text-ink hover:bg-white/[0.07] active:scale-[0.98]",
+      "border border-[#ff4747]/50 bg-[#ff4747]/08 text-[#ff8a80] hover:bg-[#ff4747] hover:text-[#1a0000] active:scale-[0.99]",
+    soft: "border border-transparent bg-white/[0.04] text-muted hover:text-ink hover:bg-white/[0.07] active:scale-[0.99]",
   };
-  const style =
-    variant === "primary"
-      ? { background: "linear-gradient(180deg, var(--color-goldhi), var(--color-gold))" }
-      : undefined;
+  // Brackets mark primary "commands"; compact ghost/soft/icon buttons stay bare.
+  const bracketed = variant === "primary";
   return (
-    <button className={`${base} ${variants[variant]} ${className}`} style={style} {...rest}>
+    <button className={`${base} ${variants[variant]} ${className}`} {...rest}>
+      {bracketed && <span aria-hidden className="opacity-60">[</span>}
       {children}
+      {bracketed && <span aria-hidden className="opacity-60">]</span>}
     </button>
   );
 }
@@ -137,7 +139,8 @@ export function SectionTitle({
   return (
     <div className="mb-3 flex items-end justify-between gap-3">
       <div>
-        <h2 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-ink">
+        <h2 className="font-display text-lg uppercase tracking-[0.14em] text-ink">
+          <span aria-hidden className="mr-1.5 text-[var(--color-phos)]">▸</span>
           {children}
         </h2>
         {hint && <p className="mt-0.5 text-xs text-faint">{hint}</p>}

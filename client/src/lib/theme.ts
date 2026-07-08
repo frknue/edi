@@ -26,18 +26,18 @@ export interface AttrMeta {
 
 // Keep in sync with the server's default attributes.
 export const attributeMeta: Record<string, AttrMeta> = {
-  strength: { label: "Strength", color: "#ff5c5c", Icon: Dumbbell },
-  discipline: { label: "Discipline", color: "#7c8cff", Icon: Shield },
-  focus: { label: "Focus", color: "#2dd4ff", Icon: Target },
-  health: { label: "Health", color: "#3ee594", Icon: Heart },
-  wealth: { label: "Wealth", color: "#f4b740", Icon: Coins },
-  relationships: { label: "Relationships", color: "#ff7eb6", Icon: Users },
-  learning: { label: "Learning", color: "#b18bff", Icon: BookOpen },
-  creativity: { label: "Creativity", color: "#ff9d4d", Icon: Palette },
-  spirituality: { label: "Spirituality", color: "#45e0d0", Icon: Moon },
+  strength: { label: "Strength", color: "#ff5f56", Icon: Dumbbell },
+  discipline: { label: "Discipline", color: "#6f7dff", Icon: Shield },
+  focus: { label: "Focus", color: "#35e0ff", Icon: Target },
+  health: { label: "Health", color: "#4bff7e", Icon: Heart },
+  wealth: { label: "Wealth", color: "#ffb000", Icon: Coins },
+  relationships: { label: "Relationships", color: "#ff6ac1", Icon: Users },
+  learning: { label: "Learning", color: "#b98aff", Icon: BookOpen },
+  creativity: { label: "Creativity", color: "#ffa23e", Icon: Palette },
+  spirituality: { label: "Spirituality", color: "#2ee6c8", Icon: Moon },
 };
 
-const fallbackAttr: AttrMeta = { label: "Attribute", color: "#8b91a8", Icon: Target };
+const fallbackAttr: AttrMeta = { label: "Attribute", color: "#6fae7e", Icon: Target };
 
 export function getAttr(key: string): AttrMeta {
   return attributeMeta[key] ?? { ...fallbackAttr, label: key };
@@ -50,12 +50,12 @@ export interface TypeMeta {
 }
 
 export const typeMeta: Record<QuestType, TypeMeta> = {
-  daily: { label: "Daily", color: "#f4b740", Icon: CalendarCheck },
-  weekly: { label: "Weekly", color: "#7c8cff", Icon: CalendarRange },
-  main: { label: "Main", color: "#2dd4ff", Icon: Flag },
-  side: { label: "Side", color: "#8b91a8", Icon: Compass },
-  boss: { label: "Boss", color: "#ff3b6b", Icon: Skull },
-  recovery: { label: "Recovery", color: "#45e0d0", Icon: Leaf },
+  daily: { label: "Daily", color: "#ffb000", Icon: CalendarCheck },
+  weekly: { label: "Weekly", color: "#6f7dff", Icon: CalendarRange },
+  main: { label: "Main", color: "#35e0ff", Icon: Flag },
+  side: { label: "Side", color: "#6fae7e", Icon: Compass },
+  boss: { label: "Boss", color: "#ff4747", Icon: Skull },
+  recovery: { label: "Recovery", color: "#2ee6c8", Icon: Leaf },
 };
 
 export function getType(type: QuestType): TypeMeta {
@@ -63,11 +63,11 @@ export function getType(type: QuestType): TypeMeta {
 }
 
 export const difficultyMeta: Record<Difficulty, { label: string; pips: number; color: string }> = {
-  trivial: { label: "Trivial", pips: 1, color: "#45e0d0" },
-  easy: { label: "Easy", pips: 2, color: "#3ee594" },
-  medium: { label: "Medium", pips: 3, color: "#f4b740" },
-  hard: { label: "Hard", pips: 4, color: "#ff9d4d" },
-  boss: { label: "Boss", pips: 5, color: "#ff3b6b" },
+  trivial: { label: "Trivial", pips: 1, color: "#2ee6c8" },
+  easy: { label: "Easy", pips: 2, color: "#4bff7e" },
+  medium: { label: "Medium", pips: 3, color: "#ffb000" },
+  hard: { label: "Hard", pips: 4, color: "#ffa23e" },
+  boss: { label: "Boss", pips: 5, color: "#ff4747" },
 };
 
 export const ATTRIBUTE_KEYS = Object.keys(attributeMeta);

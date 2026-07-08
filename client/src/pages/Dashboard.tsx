@@ -70,7 +70,7 @@ export function DashboardPage({
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               className="hud-panel clip-corner relative overflow-hidden p-4"
-              style={{ background: "linear-gradient(120deg, rgba(244,183,64,0.10), rgba(45,212,255,0.06)), var(--color-panel)" }}
+              style={{ background: "linear-gradient(120deg, rgba(255,176,0,0.10), rgba(53,224,255,0.06)), var(--color-panel)" }}
             >
               <div className="mb-2 flex items-center gap-2">
                 <Sparkles size={14} style={{ color: "var(--color-gold)" }} />
@@ -146,7 +146,7 @@ export function DashboardPage({
                 onClick={onGoToAgent}
                 className="flex w-full items-center gap-2 rounded-xl border border-dashed border-edge px-4 py-3 text-left text-xs text-muted transition-colors hover:border-edge2 hover:text-ink"
               >
-                <Sparkles size={15} style={{ color: "#b18bff" }} />
+                <Sparkles size={15} style={{ color: "#b98aff" }} />
                 Connect your ChatGPT account on the Agent tab to unlock AI suggestions.
               </button>
             ) : data.pending_suggestions.length === 0 ? (

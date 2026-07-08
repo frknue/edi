@@ -42,7 +42,7 @@ export function QuestCard({
       }`}
       style={
         isRecovery
-          ? { background: "linear-gradient(180deg, rgba(69,224,208,0.06), rgba(255,255,255,0)), var(--color-panel)" }
+          ? { background: "linear-gradient(180deg, rgba(46,230,200,0.06), rgba(255,255,255,0)), var(--color-panel)" }
           : undefined
       }
     >
@@ -101,17 +101,17 @@ export function QuestCard({
               </Btn>
             )}
             {onEdit && (
-              <Btn variant="ghost" onClick={() => onEdit(quest)} aria-label="Edit quest">
+              <Btn variant="ghost" className="!px-2" onClick={() => onEdit(quest)} aria-label="Edit quest">
                 <Pencil size={15} />
               </Btn>
             )}
             {onSkip && (
-              <Btn variant="soft" disabled={busy} onClick={() => onSkip(quest.id)} aria-label="Skip quest">
+              <Btn variant="soft" className="!px-2" disabled={busy} onClick={() => onSkip(quest.id)} aria-label="Skip quest">
                 <SkipForward size={15} />
               </Btn>
             )}
             {onArchive && (
-              <Btn variant="soft" disabled={busy} onClick={() => onArchive(quest.id)} aria-label="Archive quest">
+              <Btn variant="soft" className="!px-2" disabled={busy} onClick={() => onArchive(quest.id)} aria-label="Archive quest">
                 <Archive size={15} />
               </Btn>
             )}

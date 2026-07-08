@@ -127,7 +127,7 @@ export function DailyMoodLog({ onClose }: { onClose: () => void }) {
                       className="rounded-full border px-3 py-1.5 text-xs font-medium transition-all"
                       style={{
                         borderColor: active ? "var(--color-spirituality)" : "var(--color-edge)",
-                        background: active ? "rgba(69,224,208,0.14)" : "transparent",
+                        background: active ? "rgba(46,230,200,0.14)" : "transparent",
                         color: active ? "var(--color-spirituality)" : "var(--color-muted)",
                       }}
                     >
@@ -309,7 +309,7 @@ function ThoughtEditor({
       <div className="flex items-center justify-between">
         <span className="font-display text-[11px] uppercase tracking-wider text-faint">Thought {index + 1}</span>
         {canRemove && (
-          <button onClick={onRemove} className="text-faint hover:text-[#ff7d9d]" aria-label="Remove thought">
+          <button onClick={onRemove} className="text-faint hover:text-[#ff8a80]" aria-label="Remove thought">
             <Trash2 size={14} />
           </button>
         )}
@@ -329,8 +329,8 @@ function ThoughtEditor({
       </div>
 
       {crisis && (
-        <div className="flex items-start gap-2.5 rounded-lg border border-[#ff7d9d]/30 bg-[#ff3b6b]/[0.06] p-3">
-          <HeartHandshake size={18} className="mt-0.5 shrink-0 text-[#ff7d9d]" />
+        <div className="flex items-start gap-2.5 rounded-lg border border-[#ff8a80]/30 bg-[#ff4747]/[0.06] p-3">
+          <HeartHandshake size={18} className="mt-0.5 shrink-0 text-[#ff8a80]" />
           <p className="text-[13px] leading-relaxed text-ink">{crisis}</p>
         </div>
       )}
@@ -350,9 +350,9 @@ function ThoughtEditor({
                 onClick={() => toggleDistortion(d.code)}
                 className="rounded-md border px-2 py-1 text-[11px] font-medium transition-all"
                 style={{
-                  borderColor: active ? "#b18bff" : "var(--color-edge)",
-                  background: active ? "rgba(177,139,255,0.16)" : "transparent",
-                  color: active ? "#c4a8ff" : "var(--color-faint)",
+                  borderColor: active ? "#b98aff" : "var(--color-edge)",
+                  background: active ? "rgba(185,138,255,0.16)" : "transparent",
+                  color: active ? "#cbaaff" : "var(--color-faint)",
                 }}
               >
                 {d.name}
@@ -366,7 +366,7 @@ function ThoughtEditor({
               const meta = DISTORTIONS.find((d) => d.code === h.code);
               return (
                 <li key={h.code} className="text-[11px] text-muted">
-                  <span className="text-[#c4a8ff]">{meta?.name ?? h.code}</span> — {h.why}
+                  <span className="text-[#cbaaff]">{meta?.name ?? h.code}</span> — {h.why}
                 </li>
               );
             })}
@@ -399,7 +399,7 @@ function ThoughtEditor({
                 className="block w-full rounded-lg border border-edge bg-white/[0.02] p-2 text-left transition-colors hover:border-[var(--color-health)]/50"
               >
                 <span className="mb-0.5 inline-block rounded px-1.5 py-0.5 text-[9px] uppercase tracking-wide"
-                  style={{ background: "rgba(62,229,148,0.14)", color: "var(--color-health)" }}>
+                  style={{ background: "rgba(75,255,126,0.14)", color: "var(--color-health)" }}>
                   {c.technique}
                 </span>
                 <p className="text-[13px] leading-snug text-ink">{c.text}</p>

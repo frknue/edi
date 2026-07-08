@@ -83,7 +83,7 @@ function RewardOverlay({
               height: 360,
               borderRadius: "50%",
               background:
-                "radial-gradient(circle, rgba(244,183,64,0.55), rgba(244,183,64,0) 65%)",
+                "radial-gradient(circle, rgba(255,176,0,0.55), rgba(255,176,0,0) 65%)",
             }}
           />
           <motion.div
@@ -102,20 +102,20 @@ function RewardOverlay({
               <X size={18} />
             </button>
 
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full"
-              style={{ background: "rgba(244,183,64,0.14)", color: "var(--color-gold)" }}>
-              <Sparkles size={24} />
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-sm border"
+              style={{ borderColor: "var(--color-gold)", color: "var(--color-gold)", boxShadow: "0 0 16px -4px rgba(255,176,0,0.8)" }}>
+              <Sparkles size={22} />
             </div>
 
-            <div className="font-display text-xs uppercase tracking-[0.3em] text-muted">
-              {result.label ?? "Quest Complete"}
+            <div className="font-display text-sm uppercase tracking-[0.3em] text-muted">
+              *** {result.label ?? "Quest Complete"} ***
             </div>
             <div className="mt-1 truncate px-2 text-lg font-semibold text-ink">
               {result.title}
             </div>
 
             <motion.div
-              className="tabnum mt-4 text-5xl font-bold"
+              className="glow mt-4 font-display text-6xl"
               style={{ color: "var(--color-goldhi)" }}
               initial={{ scale: 0.6 }}
               animate={{ scale: 1 }}

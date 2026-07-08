@@ -20,20 +20,23 @@ function Logo() {
   return (
     <div className="flex items-center gap-2.5">
       <div
-        className="grid h-8 w-8 place-items-center"
+        className="grid h-8 w-8 place-items-center rounded-sm border font-display text-lg leading-none"
         style={{
-          background: "linear-gradient(160deg, var(--color-goldhi), var(--color-gold))",
-          clipPath: "polygon(50% 0, 100% 50%, 50% 100%, 0 50%)",
-          boxShadow: "0 0 18px -4px rgba(244,183,64,0.8)",
+          borderColor: "var(--color-phos)",
+          color: "var(--color-phos)",
+          boxShadow: "0 0 14px -4px rgba(75,255,126,0.8), inset 0 0 10px rgba(75,255,126,0.12)",
         }}
       >
-        <div className="h-1.5 w-1.5 rounded-full bg-[#1a1305]" />
+        &gt;_
       </div>
       <div>
-        <div className="font-display text-base font-bold leading-none tracking-[0.16em] text-ink">
+        <div
+          className="cursor-blink font-display text-xl leading-none text-ink"
+          style={{ color: "var(--color-phos)" }}
+        >
           edi
         </div>
-        <div className="text-[9px] uppercase tracking-[0.3em] text-faint">Life RPG</div>
+        <div className="text-[9px] uppercase tracking-[0.3em] text-faint">life-rpg terminal</div>
       </div>
     </div>
   );
@@ -46,7 +49,7 @@ export default function App() {
   const showChildren = toolsOpen || inToolsGroup;
 
   const navBtnStyle = (active: boolean) => ({
-    background: active ? "rgba(244,183,64,0.08)" : "transparent",
+    background: active ? "rgba(255,176,0,0.08)" : "transparent",
     color: active ? "var(--color-goldhi)" : "var(--color-muted)",
   });
 
@@ -111,7 +114,7 @@ export default function App() {
                     data-testid={`nav-tool-${id}`}
                     className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] font-medium transition-colors"
                     style={{
-                      background: active ? "rgba(69,224,208,0.10)" : "transparent",
+                      background: active ? "rgba(46,230,200,0.10)" : "transparent",
                       color: active ? "var(--color-spirituality)" : "var(--color-faint)",
                     }}
                   >

@@ -58,7 +58,7 @@ export function AiConsentProvider({ children }: { children: ReactNode }) {
             >
               <div
                 className="mb-3 grid h-10 w-10 place-items-center rounded-full"
-                style={{ background: "rgba(69,224,208,0.14)", color: "var(--color-spirituality)" }}
+                style={{ background: "rgba(46,230,200,0.14)", color: "var(--color-spirituality)" }}
               >
                 <ShieldCheck size={20} />
               </div>

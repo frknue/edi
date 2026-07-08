@@ -34,13 +34,13 @@ export function SuggestionCard({
     >
       <div
         className="pointer-events-none absolute -left-8 -top-8 h-24 w-24 rounded-full"
-        style={{ background: "radial-gradient(circle, rgba(177,139,255,0.22), transparent 70%)" }}
+        style={{ background: "radial-gradient(circle, rgba(185,138,255,0.22), transparent 70%)" }}
       />
       <div className="relative">
         <div className="mb-2 flex items-center gap-2">
           <span
             className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-display text-[10px] font-semibold uppercase tracking-wider"
-            style={{ background: "rgba(177,139,255,0.14)", color: "#b18bff" }}
+            style={{ background: "rgba(185,138,255,0.14)", color: "#b98aff" }}
           >
             <Sparkles size={11} />
             {typeLabel[suggestion.type] ?? "Agent"}

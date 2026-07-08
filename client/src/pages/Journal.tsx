@@ -6,9 +6,9 @@ import { Btn, EmptyState, SectionTitle, Spinner } from "../components/ui";
 import { relativeTime } from "../lib/format";
 
 function scoreColor(v: number): string {
-  if (v <= 3) return "#ff5c5c";
-  if (v <= 6) return "#f4b740";
-  return "#3ee594";
+  if (v <= 3) return "#ff5f56";
+  if (v <= 6) return "#ffb000";
+  return "#4bff7e";
 }
 
 function ScoreSlider({

@@ -24,7 +24,7 @@ function DailyRing({ ratio, completed, goal }: { ratio: number; completed: numbe
           initial={{ strokeDashoffset: c }}
           animate={{ strokeDashoffset: offset }}
           transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-          style={{ filter: "drop-shadow(0 0 5px rgba(244,183,64,0.7))" }}
+          style={{ filter: "drop-shadow(0 0 5px rgba(255,176,0,0.7))" }}
         />
       </svg>
       <div className="absolute text-center">
@@ -55,39 +55,32 @@ export function CharacterHeader({
     >
       <div
         className="pointer-events-none absolute -right-10 -top-16 h-56 w-56 rounded-full"
-        style={{ background: "radial-gradient(circle, rgba(244,183,64,0.18), transparent 70%)" }}
+        style={{ background: "radial-gradient(circle, rgba(255,176,0,0.18), transparent 70%)" }}
       />
       <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center">
-        {/* identity */}
+        {/* identity: CRT level readout */}
         <div className="flex items-center gap-4">
-          <div className="relative grid h-[72px] w-[72px] place-items-center">
-            <div
-              className="absolute inset-0"
-              style={{
-                background: "linear-gradient(160deg, var(--color-goldhi), var(--color-gold))",
-                clipPath: "polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%)",
-                boxShadow: "0 0 26px -6px rgba(244,183,64,0.8)",
-              }}
-            />
-            <div
-              className="absolute inset-[3px]"
-              style={{
-                background: "var(--color-panel)",
-                clipPath: "polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%)",
-              }}
-            />
+          <div
+            className="relative grid h-[72px] w-[76px] place-items-center rounded-sm border"
+            style={{
+              borderColor: "var(--color-gold)",
+              boxShadow: "0 0 22px -6px rgba(255,176,0,0.7), inset 0 0 16px rgba(255,176,0,0.10)",
+            }}
+          >
+            <span className="absolute -left-px -top-px h-2.5 w-2.5 border-l-2 border-t-2" style={{ borderColor: "var(--color-goldhi)" }} />
+            <span className="absolute -bottom-px -right-px h-2.5 w-2.5 border-b-2 border-r-2" style={{ borderColor: "var(--color-goldhi)" }} />
             <div className="relative text-center leading-none">
-              <div className="font-display text-[9px] uppercase tracking-widest text-faint">Lv</div>
-              <div className="tabnum text-2xl font-bold" style={{ color: "var(--color-goldhi)" }}>
+              <div className="font-display text-[11px] uppercase tracking-widest text-faint">LV</div>
+              <div className="font-display text-4xl" style={{ color: "var(--color-goldhi)" }}>
                 {character.level}
               </div>
             </div>
           </div>
           <div>
-            <div className="font-display text-[10px] uppercase tracking-[0.32em] text-muted">
-              Character
+            <div className="font-display text-[11px] uppercase tracking-[0.32em] text-muted">
+              &gt; operator
             </div>
-            <h1 className="font-display text-2xl font-bold tracking-tight text-ink">
+            <h1 className="cursor-blink font-display text-3xl leading-tight text-ink">
               {character.name}
             </h1>
             <div className="tabnum mt-0.5 text-xs text-faint">
@@ -114,7 +107,7 @@ export function CharacterHeader({
         <div className="flex items-center gap-5 border-t border-edge pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
           <div className="text-center">
             <div className="flex items-center justify-center gap-1.5">
-              <Flame size={20} style={{ color: streak.current > 0 ? "#ff9d4d" : "var(--color-faint)" }} />
+              <Flame size={20} style={{ color: streak.current > 0 ? "#ffa23e" : "var(--color-faint)" }} />
               <span className="tabnum text-2xl font-bold text-ink">{streak.current}</span>
             </div>
             <div className="mt-0.5 font-display text-[10px] uppercase tracking-wider text-faint">
