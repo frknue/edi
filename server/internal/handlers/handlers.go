@@ -118,6 +118,25 @@ func (h *Handlers) skipQuest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, quest)
 }
 
+func (h *Handlers) toggleSubtask(w http.ResponseWriter, r *http.Request) {
+	questID, err := pathID(r, "id")
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	subtaskID, err := pathID(r, "sid")
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	st, err := h.svc.ToggleSubtask(questID, subtaskID)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, st)
+}
+
 func (h *Handlers) archiveQuest(w http.ResponseWriter, r *http.Request) {
 	id, err := pathID(r, "id")
 	if err != nil {

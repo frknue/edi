@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Minus, Plus, X } from "lucide-react";
-import type { Difficulty, Quest, QuestInput, QuestType } from "../lib/types";
+import { ChevronDown, ChevronUp, Minus, Plus, Trash2, X } from "lucide-react";
+import type { Difficulty, Quest, QuestInput, QuestType, SubtaskInput } from "../lib/types";
 import { attributeMeta, difficultyMeta, getType, typeMeta } from "../lib/theme";
-import { Btn } from "./ui";
+import { Btn, RewardChips } from "./ui";
 
 const TYPES = Object.keys(typeMeta) as QuestType[];
 const DIFFICULTIES = Object.keys(difficultyMeta) as Difficulty[];
@@ -23,6 +23,8 @@ export function QuestFormModal({ open, initial, busy, error, onClose, onSubmit }
   const [type, setType] = useState<QuestType>("daily");
   const [difficulty, setDifficulty] = useState<Difficulty>("easy");
   const [rewards, setRewards] = useState<Record<string, number>>({});
+  const [subtasks, setSubtasks] = useState<SubtaskInput[]>([]);
+  const [expandedSub, setExpandedSub] = useState<number | null>(null);
 
   // Reset form whenever the modal opens (for create or edit).
   useEffect(() => {
@@ -32,6 +34,10 @@ export function QuestFormModal({ open, initial, busy, error, onClose, onSubmit }
     setType(initial?.type ?? "daily");
     setDifficulty(initial?.difficulty ?? "easy");
     setRewards(initial?.attribute_rewards ? { ...initial.attribute_rewards } : {});
+    setSubtasks(
+      initial?.subtasks?.map((st) => ({ title: st.title, attribute_rewards: { ...st.attribute_rewards } })) ?? [],
+    );
+    setExpandedSub(null);
   }, [open, initial]);
 
   useEffect(() => {
@@ -50,11 +56,36 @@ export function QuestFormModal({ open, initial, busy, error, onClose, onSubmit }
       return copy;
     });
 
+  const setSubtask = (i: number, patch: Partial<SubtaskInput>) =>
+    setSubtasks((ss) => ss.map((s, j) => (j === i ? { ...s, ...patch } : s)));
+
+  const bumpSubtaskReward = (i: number, key: string, delta: number) =>
+    setSubtasks((ss) =>
+      ss.map((s, j) => {
+        if (j !== i) return s;
+        const next = Math.max(0, (s.attribute_rewards[key] ?? 0) + delta);
+        const copy = { ...s.attribute_rewards };
+        if (next === 0) delete copy[key];
+        else copy[key] = next;
+        return { ...s, attribute_rewards: copy };
+      }),
+    );
+
   const submit = () => {
     const cleaned: Record<string, number> = {};
     for (const [k, v] of Object.entries(rewards)) if (v > 0) cleaned[k] = v;
+    const cleanedSubs = subtasks
+      .filter((s) => s.title.trim() !== "")
+      .map((s) => ({ title: s.title.trim(), attribute_rewards: s.attribute_rewards }));
     onSubmit(
-      { title: title.trim(), description: description.trim(), type, difficulty, attribute_rewards: cleaned },
+      {
+        title: title.trim(),
+        description: description.trim(),
+        type,
+        difficulty,
+        attribute_rewards: cleaned,
+        subtasks: cleanedSubs,
+      },
       initial?.id,
     );
   };
@@ -197,6 +228,98 @@ export function QuestFormModal({ open, initial, busy, error, onClose, onSubmit }
                     );
                   })}
                 </div>
+              </div>
+
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="block text-xs font-medium text-muted">
+                    Bonus objectives <span className="text-faint">(optional subtasks — extra XP if checked)</span>
+                  </label>
+                  <button
+                    onClick={() => {
+                      setSubtasks((ss) => [...ss, { title: "", attribute_rewards: {} }]);
+                      setExpandedSub(subtasks.length);
+                    }}
+                    data-testid="add-subtask"
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--color-spirituality)]"
+                  >
+                    <Plus size={12} /> Add
+                  </button>
+                </div>
+                {subtasks.length > 0 && (
+                  <div className="space-y-1.5">
+                    {subtasks.map((st, i) => {
+                      const expanded = expandedSub === i;
+                      return (
+                        <div key={i} className="rounded-lg border border-edge bg-white/[0.02]">
+                          <div className="flex items-center gap-1.5 px-2 py-1.5">
+                            <input
+                              value={st.title}
+                              onChange={(e) => setSubtask(i, { title: e.target.value })}
+                              placeholder="e.g. Bike there instead of driving"
+                              data-testid={`subtask-title-${i}`}
+                              className="min-w-0 flex-1 bg-transparent text-xs text-ink placeholder:text-faint focus:outline-none"
+                            />
+                            <RewardChips rewards={st.attribute_rewards} />
+                            <button
+                              onClick={() => setExpandedSub(expanded ? null : i)}
+                              className="text-faint hover:text-ink"
+                              aria-label="Edit bonus rewards"
+                              data-testid={`subtask-expand-${i}`}
+                            >
+                              {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSubtasks((ss) => ss.filter((_, j) => j !== i));
+                                setExpandedSub(null);
+                              }}
+                              className="text-faint hover:text-[#ff7d9d]"
+                              aria-label="Remove subtask"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                          {expanded && (
+                            <div className="grid grid-cols-1 gap-1 border-t border-edge p-2 sm:grid-cols-2">
+                              {Object.entries(attributeMeta).map(([key, meta]) => {
+                                const val = st.attribute_rewards[key] ?? 0;
+                                const Icon = meta.Icon;
+                                return (
+                                  <div key={key} className="flex items-center justify-between rounded-md px-1.5 py-0.5">
+                                    <span
+                                      className="flex items-center gap-1 text-[11px]"
+                                      style={{ color: val > 0 ? meta.color : "var(--color-faint)" }}
+                                    >
+                                      <Icon size={11} />
+                                      {meta.label}
+                                    </span>
+                                    <span className="flex items-center gap-0.5">
+                                      <button
+                                        onClick={() => bumpSubtaskReward(i, key, -5)}
+                                        className="grid h-5 w-5 place-items-center rounded text-faint hover:bg-white/5 hover:text-ink"
+                                      >
+                                        <Minus size={10} />
+                                      </button>
+                                      <span className="tabnum w-6 text-center text-[11px] font-semibold text-ink">{val}</span>
+                                      <button
+                                        onClick={() => bumpSubtaskReward(i, key, 5)}
+                                        data-testid={`subtask-${i}-plus-${key}`}
+                                        className="grid h-5 w-5 place-items-center rounded text-faint hover:bg-white/5 hover:text-ink"
+                                      >
+                                        <Plus size={10} />
+                                      </button>
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {error && <p className="text-xs text-[#ff7d9d]">{error}</p>}

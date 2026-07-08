@@ -21,6 +21,19 @@ export interface Attribute {
   progress: number; // 0..1
 }
 
+export interface Subtask {
+  id: number;
+  quest_id: number;
+  title: string;
+  attribute_rewards: Record<string, number>;
+  done: boolean;
+}
+
+export interface SubtaskInput {
+  title: string;
+  attribute_rewards: Record<string, number>;
+}
+
 export interface Quest {
   id: number;
   title: string;
@@ -29,6 +42,7 @@ export interface Quest {
   difficulty: Difficulty;
   status: QuestStatus;
   attribute_rewards: Record<string, number>;
+  subtasks: Subtask[];
   skip_count: number;
   created_at: string;
   completed_at: string | null;
@@ -66,6 +80,7 @@ export interface QuestInput {
   type: QuestType;
   difficulty: Difficulty;
   attribute_rewards: Record<string, number>;
+  subtasks?: SubtaskInput[];
   due_date?: string | null;
 }
 

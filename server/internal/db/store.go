@@ -129,7 +129,15 @@ const questColumns = `id, user_id, title, description, type, difficulty, status,
 
 func (s *Store) GetQuest(userID, id int64) (models.Quest, error) {
 	row := s.db.QueryRow(`SELECT `+questColumns+` FROM quests WHERE id = ? AND user_id = ?`, id, userID)
-	return scanQuest(row)
+	q, err := scanQuest(row)
+	if err != nil {
+		return q, err
+	}
+	quests := []models.Quest{q}
+	if err := s.attachSubtasks(userID, quests); err != nil {
+		return q, err
+	}
+	return quests[0], nil
 }
 
 // ListQuests returns quests filtered by optional type and status (empty = all).
@@ -160,7 +168,13 @@ func (s *Store) ListQuests(userID int64, questType, status string) ([]models.Que
 		}
 		out = append(out, qst)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := s.attachSubtasks(userID, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (s *Store) InsertQuest(userID int64, in models.QuestInput, sourceSuggestionID *int64) (models.Quest, error) {
@@ -173,6 +187,11 @@ func (s *Store) InsertQuest(userID int64, in models.QuestInput, sourceSuggestion
 		return models.Quest{}, err
 	}
 	id, _ := res.LastInsertId()
+	if len(in.Subtasks) > 0 {
+		if err := s.replaceSubtasks(userID, id, in.Subtasks); err != nil {
+			return models.Quest{}, err
+		}
+	}
 	return s.GetQuest(userID, id)
 }
 
@@ -211,6 +230,11 @@ func (s *Store) UpdateQuest(userID, id int64, p models.QuestPatch) (models.Quest
 	if len(sets) > 0 {
 		args = append(args, id, userID)
 		if _, err := s.db.Exec(`UPDATE quests SET `+strings.Join(sets, ", ")+` WHERE id = ? AND user_id = ?`, args...); err != nil {
+			return models.Quest{}, err
+		}
+	}
+	if p.Subtasks != nil {
+		if err := s.replaceSubtasks(userID, id, *p.Subtasks); err != nil {
 			return models.Quest{}, err
 		}
 	}
@@ -311,9 +335,38 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 	}
 	rewards := unmarshalRewards(rewardsJSON)
 
+	// Checked subtasks add their own rewards as separately-labeled bonus awards.
+	doneSubs, err := doneSubtasksTx(tx, userID, questID)
+	if err != nil {
+		return models.Quest{}, nil, nil, err
+	}
+
+	// Build the award list: base quest rewards first, then one entry per checked
+	// subtask. Each becomes its own xp_event (clean audit trail); level-ups are
+	// computed cumulatively per attribute so base+bonus on the same attribute
+	// count once from the original XP to the final total.
+	type award struct {
+		key    string
+		amount int64
+		note   string
+	}
+	var awards []award
+	for _, key := range orderedKeys(rewards) {
+		if rewards[key] != 0 {
+			awards = append(awards, award{key, rewards[key], title})
+		}
+	}
+	for _, st := range doneSubs {
+		for _, key := range orderedKeys(st.AttributeRewards) {
+			if st.AttributeRewards[key] != 0 {
+				awards = append(awards, award{key, st.AttributeRewards[key], title + " · " + st.Title})
+			}
+		}
+	}
+
 	total := int64(0)
-	for _, v := range rewards {
-		total += v
+	for _, a := range awards {
+		total += a.amount
 	}
 	if _, err := tx.Exec(`INSERT INTO quest_completions(user_id, quest_id, xp_awarded, completed_at) VALUES(?, ?, ?, ?)`,
 		userID, questID, total, nowStr); err != nil {
@@ -322,37 +375,39 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 
 	var events []models.XPEvent
 	var levelUps []models.LevelUp
-	// Deterministic ordering of rewarded attributes for stable output.
-	for _, key := range orderedKeys(rewards) {
-		amount := rewards[key]
-		if amount == 0 {
-			continue
-		}
-		var oldXP int64
-		if err := tx.QueryRow(`SELECT total_xp FROM attributes WHERE user_id = ? AND key = ?`, userID, key).Scan(&oldXP); err != nil {
-			if err == sql.ErrNoRows {
-				// Unknown attribute key in rewards — skip silently.
-				continue
+	baseXP := map[string]int64{}    // XP before this completion, per touched attribute
+	runningXP := map[string]int64{} // XP after awards applied so far
+	for _, a := range awards {
+		old, seen := runningXP[a.key]
+		if !seen {
+			if err := tx.QueryRow(`SELECT total_xp FROM attributes WHERE user_id = ? AND key = ?`, userID, a.key).Scan(&old); err != nil {
+				if err == sql.ErrNoRows {
+					continue // unknown attribute key — skip silently
+				}
+				return models.Quest{}, nil, nil, err
 			}
-			return models.Quest{}, nil, nil, err
+			baseXP[a.key] = old
 		}
 		res, err := tx.Exec(
 			`INSERT INTO xp_events(user_id, attribute_key, amount, source, source_id, note, created_at) VALUES(?, ?, ?, 'quest', ?, ?, ?)`,
-			userID, key, amount, questID, title, nowStr)
+			userID, a.key, a.amount, questID, a.note, nowStr)
 		if err != nil {
 			return models.Quest{}, nil, nil, err
 		}
-		if _, err := tx.Exec(`UPDATE attributes SET total_xp = total_xp + ? WHERE user_id = ? AND key = ?`, amount, userID, key); err != nil {
+		if _, err := tx.Exec(`UPDATE attributes SET total_xp = total_xp + ? WHERE user_id = ? AND key = ?`, a.amount, userID, a.key); err != nil {
 			return models.Quest{}, nil, nil, err
 		}
-		newXP := oldXP + amount
+		runningXP[a.key] = old + a.amount
 		evID, _ := res.LastInsertId()
 		sid := questID
 		events = append(events, models.XPEvent{
-			ID: evID, AttributeKey: key, AttributeName: names[key], Amount: amount,
-			Source: "quest", SourceID: &sid, Note: title, CreatedAt: now,
+			ID: evID, AttributeKey: a.key, AttributeName: names[a.key], Amount: a.amount,
+			Source: "quest", SourceID: &sid, Note: a.note, CreatedAt: now,
 		})
-		if from, to := levelFromTo(oldXP, newXP); to > from {
+	}
+	// Level-ups: from the pre-completion XP to the final total, once per attribute.
+	for _, key := range orderedKeys(runningXP) {
+		if from, to := levelFromTo(baseXP[key], runningXP[key]); to > from {
 			levelUps = append(levelUps, models.LevelUp{
 				AttributeKey: key, AttributeName: names[key], FromLevel: from, ToLevel: to,
 			})

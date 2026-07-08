@@ -94,6 +94,12 @@ All clients understand it:
 - **Level formula (MVP):** `level = floor(sqrt(total_xp / 100)) + 1`.
 - **Quests** have a type (`daily/weekly/main/side/boss/recovery`), difficulty, status,
   and per-attribute XP rewards, e.g. `{"strength": 40, "discipline": 10}`.
+- **Subtasks (bonus objectives):** a quest can carry optional subtasks, each with its
+  own bonus rewards — "Go to the gym" might have "Bike there instead of driving"
+  `{health: 15}`. Check them off while the quest is active
+  (`POST /quests/:id/subtasks/:sid/toggle`); checked subtasks add their bonus as
+  separately-labeled `xp_events` in the same completion transaction. They never
+  block completion.
 - **Auditable XP:** totals live on `attributes`, but **every** change also writes an
   immutable `xp_events` row. `attributes.total_xp` always equals the sum of its events.
 - **Boss** quests get a distinct, intense visual; **recovery** quests feel soft and
@@ -115,6 +121,7 @@ Base: `/api`
 | POST | `/quests/:id/complete` | Complete → awards XP, writes events, updates streak, returns refreshed dashboard |
 | POST | `/quests/:id/skip` | Skip (increments skip counter) |
 | POST | `/quests/:id/archive` | Archive |
+| POST | `/quests/:id/subtasks/:sid/toggle` | Check/uncheck a bonus objective (while active) |
 | GET | `/xp-events?limit=` | Recent XP audit events |
 | GET | `/journal?limit=` | Recent reflections |
 | POST | `/journal` | Add a reflection (mood/energy 1–10 + notes) |

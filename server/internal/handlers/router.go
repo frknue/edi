@@ -33,6 +33,7 @@ func NewRouter(h *Handlers, clientDir, apiToken string) http.Handler {
 	mux.HandleFunc("POST /api/quests/{id}/complete", h.completeQuest)
 	mux.HandleFunc("POST /api/quests/{id}/skip", h.skipQuest)
 	mux.HandleFunc("POST /api/quests/{id}/archive", h.archiveQuest)
+	mux.HandleFunc("POST /api/quests/{id}/subtasks/{sid}/toggle", h.toggleSubtask)
 
 	mux.HandleFunc("GET /api/xp-events", h.getXPEvents)
 

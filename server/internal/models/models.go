@@ -56,10 +56,28 @@ type Quest struct {
 	Difficulty       string           `json:"difficulty"`
 	Status           string           `json:"status"`
 	AttributeRewards map[string]int64 `json:"attribute_rewards"`
+	Subtasks         []Subtask        `json:"subtasks"`
 	SkipCount        int              `json:"skip_count"`
 	CreatedAt        time.Time        `json:"created_at"`
 	CompletedAt      *time.Time       `json:"completed_at"`
 	DueDate          *time.Time       `json:"due_date"`
+}
+
+// Subtask is an optional bonus objective on a quest. Checking it before the
+// quest is completed awards its own AttributeRewards on top of the quest's.
+// Subtasks never block completion.
+type Subtask struct {
+	ID               int64            `json:"id"`
+	QuestID          int64            `json:"quest_id"`
+	Title            string           `json:"title"`
+	AttributeRewards map[string]int64 `json:"attribute_rewards"`
+	Done             bool             `json:"done"`
+}
+
+// SubtaskInput is the payload for creating a subtask (inline with a quest).
+type SubtaskInput struct {
+	Title            string           `json:"title"`
+	AttributeRewards map[string]int64 `json:"attribute_rewards"`
 }
 
 // TotalReward is the sum of XP across all rewarded attributes.
@@ -122,6 +140,7 @@ type QuestInput struct {
 	Type             string           `json:"type"`
 	Difficulty       string           `json:"difficulty"`
 	AttributeRewards map[string]int64 `json:"attribute_rewards"`
+	Subtasks         []SubtaskInput   `json:"subtasks,omitempty"`
 	DueDate          *time.Time       `json:"due_date,omitempty"`
 }
 
@@ -133,7 +152,9 @@ type QuestPatch struct {
 	Difficulty       *string           `json:"difficulty,omitempty"`
 	Status           *string           `json:"status,omitempty"`
 	AttributeRewards *map[string]int64 `json:"attribute_rewards,omitempty"`
-	DueDate          *time.Time        `json:"due_date,omitempty"`
+	// Subtasks, when present, replaces the quest's subtask list (done flags reset).
+	Subtasks *[]SubtaskInput `json:"subtasks,omitempty"`
+	DueDate  *time.Time      `json:"due_date,omitempty"`
 }
 
 // JournalInput is the payload for creating a journal entry.

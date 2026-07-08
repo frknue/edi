@@ -65,6 +65,8 @@ func run(c *apiclient.Client, cmd string, args []string) error {
 		return cmdAdd(c, args)
 	case "complete":
 		return cmdComplete(c, args)
+	case "subtask":
+		return cmdToggleSubtask(c, args)
 	case "skip":
 		return cmdSimpleQuest(c, args, c.SkipQuest, "skipped")
 	case "archive":
@@ -141,7 +143,38 @@ func cmdQuests(c *apiclient.Client, args []string) error {
 	}
 	for _, q := range qs {
 		fmt.Printf("  %s %-34s %-9s %-9s %s\n", dim(fmt.Sprintf("#%d", q.ID)), q.Title, tag(q.Type), dim(q.Status), dim(rewardStr(q.AttributeRewards)))
+		for _, st := range q.Subtasks {
+			box := "☐"
+			if st.Done {
+				box = green("☑")
+			}
+			fmt.Printf("      %s %s %s %s\n", box, dim(fmt.Sprintf("#%d", st.ID)), st.Title, dim(rewardStr(st.AttributeRewards)))
+		}
 	}
+	return nil
+}
+
+func cmdToggleSubtask(c *apiclient.Client, args []string) error {
+	if len(args) < 2 {
+		return fmt.Errorf("usage: subtask <quest_id> <subtask_id>")
+	}
+	questID, err := strconv.ParseInt(args[0], 10, 64)
+	if err != nil {
+		return fmt.Errorf("bad quest id %q", args[0])
+	}
+	subtaskID, err := strconv.ParseInt(args[1], 10, 64)
+	if err != nil {
+		return fmt.Errorf("bad subtask id %q", args[1])
+	}
+	st, err := c.ToggleSubtask(questID, subtaskID)
+	if err != nil {
+		return err
+	}
+	state := "unchecked"
+	if st.Done {
+		state = "checked"
+	}
+	fmt.Printf("%s %s subtask #%d %q %s\n", green("✓"), state, st.ID, st.Title, dim(rewardStr(st.AttributeRewards)))
 	return nil
 }
 
@@ -376,6 +409,7 @@ commands:
   quests [--type t] [--status s]     list quests
   add --title T [--type --difficulty --desc --reward k=v ...]
   complete <id> | skip <id> | archive <id>
+  subtask <quest_id> <subtask_id>    toggle a bonus objective
   journal                            list recent reflections
   journal-add --mood N --energy N [--notes "..."]
   suggest | suggest-gen | suggest-accept <id> | suggest-dismiss <id>

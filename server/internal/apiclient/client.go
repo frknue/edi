@@ -113,6 +113,13 @@ func (c *Client) CompleteQuest(id int64) (models.CompletionResult, error) {
 	return r, err
 }
 
+// ToggleSubtask flips a quest subtask's done flag (bonus objective).
+func (c *Client) ToggleSubtask(questID, subtaskID int64) (models.Subtask, error) {
+	var st models.Subtask
+	err := c.do(http.MethodPost, fmt.Sprintf("/api/quests/%d/subtasks/%d/toggle", questID, subtaskID), nil, &st)
+	return st, err
+}
+
 func (c *Client) SkipQuest(id int64) (models.Quest, error) {
 	var qst models.Quest
 	err := c.do(http.MethodPost, fmt.Sprintf("/api/quests/%d/skip", id), nil, &qst)

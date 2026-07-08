@@ -60,14 +60,30 @@ func NewRegistry(svc *services.Service) *Registry {
 			return svc.ListQuests(p.Type, p.Status)
 		})
 
-	add("create_quest", "Create a new quest with attribute XP rewards.",
-		`{"type":"object","required":["title"],"properties":{"title":{"type":"string"},"description":{"type":"string"},"type":{"type":"string","enum":["daily","weekly","main","side","boss","recovery"]},"difficulty":{"type":"string","enum":["trivial","easy","medium","hard","boss"]},"attribute_rewards":{"type":"object","additionalProperties":{"type":"integer"}}}}`,
+	add("create_quest", "Create a new quest with attribute XP rewards, optionally with bonus-objective subtasks (each with its own bonus rewards, awarded only if checked before completion).",
+		`{"type":"object","required":["title"],"properties":{"title":{"type":"string"},"description":{"type":"string"},"type":{"type":"string","enum":["daily","weekly","main","side","boss","recovery"]},"difficulty":{"type":"string","enum":["trivial","easy","medium","hard","boss"]},"attribute_rewards":{"type":"object","additionalProperties":{"type":"integer"}},"subtasks":{"type":"array","items":{"type":"object","required":["title"],"properties":{"title":{"type":"string"},"attribute_rewards":{"type":"object","additionalProperties":{"type":"integer"}}}}}}}`,
 		func(in json.RawMessage) (any, error) {
 			var p models.QuestInput
 			if err := decode(in, &p); err != nil {
 				return nil, err
 			}
 			return svc.CreateQuest(p)
+		})
+
+	add("toggle_subtask", "Toggle a quest subtask (bonus objective) done/undone. Checked subtasks add their bonus rewards when the quest is completed.",
+		`{"type":"object","required":["quest_id","subtask_id"],"properties":{"quest_id":{"type":"integer"},"subtask_id":{"type":"integer"}}}`,
+		func(in json.RawMessage) (any, error) {
+			var p struct {
+				QuestID   int64 `json:"quest_id"`
+				SubtaskID int64 `json:"subtask_id"`
+			}
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			if p.QuestID == 0 || p.SubtaskID == 0 {
+				return nil, fmt.Errorf("%w: quest_id and subtask_id are required", services.ErrValidation)
+			}
+			return svc.ToggleSubtask(p.QuestID, p.SubtaskID)
 		})
 
 	add("update_quest", "Update fields of an existing quest by id.",

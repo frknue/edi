@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
-import { Archive, Check, CheckCircle2, Pencil, SkipForward } from "lucide-react";
+import { Archive, Check, CheckCircle2, Pencil, SkipForward, Square, SquareCheckBig } from "lucide-react";
 import type { Quest } from "../lib/types";
 import { getType } from "../lib/theme";
+import { useToggleSubtask } from "../lib/queries";
 import { Btn, DifficultyPips, RewardChips, TypeBadge } from "./ui";
 
 interface QuestCardProps {
@@ -83,6 +84,8 @@ export function QuestCard({
           <RewardChips rewards={quest.attribute_rewards} />
         </div>
 
+        {quest.subtasks.length > 0 && <SubtaskList quest={quest} interactive={isActive} />}
+
         {(onComplete || onSkip || onArchive || onEdit) && isActive && (
           <div className="mt-4 flex items-center gap-2">
             {onComplete && (
@@ -116,5 +119,48 @@ export function QuestCard({
         )}
       </div>
     </motion.div>
+  );
+}
+
+// SubtaskList renders a quest's bonus objectives. While the quest is active the
+// checkboxes toggle via the API; afterwards they show frozen state.
+function SubtaskList({ quest, interactive }: { quest: Quest; interactive: boolean }) {
+  const toggle = useToggleSubtask();
+  return (
+    <div className="mt-3 space-y-1 rounded-lg border border-edge/70 bg-white/[0.015] p-2">
+      <div className="px-1 font-display text-[9px] uppercase tracking-[0.18em] text-faint">
+        Bonus objectives
+      </div>
+      {quest.subtasks.map((st) => {
+        const Icon = st.done ? SquareCheckBig : Square;
+        return (
+          <button
+            key={st.id}
+            disabled={!interactive || toggle.isPending}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggle.mutate({ questId: quest.id, subtaskId: st.id });
+            }}
+            data-testid={`subtask-${st.id}`}
+            className={`flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left transition-colors ${
+              interactive ? "hover:bg-white/[0.04]" : "cursor-default"
+            }`}
+          >
+            <Icon
+              size={14}
+              className="shrink-0"
+              style={{ color: st.done ? "var(--color-health)" : "var(--color-faint)" }}
+            />
+            <span
+              className={`min-w-0 flex-1 truncate text-xs ${st.done ? "text-ink" : "text-muted"}`}
+              style={st.done ? { textDecoration: "none" } : undefined}
+            >
+              {st.title}
+            </span>
+            <RewardChips rewards={st.attribute_rewards} />
+          </button>
+        );
+      })}
+    </div>
   );
 }

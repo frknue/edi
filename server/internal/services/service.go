@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 
 	"edi/internal/db"
@@ -120,7 +121,39 @@ func (s *Service) validateQuestInput(in *models.QuestInput) error {
 	if in.AttributeRewards == nil {
 		in.AttributeRewards = map[string]int64{}
 	}
-	return s.validateRewards(in.AttributeRewards)
+	if err := s.validateRewards(in.AttributeRewards); err != nil {
+		return err
+	}
+	return s.validateSubtasks(in.Subtasks)
+}
+
+// validateSubtasks checks bonus-objective titles and reward maps.
+func (s *Service) validateSubtasks(subtasks []models.SubtaskInput) error {
+	if len(subtasks) > 10 {
+		return validationErr("a quest can have at most 10 subtasks")
+	}
+	for i, st := range subtasks {
+		if strings.TrimSpace(st.Title) == "" {
+			return validationErr("subtask %d needs a title", i+1)
+		}
+		if err := s.validateRewards(st.AttributeRewards); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ToggleSubtask flips a bonus objective's done state (only while the quest is
+// still completable).
+func (s *Service) ToggleSubtask(questID, subtaskID int64) (models.Subtask, error) {
+	st, err := s.store.ToggleSubtask(s.userID, questID, subtaskID)
+	switch {
+	case errors.Is(err, db.ErrNotFound):
+		return models.Subtask{}, ErrNotFound
+	case errors.Is(err, db.ErrQuestNotCompletable):
+		return models.Subtask{}, validationErr("this quest is already completed or archived")
+	}
+	return st, err
 }
 
 // validateRewards ensures every reward key is a known attribute and every value
@@ -189,6 +222,11 @@ func (s *Service) UpdateQuest(id int64, p models.QuestPatch) (models.Quest, erro
 	}
 	if p.AttributeRewards != nil {
 		if err := s.validateRewards(*p.AttributeRewards); err != nil {
+			return models.Quest{}, err
+		}
+	}
+	if p.Subtasks != nil {
+		if err := s.validateSubtasks(*p.Subtasks); err != nil {
 			return models.Quest{}, err
 		}
 	}

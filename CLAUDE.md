@@ -100,6 +100,12 @@ caught and fixed — keep using it.
   `RowsAffected()` *inside the transaction*. Don't reintroduce a read-status-then-write
   pattern outside the tx — that double-awards XP under concurrent/double-tap requests
   (regression test: `TestCompleteQuestConcurrentNoDoubleAward`, run with `-race`).
+- **Subtask bonuses are frozen at completion.** Checked subtasks (bonus objectives)
+  are read and awarded *inside* the same completion tx as separately-labeled
+  xp_events ("quest · subtask"); level-ups are computed cumulatively per attribute
+  (base+bonus counted once — see `TestSubtaskCumulativeLevelUp`). Toggling after
+  completion is rejected (`ErrQuestNotCompletable` → 400). Subtasks never block
+  completion.
 - **Slices serialize as `[]`, never `null`.** Go nil slices marshal to JSON `null`,
   which crashes the frontend. Wrap every list/dashboard slice field with
   `orEmpty(...)` at the service boundary. Regression test:

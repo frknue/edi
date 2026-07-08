@@ -79,6 +79,15 @@ export function useUpdateQuest() {
   });
 }
 
+export function useToggleSubtask() {
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: ({ questId, subtaskId }: { questId: number; subtaskId: number }) =>
+      api.toggleSubtask(questId, subtaskId),
+    onSuccess: invalidate,
+  });
+}
+
 export function useSkipQuest() {
   const invalidate = useInvalidateAll();
   return useMutation({ mutationFn: (id: number) => api.skipQuest(id), onSuccess: invalidate });

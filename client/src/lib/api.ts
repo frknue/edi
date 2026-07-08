@@ -10,6 +10,7 @@ import type {
   OpenAIStatus,
   Quest,
   QuestInput,
+  Subtask,
   ToolCompletionResult,
   ToolDefinition,
   ToolEntry,
@@ -83,6 +84,8 @@ export const api = {
     request<Quest>(`/quests/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   completeQuest: (id: number) =>
     request<CompletionResult>(`/quests/${id}/complete`, { method: "POST" }),
+  toggleSubtask: (questId: number, subtaskId: number) =>
+    request<Subtask>(`/quests/${questId}/subtasks/${subtaskId}/toggle`, { method: "POST" }),
   skipQuest: (id: number) => request<Quest>(`/quests/${id}/skip`, { method: "POST" }),
   archiveQuest: (id: number) => request<Quest>(`/quests/${id}/archive`, { method: "POST" }),
 
