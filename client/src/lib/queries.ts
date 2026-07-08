@@ -100,9 +100,13 @@ export function useArchiveQuest() {
 
 export function useCreateJournal() {
   const invalidate = useInvalidateAll();
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: { mood: number; energy: number; notes: string }) => api.createJournal(input),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      qc.invalidateQueries({ queryKey: keys.journal });
+    },
   });
 }
 
