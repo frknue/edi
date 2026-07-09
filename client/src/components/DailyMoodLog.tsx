@@ -1,13 +1,27 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, HeartHandshake, Loader2, Plus, Sparkles, Trash2, X } from "lucide-react";
-import { useCompleteTool, useMoodAssist, useOpenAIStatus } from "../lib/queries";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BrainCircuit,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  HeartHandshake,
+  Loader2,
+  Plus,
+  Sparkles,
+  Trash2,
+  X,
+} from "lucide-react";
+import { useCompleteTool, useMoodAssist, useOpenAIStatus, useToolEntries } from "../lib/queries";
 import { useReward } from "../lib/reward";
 import { useAiConsent } from "../lib/aiConsent";
 import { pushToast } from "../lib/toast";
-import { EMOTIONS, DISTORTIONS } from "../lib/cbt";
-import type { MoodDistortionHit, MoodResponseIdea, MoodThought } from "../lib/types";
-import { Btn } from "./ui";
+import { relativeTime } from "../lib/format";
+import { EMOTIONS, DISTORTIONS, emotionLabel, distortionName } from "../lib/cbt";
+import type { MoodDistortionHit, MoodLog, MoodResponseIdea, MoodThought, ToolEntry } from "../lib/types";
+import { Btn, EmptyState, SectionTitle, Spinner } from "./ui";
 
 interface EmotionState {
   before: number;
@@ -26,7 +40,209 @@ const emptyThought = (): MoodThought => ({
 
 const STEPS = ["The moment", "The thoughts", "Re-rate & finish"];
 
+// DailyMoodLog lands on the HISTORY of past logs (reviewing them is part of the
+// method — you see your shifts and recurring distortions). [ NEW LOG ] enters
+// the guided 3-step flow; finishing or backing out returns here.
 export function DailyMoodLog({ onClose }: { onClose: () => void }) {
+  const [writing, setWriting] = useState(false);
+  if (writing) {
+    return <MoodLogFlow onClose={() => setWriting(false)} />;
+  }
+  return <MoodLogHistory onClose={onClose} onNew={() => setWriting(true)} />;
+}
+
+// --- history landing ----------------------------------------------------------
+
+function avgShift(data: MoodLog): { before: number; after: number } {
+  const n = data.emotions.length || 1;
+  const before = Math.round(data.emotions.reduce((s, e) => s + e.before, 0) / n);
+  const after = Math.round(data.emotions.reduce((s, e) => s + e.after, 0) / n);
+  return { before, after };
+}
+
+function MoodLogHistory({ onClose, onNew }: { onClose: () => void; onNew: () => void }) {
+  const { data: entries, isLoading } = useToolEntries("daily_mood_log");
+
+  // Aggregate insight across all logs: average distress drop + top distortions.
+  const stats = useMemo(() => {
+    if (!entries || entries.length === 0) return null;
+    let dropSum = 0;
+    const distortionCount: Record<string, number> = {};
+    for (const e of entries) {
+      const { before, after } = avgShift(e.data);
+      dropSum += before - after;
+      for (const t of e.data.thoughts ?? []) {
+        for (const d of t.distortions ?? []) distortionCount[d] = (distortionCount[d] ?? 0) + 1;
+      }
+    }
+    const top = Object.entries(distortionCount).sort((a, b) => b[1] - a[1]).slice(0, 2);
+    return { count: entries.length, avgDrop: Math.round(dropSum / entries.length), top };
+  }, [entries]);
+
+  return (
+    <div className="mx-auto max-w-2xl">
+      <div className="mb-5 flex items-center justify-between">
+        <button onClick={onClose} className="flex items-center gap-1.5 text-sm text-muted hover:text-ink">
+          <ArrowLeft size={16} /> Back
+        </button>
+        <Btn variant="primary" onClick={onNew} data-testid="new-mood-log">
+          <Plus size={15} /> New log
+        </Btn>
+      </div>
+
+      <div className="mb-1 font-display text-[11px] uppercase tracking-[0.24em] text-[var(--color-spirituality)]">
+        Daily Mood Log · Dr. David Burns · TEAM-CBT
+      </div>
+      <h1 className="mb-4 font-display text-3xl leading-tight text-ink">Your logs</h1>
+
+      {stats && (
+        <div className="hud-panel clip-corner mb-5 flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
+          <Stat label="logs" value={String(stats.count)} />
+          <Stat
+            label="avg. distress drop"
+            value={`${stats.avgDrop > 0 ? "−" : ""}${Math.abs(stats.avgDrop)} pts`}
+            color={stats.avgDrop > 0 ? "var(--color-health)" : "var(--color-muted)"}
+          />
+          {stats.top.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] uppercase tracking-wider text-faint">recurring</span>
+              {stats.top.map(([code, n]) => (
+                <span
+                  key={code}
+                  className="rounded-sm px-1.5 py-0.5 text-[11px]"
+                  style={{ background: "rgba(185,138,255,0.14)", color: "#b98aff" }}
+                  title={`${distortionName(code)} appeared in ${n} thought${n === 1 ? "" : "s"}`}
+                >
+                  {distortionName(code)} ×{n}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {isLoading ? (
+        <Spinner />
+      ) : !entries || entries.length === 0 ? (
+        <EmptyState
+          icon={<BrainCircuit size={22} />}
+          title="No mood logs yet"
+          hint="Work through an upsetting moment — your first log will appear here."
+        />
+      ) : (
+        <div className="space-y-2.5">
+          <SectionTitle hint="Most recent first. Tap a log to review it.">History</SectionTitle>
+          {entries.map((e, i) => (
+            <HistoryEntry key={e.id} entry={e} index={i} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div className="flex items-baseline gap-1.5">
+      <span className="font-display text-2xl" style={{ color: color ?? "var(--color-ink)" }}>
+        {value}
+      </span>
+      <span className="text-[10px] uppercase tracking-wider text-faint">{label}</span>
+    </div>
+  );
+}
+
+function HistoryEntry({ entry, index }: { entry: ToolEntry; index: number }) {
+  const [open, setOpen] = useState(false);
+  const data = entry.data;
+  const { before, after } = avgShift(data);
+  const drop = before - after;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: Math.min(index * 0.04, 0.3) }}
+      className="hud-panel overflow-hidden"
+    >
+      <button
+        onClick={() => setOpen((o) => !o)}
+        data-testid={`mood-entry-${entry.id}`}
+        className="flex w-full items-center gap-3 p-3.5 text-left"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm text-ink">{data.event}</div>
+          <div className="mt-0.5 text-[11px] text-faint">
+            {relativeTime(entry.created_at)} · {data.thoughts?.length ?? 0} thought
+            {(data.thoughts?.length ?? 0) === 1 ? "" : "s"} · +{entry.xp_awarded} XP
+          </div>
+        </div>
+        <span className="tabnum shrink-0 text-sm">
+          <span className="text-muted">{before}%</span>
+          <span className="text-faint"> → </span>
+          <span style={{ color: drop > 0 ? "var(--color-health)" : "var(--color-ink)" }}>{after}%</span>
+        </span>
+        {open ? <ChevronUp size={15} className="shrink-0 text-faint" /> : <ChevronDown size={15} className="shrink-0 text-faint" />}
+      </button>
+
+      {open && (
+        <div className="space-y-3 border-t border-edge px-4 py-3">
+          {/* emotions */}
+          <div className="flex flex-wrap gap-1.5">
+            {data.emotions.map((em) => (
+              <span
+                key={em.category}
+                className="rounded-sm border border-edge px-2 py-0.5 text-[11px] text-muted"
+              >
+                {emotionLabel(em.category)}{" "}
+                <span className="tabnum">
+                  {em.before}%<span className="text-faint">→</span>
+                  <span style={{ color: em.after < em.before ? "var(--color-health)" : "var(--color-ink)" }}>
+                    {em.after}%
+                  </span>
+                </span>
+              </span>
+            ))}
+          </div>
+
+          {/* thoughts worked through */}
+          {(data.thoughts ?? []).map((t, i) => (
+            <div key={i} className="rounded-sm border border-edge bg-white/[0.02] p-2.5">
+              <div className="text-[13px] text-ink">“{t.thought}”</div>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <span className="tabnum text-[11px] text-faint">
+                  belief {t.belief_before}%→{t.belief_after}%
+                </span>
+                {t.distortions.map((d) => (
+                  <span
+                    key={d}
+                    className="rounded-sm px-1.5 py-0.5 text-[10px]"
+                    style={{ background: "rgba(185,138,255,0.14)", color: "#b98aff" }}
+                  >
+                    {distortionName(d)}
+                  </span>
+                ))}
+              </div>
+              {t.positive_thought && (
+                <div
+                  className="mt-2 rounded-sm border-l-2 py-1 pl-2 text-[13px]"
+                  style={{ borderColor: "var(--color-health)", color: "var(--color-muted)" }}
+                >
+                  {t.positive_thought}
+                  <span className="tabnum ml-1.5 text-[10px] text-faint">({t.positive_belief}% believed)</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+// --- guided 3-step flow ---------------------------------------------------------
+
+function MoodLogFlow({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState(0);
   const [event, setEvent] = useState("");
   const [emotions, setEmotions] = useState<EmotionMap>({});
