@@ -163,7 +163,7 @@ func (h *Handlers) getXPEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) listJournal(w http.ResponseWriter, r *http.Request) {
-	entries, err := h.svc.ListJournalEntries(queryInt(r, "limit", 30))
+	entries, err := h.svc.ListJournalEntries(queryInt(r, "limit", 30), r.URL.Query().Get("q"))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -177,12 +177,44 @@ func (h *Handlers) createJournal(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	entry, err := h.svc.CreateJournalEntry(in)
+	result, err := h.svc.CreateJournalEntry(in)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, entry)
+	writeJSON(w, http.StatusCreated, result)
+}
+
+func (h *Handlers) updateJournal(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	var patch models.JournalPatch
+	if err := decodeBody(r, &patch); err != nil {
+		writeError(w, err)
+		return
+	}
+	entry, err := h.svc.UpdateJournalEntry(id, patch)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, entry)
+}
+
+func (h *Handlers) deleteJournal(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := h.svc.DeleteJournalEntry(id); err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
 }
 
 // --- agent suggestions ------------------------------------------------------

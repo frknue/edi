@@ -160,6 +160,16 @@ coaching), and the UI requires a one-time privacy opt-in (`lib/aiConsent.tsx`)
 before sending private entry text to OpenAI. AI assist is always optional; the
 tool works fully without a connection.
 
+## Journal
+
+The journal is a first-class tool: entries support edit/delete/search, and the
+**first entry of each local day** awards `journalDailyRewards` (spirituality 10,
+discipline 5) through the same auditable path (`xp_events source='journal'` +
+streak, one tx in `store.InsertJournal`; regression: `TestJournalDailyXPOnce`).
+Deleting an entry never claws back XP. The UI shows per-day mood/energy
+sparklines and a 10-week consistency heatmap (single-hue phosphor ramp),
+computed client-side from entries.
+
 ## Conventions
 
 ### Backend (Go)

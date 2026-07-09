@@ -27,8 +27,8 @@ export function useQuests(filters?: { type?: string; status?: string }) {
   });
 }
 
-export function useJournal() {
-  return useQuery({ queryKey: keys.journal, queryFn: () => api.listJournal(30) });
+export function useJournal(q = "", limit = 60) {
+  return useQuery({ queryKey: [...keys.journal, q, limit], queryFn: () => api.listJournal(limit, q) });
 }
 
 export function useSuggestions(status?: string) {
@@ -107,6 +107,23 @@ export function useCreateJournal() {
       invalidate();
       qc.invalidateQueries({ queryKey: keys.journal });
     },
+  });
+}
+
+export function useUpdateJournal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: number; patch: { mood?: number; energy?: number; notes?: string } }) =>
+      api.updateJournal(id, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.journal }),
+  });
+}
+
+export function useDeleteJournal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.deleteJournal(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.journal }),
   });
 }
 

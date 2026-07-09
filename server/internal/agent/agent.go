@@ -158,7 +158,7 @@ func NewRegistry(svc *services.Service) *Registry {
 			if err := decode(in, &p); err != nil {
 				return nil, err
 			}
-			return svc.ListJournalEntries(p.Limit)
+			return svc.ListJournalEntries(p.Limit, "")
 		})
 
 	add("get_weakest_attribute", "Return the attribute with the least total XP (useful for choosing what to train next).",

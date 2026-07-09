@@ -74,6 +74,13 @@ export interface JournalEntry {
   created_at: string;
 }
 
+// First entry of a day awards XP; later ones return empty xp_events.
+export interface JournalCreateResult {
+  entry: JournalEntry;
+  xp_events: XPEvent[];
+  level_ups: LevelUp[];
+}
+
 export interface QuestInput {
   title: string;
   description?: string;

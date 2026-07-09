@@ -45,6 +45,8 @@ func NewRouter(h *Handlers, clientDir, apiToken string) http.Handler {
 
 	mux.HandleFunc("GET /api/journal", h.listJournal)
 	mux.HandleFunc("POST /api/journal", h.createJournal)
+	mux.HandleFunc("PATCH /api/journal/{id}", h.updateJournal)
+	mux.HandleFunc("DELETE /api/journal/{id}", h.deleteJournal)
 
 	mux.HandleFunc("GET /api/agent/suggestions", h.listSuggestions)
 	mux.HandleFunc("POST /api/agent/suggestions/generate", h.generateSuggestions)

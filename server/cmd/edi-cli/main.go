@@ -75,6 +75,8 @@ func run(c *apiclient.Client, cmd string, args []string) error {
 		return cmdJournal(c)
 	case "journal-add":
 		return cmdJournalAdd(c, args)
+	case "journal-rm":
+		return cmdJournalRm(c, args)
 	case "suggest":
 		return cmdSuggest(c)
 	case "suggest-gen":
@@ -265,11 +267,30 @@ func cmdJournalAdd(c *apiclient.Client, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	e, err := c.CreateJournal(models.JournalInput{Mood: *mood, Energy: *energy, Notes: *notes})
+	res, err := c.CreateJournal(models.JournalInput{Mood: *mood, Energy: *energy, Notes: *notes})
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%s saved reflection #%d (mood %d, energy %d)\n", green("✓"), e.ID, e.Mood, e.Energy)
+	fmt.Printf("%s saved reflection #%d (mood %d, energy %d)\n", green("✓"), res.Entry.ID, res.Entry.Mood, res.Entry.Energy)
+	if len(res.XPEvents) > 0 {
+		var total int64
+		for _, ev := range res.XPEvents {
+			total += ev.Amount
+		}
+		fmt.Printf("  %s first reflection today: %s\n", green("★"), bold(fmt.Sprintf("+%d XP", total)))
+	}
+	return nil
+}
+
+func cmdJournalRm(c *apiclient.Client, args []string) error {
+	id, err := argID(args)
+	if err != nil {
+		return err
+	}
+	if err := c.DeleteJournal(id); err != nil {
+		return err
+	}
+	fmt.Printf("%s deleted reflection #%d\n", green("✓"), id)
 	return nil
 }
 

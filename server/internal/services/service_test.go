@@ -289,19 +289,104 @@ func TestJournalValidation(t *testing.T) {
 	if _, err := svc.CreateJournalEntry(models.JournalInput{Mood: 0, Energy: 5}); err == nil {
 		t.Error("expected validation error for mood 0")
 	}
-	entry, err := svc.CreateJournalEntry(models.JournalInput{Mood: 8, Energy: 7, Notes: "good"})
+	res, err := svc.CreateJournalEntry(models.JournalInput{Mood: 8, Energy: 7, Notes: "good"})
 	if err != nil {
 		t.Fatalf("create journal: %v", err)
 	}
-	if entry.ID == 0 {
+	if res.Entry.ID == 0 {
 		t.Error("journal entry id not set")
 	}
-	list, err := svc.ListJournalEntries(10)
+	list, err := svc.ListJournalEntries(10, "")
 	if err != nil {
 		t.Fatalf("list journal: %v", err)
 	}
 	if len(list) < 2 { // seeded one + this one
 		t.Errorf("journal entries = %d, want >= 2", len(list))
+	}
+}
+
+// The first reflection of the day awards XP exactly once; later entries the same
+// day store fine but award nothing. Audit invariant must hold throughout.
+func TestJournalDailyXPOnce(t *testing.T) {
+	svc := newTestService(t)
+
+	before, _ := svc.ListAttributes()
+	spiritBefore := attrByKey(before, "spirituality").TotalXP
+
+	first, err := svc.CreateJournalEntry(models.JournalInput{Mood: 7, Energy: 6, Notes: "first today"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if len(first.XPEvents) == 0 {
+		t.Fatal("first entry of the day should award XP")
+	}
+	var total int64
+	for _, e := range first.XPEvents {
+		total += e.Amount
+		if e.Source != "journal" {
+			t.Errorf("source = %q, want journal", e.Source)
+		}
+	}
+	if total != 15 { // spirituality 10 + discipline 5
+		t.Errorf("awarded %d XP, want 15", total)
+	}
+
+	second, err := svc.CreateJournalEntry(models.JournalInput{Mood: 5, Energy: 5, Notes: "second today"})
+	if err != nil {
+		t.Fatalf("second create: %v", err)
+	}
+	if len(second.XPEvents) != 0 {
+		t.Errorf("second entry same day awarded XP: %v", second.XPEvents)
+	}
+
+	after, _ := svc.ListAttributes()
+	if got := attrByKey(after, "spirituality").TotalXP; got != spiritBefore+10 {
+		t.Errorf("spirituality = %d, want %d (awarded exactly once)", got, spiritBefore+10)
+	}
+}
+
+func TestJournalUpdateDeleteSearch(t *testing.T) {
+	svc := newTestService(t)
+	res, err := svc.CreateJournalEntry(models.JournalInput{Mood: 6, Energy: 6, Notes: "gym session went great"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	id := res.Entry.ID
+
+	// Update.
+	newMood := 9
+	newNotes := "gym session went AMAZING"
+	updated, err := svc.UpdateJournalEntry(id, models.JournalPatch{Mood: &newMood, Notes: &newNotes})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if updated.Mood != 9 || updated.Notes != newNotes {
+		t.Errorf("update not applied: %+v", updated)
+	}
+	badMood := 42
+	if _, err := svc.UpdateJournalEntry(id, models.JournalPatch{Mood: &badMood}); err == nil {
+		t.Error("expected validation error for mood 42")
+	}
+
+	// Search matches notes, case-preserving LIKE.
+	found, err := svc.ListJournalEntries(50, "AMAZING")
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if len(found) != 1 || found[0].ID != id {
+		t.Errorf("search results = %+v, want just the updated entry", found)
+	}
+	none, _ := svc.ListJournalEntries(50, "zzz-no-match")
+	if len(none) != 0 {
+		t.Errorf("expected no matches, got %d", len(none))
+	}
+
+	// Delete; unknown id -> not found.
+	if err := svc.DeleteJournalEntry(id); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if err := svc.DeleteJournalEntry(id); err == nil {
+		t.Error("expected not-found deleting twice")
 	}
 }
 

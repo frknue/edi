@@ -115,7 +115,7 @@ func (s *Service) buildSuggestionPrompt() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	journal, err := s.store.ListJournal(s.userID, 3)
+	journal, err := s.store.ListJournal(s.userID, 3, "")
 	if err != nil {
 		return "", err
 	}

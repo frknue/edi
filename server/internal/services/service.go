@@ -286,20 +286,68 @@ func (s *Service) ListXPEvents(limit int) ([]models.XPEvent, error) {
 	return orEmpty(events), err
 }
 
-// CreateJournalEntry validates and stores a reflection.
-func (s *Service) CreateJournalEntry(in models.JournalInput) (models.JournalEntry, error) {
-	if in.Mood < 1 || in.Mood > 10 {
-		return models.JournalEntry{}, validationErr("mood must be between 1 and 10")
+// journalDailyRewards is the XP for the first reflection of each local day —
+// the habit of showing up, not volume (later entries the same day award nothing).
+var journalDailyRewards = map[string]int64{"spirituality": 10, "discipline": 5}
+
+func validMoodEnergy(mood, energy int) error {
+	if mood < 1 || mood > 10 {
+		return validationErr("mood must be between 1 and 10")
 	}
-	if in.Energy < 1 || in.Energy > 10 {
-		return models.JournalEntry{}, validationErr("energy must be between 1 and 10")
+	if energy < 1 || energy > 10 {
+		return validationErr("energy must be between 1 and 10")
 	}
-	return s.store.InsertJournal(s.userID, in)
+	return nil
 }
 
-// ListJournalEntries returns recent reflections.
-func (s *Service) ListJournalEntries(limit int) ([]models.JournalEntry, error) {
-	entries, err := s.store.ListJournal(s.userID, limit)
+// CreateJournalEntry validates and stores a reflection; the first entry of the
+// day awards XP (auditable, same path as quests/tools).
+func (s *Service) CreateJournalEntry(in models.JournalInput) (models.JournalCreateResult, error) {
+	if err := validMoodEnergy(in.Mood, in.Energy); err != nil {
+		return models.JournalCreateResult{}, err
+	}
+	entry, events, levelUps, err := s.store.InsertJournal(s.userID, in, journalDailyRewards)
+	if err != nil {
+		return models.JournalCreateResult{}, err
+	}
+	return models.JournalCreateResult{Entry: entry, XPEvents: orEmpty(events), LevelUps: orEmpty(levelUps)}, nil
+}
+
+// UpdateJournalEntry applies a partial patch to a reflection.
+func (s *Service) UpdateJournalEntry(id int64, p models.JournalPatch) (models.JournalEntry, error) {
+	if p.Mood != nil || p.Energy != nil {
+		mood, energy := 5, 5
+		if p.Mood != nil {
+			mood = *p.Mood
+		}
+		if p.Energy != nil {
+			energy = *p.Energy
+		}
+		if err := validMoodEnergy(mood, energy); err != nil {
+			return models.JournalEntry{}, err
+		}
+	}
+	entry, err := s.store.UpdateJournal(s.userID, id, p)
+	if errors.Is(err, db.ErrNotFound) {
+		return models.JournalEntry{}, ErrNotFound
+	}
+	return entry, err
+}
+
+// DeleteJournalEntry removes a reflection (already-awarded XP stays — the audit
+// log is immutable).
+func (s *Service) DeleteJournalEntry(id int64) error {
+	err := s.store.DeleteJournal(s.userID, id)
+	if errors.Is(err, db.ErrNotFound) {
+		return ErrNotFound
+	}
+	return err
+}
+
+// ListJournalEntries returns recent reflections, optionally filtered by a
+// full-text search over notes.
+func (s *Service) ListJournalEntries(limit int, search string) ([]models.JournalEntry, error) {
+	entries, err := s.store.ListJournal(s.userID, limit, search)
 	return orEmpty(entries), err
 }
 

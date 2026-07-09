@@ -164,6 +164,22 @@ type JournalInput struct {
 	Notes  string `json:"notes"`
 }
 
+// JournalPatch is a partial update to an entry; nil fields are left untouched.
+type JournalPatch struct {
+	Mood   *int    `json:"mood,omitempty"`
+	Energy *int    `json:"energy,omitempty"`
+	Notes  *string `json:"notes,omitempty"`
+}
+
+// JournalCreateResult is returned on create. The first entry of a local day
+// awards XP (auditable via xp_events, source='journal'); later entries that day
+// return empty XPEvents.
+type JournalCreateResult struct {
+	Entry    JournalEntry `json:"entry"`
+	XPEvents []XPEvent    `json:"xp_events"`
+	LevelUps []LevelUp    `json:"level_ups"`
+}
+
 // CharacterSummary is the aggregate level across all attributes.
 type CharacterSummary struct {
 	Name           string  `json:"name"`

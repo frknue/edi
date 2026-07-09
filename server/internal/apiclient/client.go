@@ -138,10 +138,15 @@ func (c *Client) ListJournal(limit int) ([]models.JournalEntry, error) {
 	return out, err
 }
 
-func (c *Client) CreateJournal(in models.JournalInput) (models.JournalEntry, error) {
-	var e models.JournalEntry
-	err := c.do(http.MethodPost, "/api/journal", in, &e)
-	return e, err
+func (c *Client) CreateJournal(in models.JournalInput) (models.JournalCreateResult, error) {
+	var r models.JournalCreateResult
+	err := c.do(http.MethodPost, "/api/journal", in, &r)
+	return r, err
+}
+
+// DeleteJournal removes a reflection by id.
+func (c *Client) DeleteJournal(id int64) error {
+	return c.do(http.MethodDelete, fmt.Sprintf("/api/journal/%d", id), nil, nil)
 }
 
 func (c *Client) ListSuggestions(status string) ([]models.AgentSuggestion, error) {

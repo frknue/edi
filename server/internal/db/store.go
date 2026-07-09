@@ -551,14 +551,125 @@ func (s *Store) CompletionsSince(userID int64, since time.Time) (int, error) {
 
 // --- journal ----------------------------------------------------------------
 
-func (s *Store) InsertJournal(userID int64, in models.JournalInput) (models.JournalEntry, error) {
-	res, err := s.db.Exec(`INSERT INTO journal_entries(user_id, mood, energy, notes, created_at) VALUES(?, ?, ?, ?, ?)`,
-		userID, in.Mood, in.Energy, in.Notes, nowString())
+// InsertJournal stores an entry and, when it is the FIRST entry of the local
+// day, awards dailyRewards atomically the same auditable way as quests/tools:
+// xp_events (source='journal') + attribute bumps + streak, all in one tx.
+// Later entries the same day store fine but award nothing.
+func (s *Store) InsertJournal(userID int64, in models.JournalInput, dailyRewards map[string]int64) (models.JournalEntry, []models.XPEvent, []models.LevelUp, error) {
+	names, err := s.AttributeNames(userID)
 	if err != nil {
-		return models.JournalEntry{}, err
+		return models.JournalEntry{}, nil, nil, err
 	}
-	id, _ := res.LastInsertId()
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return models.JournalEntry{}, nil, nil, err
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	now := time.Now().UTC()
+	nowStr := formatTime(now)
+
+	// First entry of the local day? (checked inside the tx, before our insert)
+	var existingToday int
+	if err := tx.QueryRow(
+		`SELECT COUNT(1) FROM journal_entries WHERE user_id = ? AND date(created_at,'localtime') = date('now','localtime')`,
+		userID).Scan(&existingToday); err != nil {
+		return models.JournalEntry{}, nil, nil, err
+	}
+
+	res, err := tx.Exec(`INSERT INTO journal_entries(user_id, mood, energy, notes, created_at) VALUES(?, ?, ?, ?, ?)`,
+		userID, in.Mood, in.Energy, in.Notes, nowStr)
+	if err != nil {
+		return models.JournalEntry{}, nil, nil, err
+	}
+	entryID, _ := res.LastInsertId()
+
+	var events []models.XPEvent
+	var levelUps []models.LevelUp
+	if existingToday == 0 && len(dailyRewards) > 0 {
+		for _, key := range orderedKeys(dailyRewards) {
+			amount := dailyRewards[key]
+			if amount == 0 {
+				continue
+			}
+			var oldXP int64
+			if err := tx.QueryRow(`SELECT total_xp FROM attributes WHERE user_id = ? AND key = ?`, userID, key).Scan(&oldXP); err != nil {
+				continue // unknown attribute — skip
+			}
+			ev, err := tx.Exec(
+				`INSERT INTO xp_events(user_id, attribute_key, amount, source, source_id, note, created_at) VALUES(?, ?, ?, 'journal', ?, ?, ?)`,
+				userID, key, amount, entryID, "Daily reflection", nowStr)
+			if err != nil {
+				return models.JournalEntry{}, nil, nil, err
+			}
+			if _, err := tx.Exec(`UPDATE attributes SET total_xp = total_xp + ? WHERE user_id = ? AND key = ?`, amount, userID, key); err != nil {
+				return models.JournalEntry{}, nil, nil, err
+			}
+			evID, _ := ev.LastInsertId()
+			sid := entryID
+			events = append(events, models.XPEvent{
+				ID: evID, AttributeKey: key, AttributeName: names[key], Amount: amount,
+				Source: "journal", SourceID: &sid, Note: "Daily reflection", CreatedAt: now,
+			})
+			if from, to := levelFromTo(oldXP, oldXP+amount); to > from {
+				levelUps = append(levelUps, models.LevelUp{
+					AttributeKey: key, AttributeName: names[key], FromLevel: from, ToLevel: to,
+				})
+			}
+		}
+		if err := updateStreakTx(tx, userID, now); err != nil {
+			return models.JournalEntry{}, nil, nil, err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return models.JournalEntry{}, nil, nil, err
+	}
+	entry, err := s.GetJournal(userID, entryID)
+	return entry, events, levelUps, err
+}
+
+// UpdateJournal applies a partial patch to an entry.
+func (s *Store) UpdateJournal(userID, id int64, p models.JournalPatch) (models.JournalEntry, error) {
+	var sets []string
+	var args []any
+	if p.Mood != nil {
+		sets = append(sets, "mood = ?")
+		args = append(args, *p.Mood)
+	}
+	if p.Energy != nil {
+		sets = append(sets, "energy = ?")
+		args = append(args, *p.Energy)
+	}
+	if p.Notes != nil {
+		sets = append(sets, "notes = ?")
+		args = append(args, *p.Notes)
+	}
+	if len(sets) > 0 {
+		args = append(args, id, userID)
+		res, err := s.db.Exec(`UPDATE journal_entries SET `+strings.Join(sets, ", ")+` WHERE id = ? AND user_id = ?`, args...)
+		if err != nil {
+			return models.JournalEntry{}, err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return models.JournalEntry{}, ErrNotFound
+		}
+	}
 	return s.GetJournal(userID, id)
+}
+
+// DeleteJournal removes an entry. Awarded XP is NOT clawed back — xp_events are
+// an immutable audit log, and the reflection still happened.
+func (s *Store) DeleteJournal(userID, id int64) error {
+	res, err := s.db.Exec(`DELETE FROM journal_entries WHERE id = ? AND user_id = ?`, id, userID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *Store) GetJournal(userID, id int64) (models.JournalEntry, error) {
@@ -573,11 +684,21 @@ func (s *Store) GetJournal(userID, id int64) (models.JournalEntry, error) {
 	return e, nil
 }
 
-func (s *Store) ListJournal(userID int64, limit int) ([]models.JournalEntry, error) {
+// ListJournal returns recent entries, optionally full-text filtered on notes.
+func (s *Store) ListJournal(userID int64, limit int, search string) ([]models.JournalEntry, error) {
 	if limit <= 0 {
 		limit = 30
 	}
-	rows, err := s.db.Query(`SELECT id, mood, energy, notes, created_at FROM journal_entries WHERE user_id = ? ORDER BY id DESC LIMIT ?`, userID, limit)
+	q := `SELECT id, mood, energy, notes, created_at FROM journal_entries WHERE user_id = ?`
+	args := []any{userID}
+	if search != "" {
+		q += ` AND notes LIKE ? ESCAPE '\'`
+		escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(search)
+		args = append(args, "%"+escaped+"%")
+	}
+	q += ` ORDER BY id DESC LIMIT ?`
+	args = append(args, limit)
+	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}

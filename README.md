@@ -123,8 +123,10 @@ Base: `/api`
 | POST | `/quests/:id/archive` | Archive |
 | POST | `/quests/:id/subtasks/:sid/toggle` | Check/uncheck a bonus objective (while active) |
 | GET | `/xp-events?limit=` | Recent XP audit events |
-| GET | `/journal?limit=` | Recent reflections |
-| POST | `/journal` | Add a reflection (mood/energy 1–10 + notes) |
+| GET | `/journal?limit=&q=` | Recent reflections (optional full-text search over notes) |
+| POST | `/journal` | Add a reflection (mood/energy 1–10 + notes); first entry of the day awards XP |
+| PATCH | `/journal/:id` | Edit a reflection |
+| DELETE | `/journal/:id` | Delete a reflection (awarded XP stays — the audit log is immutable) |
 | GET | `/agent/suggestions?status=` | List suggestions |
 | POST | `/agent/suggestions/generate` | Run the rule engine, persist + return pending |
 | POST | `/agent/suggestions/:id/accept` | Accept → creates a quest |

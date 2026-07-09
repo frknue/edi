@@ -3,6 +3,7 @@ import type {
   AgentSuggestion,
   CompletionResult,
   Dashboard,
+  JournalCreateResult,
   JournalEntry,
   MoodAssistResult,
   MoodLog,
@@ -91,9 +92,14 @@ export const api = {
 
   getXPEvents: (limit = 50) => request<XPEvent[]>(`/xp-events?limit=${limit}`),
 
-  listJournal: (limit = 30) => request<JournalEntry[]>(`/journal?limit=${limit}`),
+  listJournal: (limit = 30, q = "") =>
+    request<JournalEntry[]>(`/journal?limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ""}`),
   createJournal: (input: { mood: number; energy: number; notes: string }) =>
-    request<JournalEntry>("/journal", { method: "POST", body: JSON.stringify(input) }),
+    request<JournalCreateResult>("/journal", { method: "POST", body: JSON.stringify(input) }),
+  updateJournal: (id: number, patch: { mood?: number; energy?: number; notes?: string }) =>
+    request<JournalEntry>(`/journal/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  deleteJournal: (id: number) =>
+    request<{ deleted: boolean }>(`/journal/${id}`, { method: "DELETE" }),
 
   listSuggestions: (status?: string) =>
     request<AgentSuggestion[]>(`/agent/suggestions${status ? `?status=${status}` : ""}`),
