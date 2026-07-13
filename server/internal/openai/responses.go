@@ -13,10 +13,10 @@ import (
 // ResponsesURL is the ChatGPT backend endpoint that bills to the subscription.
 const ResponsesURL = "https://chatgpt.com/backend-api/codex/responses"
 
-// DefaultModel is used when EDI_OPENAI_MODEL is unset. gpt-5.5 is what the Codex
-// ChatGPT-subscription backend accepts (verified live); codex-suffixed and older
-// gpt-5.x ids are rejected for ChatGPT accounts.
-const DefaultModel = "gpt-5.5"
+// DefaultModel is used when EDI_OPENAI_MODEL is unset. gpt-5.6-sol is the
+// frontier tier of the gpt-5.6 family (sol/terra/luna, verified live);
+// codex-suffixed and older gpt-5.x ids are rejected for ChatGPT accounts.
+const DefaultModel = "gpt-5.6-sol"
 
 // ErrUnauthorized signals an expired/invalid access token (caller should refresh).
 type ErrUnauthorized struct{ Body string }

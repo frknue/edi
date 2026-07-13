@@ -13,7 +13,7 @@ import (
 // minimal_client_version. Bump this if OpenAI raises that floor.
 const (
 	ModelsURL          = "https://chatgpt.com/backend-api/codex/models"
-	CodexClientVersion = "0.142.5"
+	CodexClientVersion = "0.144.1"
 )
 
 // Model is one selectable model with its supported reasoning efforts.

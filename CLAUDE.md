@@ -126,11 +126,12 @@ caught and fixed — keep using it.
   the `app_settings` table (`POST /api/openai/config`). Available models come from
   the account via `openai.ListModels` (`codex/models?client_version=…`, exposed at
   `GET /api/openai/models`) — the request needs a recent `CodexClientVersion`
-  (bump it if the endpoint returns `[]`). Only ids the account lists actually work
-  (e.g. `gpt-5.5`/`gpt-5.4`/`gpt-5.4-mini`; arbitrary/`*-codex` ids 400 at generate).
-  `s.openAIModel()`/`s.openAIEffort()` resolve setting → env (`EDI_OPENAI_MODEL`/
-  `EDI_OPENAI_EFFORT`) → default (`gpt-5.5`/`medium`); both are passed into
-  `openai.Complete`.
+  (bump it if the endpoint returns `[]` or hides newer families — gpt-5.6 needs
+  ≥0.144.0). Only ids the account lists actually work (e.g. `gpt-5.6-sol`/
+  `gpt-5.6-terra`/`gpt-5.6-luna`/`gpt-5.5`/`gpt-5.4`/`gpt-5.4-mini`;
+  arbitrary/`*-codex` ids 400 at generate). `s.openAIModel()`/`s.openAIEffort()`
+  resolve setting → env (`EDI_OPENAI_MODEL`/`EDI_OPENAI_EFFORT`) → default
+  (`gpt-5.6-sol`/`medium`); both are passed into `openai.Complete`.
 - These are OpenAI's **undocumented** endpoints (`chatgpt.com/backend-api/codex/
   responses`, `auth.openai.com`). Verify changes with the opt-in live tests:
   `EDI_LIVE_TEST=1 go test ./internal/openai ./internal/services -run Live`.

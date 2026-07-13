@@ -32,8 +32,9 @@ const (
 )
 
 // EffortLevels are the reasoning depths the ChatGPT backend accepts (verified
-// live), fastest→deepest. "medium" is the default.
-var EffortLevels = []string{"none", "low", "medium", "high", "xhigh"}
+// live), fastest→deepest. "medium" is the default. "max"/"ultra" exist on the
+// gpt-5.6 family only; per-model support comes from ListModels (Model.Efforts).
+var EffortLevels = []string{"none", "low", "medium", "high", "xhigh", "max", "ultra"}
 
 func validEffort(e string) bool {
 	for _, v := range EffortLevels {

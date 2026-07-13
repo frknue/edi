@@ -237,9 +237,9 @@ and may change.
 **Model and reasoning effort** are both selectable in the connected bar and
 persist per user (`POST /api/openai/config`). The available models come straight
 from your account (`GET /api/openai/models` → the ChatGPT `codex/models`
-endpoint) — e.g. GPT-5.5 / GPT-5.4 / GPT-5.4-Mini — and each model's supported
-reasoning levels drive the effort picker (Fast → Max). Defaults are `gpt-5.5` /
-`medium`; override with `EDI_OPENAI_MODEL` / `EDI_OPENAI_EFFORT`.
+endpoint) — e.g. GPT-5.6-Sol / GPT-5.6-Terra / GPT-5.6-Luna / GPT-5.5 — and each
+model's supported reasoning levels drive the effort picker. Defaults are
+`gpt-5.6-sol` / `medium`; override with `EDI_OPENAI_MODEL` / `EDI_OPENAI_EFFORT`.
 
 ---
 

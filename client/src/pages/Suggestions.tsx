@@ -17,14 +17,16 @@ import { Btn, EmptyState, SectionTitle, Spinner } from "../components/ui";
 import { pushToast } from "../lib/toast";
 import type { OpenAIStatus } from "../lib/types";
 
-// Reasoning-effort tiers (the ChatGPT backend accepts only gpt-5.5, so depth is
-// the meaningful knob). Fastest → deepest.
+// Reasoning-effort tiers, fastest → deepest. Which tiers show comes from the
+// selected model (gpt-5.6 adds "max"; sol/terra also "ultra").
 const EFFORT_META: Record<string, { label: string; hint: string }> = {
   none: { label: "Instant", hint: "No reasoning — fastest" },
   low: { label: "Fast", hint: "Light reasoning" },
   medium: { label: "Balanced", hint: "Default" },
   high: { label: "Deep", hint: "More reasoning" },
-  xhigh: { label: "Max", hint: "Deepest, slowest" },
+  xhigh: { label: "Deeper", hint: "Extra reasoning, slower" },
+  max: { label: "Max", hint: "Maximum reasoning — slowest" },
+  ultra: { label: "Ultra", hint: "Max reasoning + task delegation" },
 };
 
 export function SuggestionsPage() {
