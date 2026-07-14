@@ -564,8 +564,8 @@ commands:
   shop-add --name N --price P     Add a reward to the shop
   buy <id>                        Purchase a shop item (spends gold)
   gold                            Gold balance + recent ledger
-  ward <attribute>                     buy a 7-day decay ward for an attribute (30g)
-  rest on|off                          pause/resume all attribute decay
+  ward <attribute>                   buy a 7-day decay ward for an attribute (30g)
+  rest on|off                        pause/resume all attribute decay
   tools                              list the agent tool catalog
 `)
 }
