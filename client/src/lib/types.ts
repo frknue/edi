@@ -10,6 +10,31 @@ export interface User {
   created_at: string;
 }
 
+export interface AttributeDecay {
+  state: "fresh" | "grace" | "decaying" | "warded" | "rest";
+  idle_days: number;
+  warded_until?: string;
+  projected_daily_loss: number;
+  floor_level: number;
+}
+
+export interface Ward {
+  id: number;
+  attribute_key: string;
+  expires_at: string;
+  created_at: string;
+}
+
+export interface WardResult {
+  ward: Ward;
+  balance: number;
+}
+
+export interface RestState {
+  on: boolean;
+  since?: string;
+}
+
 export interface Attribute {
   id: number;
   key: string;
@@ -19,6 +44,7 @@ export interface Attribute {
   xp_into_level: number;
   xp_for_next_level: number;
   progress: number; // 0..1
+  decay?: AttributeDecay;
 }
 
 export interface Subtask {
@@ -155,6 +181,9 @@ export interface Dashboard {
   today_quests: Quest[];
   streak: Streak;
   gold_balance: number;
+  rest_mode: boolean;
+  rest_since?: string;
+  decayed_today: number;
   recent_xp_events: XPEvent[];
   recommended_quest: Quest | null;
   daily_progress: DailyProgress;

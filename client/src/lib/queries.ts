@@ -277,3 +277,26 @@ export function usePurchaseShopItem() {
     },
   });
 }
+
+export function useWardAttribute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (key: string) => api.wardAttribute(key),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["attributes"] });
+      qc.invalidateQueries({ queryKey: ["gold-events"] });
+    },
+  });
+}
+
+export function useSetRestMode() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (on: boolean) => api.setRestMode(on),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["attributes"] });
+    },
+  });
+}

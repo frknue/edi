@@ -13,12 +13,14 @@ import type {
   PurchaseResult,
   Quest,
   QuestInput,
+  RestState,
   ShopItem,
   ShopItemInput,
   Subtask,
   ToolCompletionResult,
   ToolDefinition,
   ToolEntry,
+  WardResult,
   XPEvent,
 } from "./types";
 
@@ -116,6 +118,11 @@ export const api = {
     request<PurchaseResult>(`/shop/${id}/purchase`, { method: "POST" }),
   listGoldEvents: (limit = 30, source?: string) =>
     request<GoldEvent[]>(`/gold/events?limit=${limit}${source ? `&source=${encodeURIComponent(source)}` : ""}`),
+
+  wardAttribute: (key: string) =>
+    request<WardResult>(`/attributes/${key}/ward`, { method: "POST" }),
+  setRestMode: (on: boolean) =>
+    request<RestState>("/rest", { method: "POST", body: JSON.stringify({ on }) }),
 
   listSuggestions: (status?: string) =>
     request<AgentSuggestion[]>(`/agent/suggestions${status ? `?status=${status}` : ""}`),
