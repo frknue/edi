@@ -66,6 +66,34 @@ export interface Streak {
   last_active_date: string | null;
 }
 
+export interface ShopItem {
+  id: number;
+  name: string;
+  price: number;
+  created_at: string;
+  archived_at?: string;
+}
+
+export interface ShopItemInput {
+  name: string;
+  price: number;
+}
+
+export interface GoldEvent {
+  id: number;
+  amount: number; // positive = mint, negative = purchase
+  source: string; // quest, subtask, tool, journal, purchase, grant
+  label?: string;
+  shop_item_id?: number;
+  created_at: string;
+}
+
+export interface PurchaseResult {
+  item: ShopItem;
+  event: GoldEvent;
+  balance: number;
+}
+
 export interface JournalEntry {
   id: number;
   mood: number;
@@ -79,6 +107,7 @@ export interface JournalCreateResult {
   entry: JournalEntry;
   xp_events: XPEvent[];
   level_ups: LevelUp[];
+  gold: number;
 }
 
 export interface QuestInput {
@@ -125,6 +154,7 @@ export interface Dashboard {
   attributes: Attribute[];
   today_quests: Quest[];
   streak: Streak;
+  gold_balance: number;
   recent_xp_events: XPEvent[];
   recommended_quest: Quest | null;
   daily_progress: DailyProgress;
@@ -142,6 +172,7 @@ export interface CompletionResult {
   completed_quest: Quest;
   xp_events: XPEvent[];
   level_ups: LevelUp[];
+  gold: number;
   dashboard: Dashboard;
 }
 
@@ -198,6 +229,7 @@ export interface ToolCompletionResult {
   entry: ToolEntry;
   xp_events: XPEvent[];
   level_ups: LevelUp[];
+  gold: number;
   dashboard: Dashboard;
 }
 

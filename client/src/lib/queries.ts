@@ -4,7 +4,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { api } from "./api";
-import type { MoodLog, QuestInput } from "./types";
+import type { MoodLog, QuestInput, ShopItemInput } from "./types";
 
 export const keys = {
   dashboard: ["dashboard"] as const,
@@ -14,6 +14,8 @@ export const keys = {
   suggestions: (status?: string) => ["suggestions", status ?? "all"] as const,
   xpEvents: ["xp-events"] as const,
   openaiStatus: ["openai-status"] as const,
+  shop: ["shop"] as const,
+  goldEvents: ["gold-events"] as const,
 };
 
 export function useDashboard() {
@@ -51,6 +53,7 @@ function useInvalidateAll() {
     qc.invalidateQueries({ queryKey: ["quests"] });
     qc.invalidateQueries({ queryKey: ["suggestions"] });
     qc.invalidateQueries({ queryKey: ["xp-events"] });
+    qc.invalidateQueries({ queryKey: ["gold-events"] });
   };
 }
 
@@ -223,5 +226,51 @@ export function useSetOpenAIConfig() {
   return useMutation({
     mutationFn: (cfg: { model?: string; effort?: string }) => api.openaiConfig(cfg),
     onSuccess: (status) => qc.setQueryData(keys.openaiStatus, status),
+  });
+}
+
+// --- gold economy / reward shop ----------------------------------------------
+
+export function useShopItems() {
+  return useQuery({ queryKey: keys.shop, queryFn: api.listShop });
+}
+
+export function useGoldEvents(limit = 30) {
+  return useQuery({ queryKey: [...keys.goldEvents, limit], queryFn: () => api.listGoldEvents(limit) });
+}
+
+export function useCreateShopItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ShopItemInput) => api.createShopItem(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.shop }),
+  });
+}
+
+export function useUpdateShopItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: number; patch: { name?: string; price?: number } }) =>
+      api.updateShopItem(id, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.shop }),
+  });
+}
+
+export function useArchiveShopItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.archiveShopItem(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.shop }),
+  });
+}
+
+export function usePurchaseShopItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.purchaseShopItem(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["gold-events"] });
+    },
   });
 }

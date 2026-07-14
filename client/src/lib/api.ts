@@ -3,14 +3,18 @@ import type {
   AgentSuggestion,
   CompletionResult,
   Dashboard,
+  GoldEvent,
   JournalCreateResult,
   JournalEntry,
   MoodAssistResult,
   MoodLog,
   OpenAIModel,
   OpenAIStatus,
+  PurchaseResult,
   Quest,
   QuestInput,
+  ShopItem,
+  ShopItemInput,
   Subtask,
   ToolCompletionResult,
   ToolDefinition,
@@ -100,6 +104,17 @@ export const api = {
     request<JournalEntry>(`/journal/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   deleteJournal: (id: number) =>
     request<{ deleted: boolean }>(`/journal/${id}`, { method: "DELETE" }),
+
+  listShop: () => request<ShopItem[]>("/shop"),
+  createShopItem: (input: ShopItemInput) =>
+    request<ShopItem>("/shop", { method: "POST", body: JSON.stringify(input) }),
+  updateShopItem: (id: number, patch: { name?: string; price?: number }) =>
+    request<ShopItem>(`/shop/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  archiveShopItem: (id: number) =>
+    request<{ archived: boolean }>(`/shop/${id}/archive`, { method: "POST" }),
+  purchaseShopItem: (id: number) =>
+    request<PurchaseResult>(`/shop/${id}/purchase`, { method: "POST" }),
+  listGoldEvents: (limit = 30) => request<GoldEvent[]>(`/gold/events?limit=${limit}`),
 
   listSuggestions: (status?: string) =>
     request<AgentSuggestion[]>(`/agent/suggestions${status ? `?status=${status}` : ""}`),
