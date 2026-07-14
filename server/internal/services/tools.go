@@ -28,6 +28,10 @@ func (s *Service) CompleteTool(key string, payload json.RawMessage) (models.Tool
 		return models.ToolCompletionResult{}, err
 	}
 
+	if _, err := s.ApplyDecay(); err != nil {
+		return models.ToolCompletionResult{}, err
+	}
+
 	def := tool.Definition()
 	entry, events, levelUps, gold, err := s.store.CompleteTool(s.userID, def.Key, def.Name, clean, summary, def.AttributeRewards)
 	if err != nil {

@@ -1,5 +1,7 @@
 package services
 
+import "time"
+
 // Decay & stakes: neglected attributes bleed XP. Pure math lives here (like
 // the level formula in xp.go); db/decay_math.go keeps private mirrors to
 // avoid an import cycle — change both together.
@@ -36,4 +38,23 @@ func DailyDecay(totalXP int64) int64 {
 // (peak level - 2). Peaks at level <=3 floor at 0.
 func DecayFloor(peakXP int64) int64 {
 	return XPForLevel(LevelForXP(peakXP) - 2)
+}
+
+// ApplyDecay runs the lazy decay catch-up unless rest mode is on. It is
+// called at the top of attribute-touching reads and before completions, so
+// decay is always applied before new state is read or awarded. Returns the
+// XP removed by this call (0 when nothing was owed).
+func (s *Service) ApplyDecay() (int64, error) {
+	rest, err := s.RestState()
+	if err != nil {
+		return 0, err
+	}
+	if rest.On {
+		return 0, nil
+	}
+	ended, err := s.restEndedAt()
+	if err != nil {
+		return 0, err
+	}
+	return s.store.ApplyDecay(s.userID, ended, time.Now().UTC())
 }

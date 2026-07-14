@@ -71,6 +71,9 @@ func enrichAttribute(a models.Attribute) models.Attribute {
 
 // ListAttributes returns all attributes with derived level/progress.
 func (s *Service) ListAttributes() ([]models.Attribute, error) {
+	if _, err := s.ApplyDecay(); err != nil {
+		return nil, err
+	}
 	raw, err := s.store.ListAttributes(s.userID)
 	if err != nil {
 		return nil, err
@@ -235,6 +238,9 @@ func (s *Service) UpdateQuest(id int64, p models.QuestPatch) (models.Quest, erro
 
 // CompleteQuest completes a quest and returns rich feedback + a refreshed dashboard.
 func (s *Service) CompleteQuest(id int64) (models.CompletionResult, error) {
+	if _, err := s.ApplyDecay(); err != nil {
+		return models.CompletionResult{}, err
+	}
 	quest, events, levelUps, gold, err := s.store.CompleteQuest(s.userID, id)
 	if err != nil {
 		switch {
@@ -320,6 +326,9 @@ func (s *Service) CreateJournalEntry(in models.JournalInput) (models.JournalCrea
 	if err := validMoodEnergy(in.Mood, in.Energy); err != nil {
 		return models.JournalCreateResult{}, err
 	}
+	if _, err := s.ApplyDecay(); err != nil {
+		return models.JournalCreateResult{}, err
+	}
 	entry, events, levelUps, gold, err := s.store.InsertJournal(s.userID, in, journalDailyRewards)
 	if err != nil {
 		return models.JournalCreateResult{}, err
@@ -369,6 +378,10 @@ func (s *Service) ListJournalEntries(limit int, search string) ([]models.Journal
 
 // GetDashboard assembles the full main-screen payload in one call.
 func (s *Service) GetDashboard() (models.Dashboard, error) {
+	decayed, err := s.ApplyDecay()
+	if err != nil {
+		return models.Dashboard{}, err
+	}
 	user, err := s.store.GetUser(s.userID)
 	if err != nil {
 		return models.Dashboard{}, err
@@ -431,6 +444,7 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 		RecommendedQuest: recommended,
 		DailyProgress:    models.DailyProgress{CompletedToday: completedToday, Goal: goal, Ratio: dailyRatio},
 		Suggestions:      orEmpty(suggestions),
+		DecayedToday:     decayed,
 	}, nil
 }
 
