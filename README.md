@@ -104,6 +104,11 @@ All clients understand it:
   immutable `xp_events` row. `attributes.total_xp` always equals the sum of its events.
 - **Boss** quests get a distinct, intense visual; **recovery** quests feel soft and
   non-punitive.
+- **Gold & Reward Shop:** every XP award also mints gold (1g per 10 XP, min 1) in the
+  same transaction as the `xp_events` row — the balance is `SUM(gold_events.amount)`,
+  computed on read, same as XP. Spend it in the **Shop** on rewards you define
+  yourself ("guilt-free gaming evening"); purchases check the balance inside the
+  purchase transaction so it can never go negative.
 
 ---
 
@@ -113,7 +118,7 @@ Base: `/api`
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/dashboard` | Full dashboard payload (character, attributes, today's quests, streak, recent XP, recommended quest, suggestions) |
+| GET | `/dashboard` | Full dashboard payload (character, attributes, today's quests, streak, recent XP, recommended quest, suggestions, gold balance) |
 | GET | `/attributes` | All attributes with derived level/progress |
 | GET | `/quests?type=&status=` | List/filter quests |
 | POST | `/quests` | Create a quest |
@@ -133,12 +138,19 @@ Base: `/api`
 | POST | `/agent/suggestions/:id/dismiss` | Dismiss |
 | GET | `/agent/tools` | **Discover** the agent tool catalog (names + JSON Schemas) |
 | POST | `/agent/tools/:name/invoke` | **Invoke** a tool — same path a future LLM agent uses |
+| GET | `/shop` | List active reward shop items |
+| POST | `/shop` | Add a reward (name + gold price) |
+| PATCH | `/shop/:id` | Update a shop item's name or price |
+| POST | `/shop/:id/archive` | Archive a shop item (purchase history keeps its label) |
+| POST | `/shop/:id/purchase` | Buy a reward — checks the gold balance inside the tx, never overspends |
+| GET | `/gold/events?limit=` | Recent gold ledger entries (mints + purchases); the balance is `SUM(amount)` |
 
 ### Agent-ready by design
 
-`server/internal/agent` wraps the service layer as 13 named tools with JSON Schemas
+`server/internal/agent` wraps the service layer as 20 named tools with JSON Schemas
 (`get_dashboard`, `create_quest`, `complete_quest`, `generate_suggestions`,
-`accept_suggestion`, …). They are discoverable at `GET /api/agent/tools` and callable
+`accept_suggestion`, `list_shop_items`, `purchase_shop_item`, `list_gold_events`, …).
+They are discoverable at `GET /api/agent/tools` and callable
 at `POST /api/agent/tools/:name/invoke`. Each tool forwards to the **same**
 `services.Service` the REST handlers use — wiring an LLM or MCP bridge later requires
 no new data path.
@@ -171,9 +183,11 @@ make cli ARGS=tools               # the agent tool catalog
 ### MCP server (AI agent bridge)
 
 `edi-mcp` is a Model Context Protocol server (stdio JSON-RPC) that exposes the
-13 agent tools to an AI client. It is a pure proxy to `/api/agent/tools` — the agent
+20 agent tools to an AI client. It is a pure proxy to `/api/agent/tools` — the agent
 drives the app through the **same service path** as every other client. A quest the
-agent creates is immediately visible to the web UI, CLI, and DB.
+agent creates is immediately visible to the web UI, CLI, and DB. New tools (like the
+gold economy ones below) appear automatically — the MCP server never needs a code
+change to pick them up.
 
 Point an MCP-capable client (Claude Desktop / Claude Code) at it — start the API
 (`make backend`) first, then add:
@@ -190,9 +204,11 @@ Point an MCP-capable client (Claude Desktop / Claude Code) at it — start the A
 ```
 
 (Build the binary with `make build`.) Tools available to the agent: `get_dashboard`,
-`list_quests`, `create_quest`, `complete_quest`, `skip_quest`, `archive_quest`,
-`create_journal_entry`, `list_journal_entries`, `get_weakest_attribute`,
-`generate_suggestions`, `accept_suggestion`, `dismiss_suggestion`, `update_quest`.
+`list_quests`, `create_quest`, `update_quest`, `toggle_subtask`, `complete_quest`,
+`skip_quest`, `archive_quest`, `create_journal_entry`, `list_journal_entries`,
+`get_weakest_attribute`, `generate_suggestions`, `accept_suggestion`,
+`dismiss_suggestion`, `list_shop_items`, `create_shop_item`, `update_shop_item`,
+`archive_shop_item`, `purchase_shop_item`, `list_gold_events`.
 
 #### Example: connecting the OpenAI Codex CLI
 

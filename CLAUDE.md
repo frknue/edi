@@ -93,6 +93,12 @@ caught and fixed — keep using it.
           WHERE e.attribute_key=a.key AND e.user_id=a.user_id) AS sum_events
   FROM attributes a;
   ```
+- **Gold is auditable the same way.** The balance is always
+  `SUM(gold_events.amount)` computed on read — there is no stored balance
+  column. Minting (1g per 10 XP, min 1, `services.GoldForXP` mirrored by
+  `db.goldForXP`) happens inside the SAME tx as the xp_event; purchases check
+  the balance inside the purchase tx so it can never go negative (regression
+  tests: `TestGoldAuditInvariant`, `TestShopPurchaseConcurrentNoOverspend`).
 - **Completion goes through `CompleteQuest`/`SkipQuest` only** — never via a generic
   `PATCH status`. The service rejects `status:completed|skipped` patches on purpose.
 - **Quest completion is atomic and idempotent.** `store.CompleteQuest` gates on a
