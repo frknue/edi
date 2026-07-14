@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { Bot, BookHeart, BrainCircuit, ChevronDown, LayoutDashboard, ScrollText, Wrench } from "lucide-react";
+import { Bot, BookHeart, BrainCircuit, ChevronDown, LayoutDashboard, ScrollText, Store, Wrench } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { DashboardPage } from "./pages/Dashboard";
 import { QuestsPage } from "./pages/Quests";
 import { JournalPage } from "./pages/Journal";
 import { SuggestionsPage } from "./pages/Suggestions";
+import { ShopPage } from "./pages/Shop";
 import { DailyMoodLog } from "./components/DailyMoodLog";
 
-type View = "dashboard" | "quests" | "moodlog" | "journal" | "agent";
+type View = "dashboard" | "quests" | "shop" | "moodlog" | "journal" | "agent";
 
 // "Tools" is not a page — in the sidebar it's a collapsible group whose children
 // (Daily Mood Log, Journal) are the actual destinations.
@@ -80,6 +81,7 @@ export default function App() {
         <nav className="mt-10 flex flex-1 flex-col gap-1">
           {topItem("dashboard", "Dashboard", LayoutDashboard)}
           {topItem("quests", "Quests", ScrollText)}
+          {topItem("shop", "Shop", Store)}
 
           {/* Tools: collapsible group, no page of its own */}
           <button
@@ -145,6 +147,7 @@ export default function App() {
           <DashboardPage onGoToQuests={() => setView("quests")} onGoToAgent={() => setView("agent")} />
         )}
         {view === "quests" && <QuestsPage />}
+        {view === "shop" && <ShopPage />}
         {view === "moodlog" && <DailyMoodLog onClose={() => setView("dashboard")} />}
         {view === "journal" && <JournalPage />}
         {view === "agent" && <SuggestionsPage />}
@@ -156,6 +159,7 @@ export default function App() {
           [
             { id: "dashboard", label: "Dashboard", Icon: LayoutDashboard },
             { id: "quests", label: "Quests", Icon: ScrollText },
+            { id: "shop", label: "Shop", Icon: Store },
             { id: "moodlog", label: "Mood Log", Icon: BrainCircuit },
             { id: "journal", label: "Journal", Icon: BookHeart },
             { id: "agent", label: "Agent", Icon: Bot },
