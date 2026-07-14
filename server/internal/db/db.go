@@ -25,6 +25,8 @@ var (
 	ErrQuestNotCompletable = errors.New("quest is already completed or archived")
 	// ErrSuggestionNotPending — the suggestion was already accepted/dismissed.
 	ErrSuggestionNotPending = errors.New("suggestion already resolved")
+	// ErrInsufficientGold — the balance cannot cover the purchase.
+	ErrInsufficientGold = errors.New("not enough gold")
 )
 
 // timeLayout is the canonical on-disk timestamp format: RFC3339 with FIXED-WIDTH
