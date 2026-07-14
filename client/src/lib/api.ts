@@ -114,7 +114,8 @@ export const api = {
     request<{ archived: boolean }>(`/shop/${id}/archive`, { method: "POST" }),
   purchaseShopItem: (id: number) =>
     request<PurchaseResult>(`/shop/${id}/purchase`, { method: "POST" }),
-  listGoldEvents: (limit = 30) => request<GoldEvent[]>(`/gold/events?limit=${limit}`),
+  listGoldEvents: (limit = 30, source?: string) =>
+    request<GoldEvent[]>(`/gold/events?limit=${limit}${source ? `&source=${encodeURIComponent(source)}` : ""}`),
 
   listSuggestions: (status?: string) =>
     request<AgentSuggestion[]>(`/agent/suggestions${status ? `?status=${status}` : ""}`),

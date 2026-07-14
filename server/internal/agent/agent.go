@@ -237,16 +237,17 @@ func NewRegistry(svc *services.Service) *Registry {
 			return svc.PurchaseShopItem(id)
 		})
 
-	add("list_gold_events", "List recent gold ledger entries (mints and purchases). The balance is SUM(amount) and also appears on the dashboard as gold_balance.",
-		`{"type":"object","properties":{"limit":{"type":"integer"}}}`,
+	add("list_gold_events", "List recent gold ledger entries (mints and purchases). The balance is SUM(amount) and also appears on the dashboard as gold_balance. Optionally filter to one source (e.g. \"purchase\") to see history for that source without mints crowding it out.",
+		`{"type":"object","properties":{"limit":{"type":"integer"},"source":{"type":"string"}}}`,
 		func(in json.RawMessage) (any, error) {
 			var p struct {
-				Limit int `json:"limit"`
+				Limit  int    `json:"limit"`
+				Source string `json:"source"`
 			}
 			if err := decode(in, &p); err != nil {
 				return nil, err
 			}
-			return svc.ListGoldEvents(p.Limit)
+			return svc.ListGoldEvents(p.Limit, p.Source)
 		})
 
 	for i, t := range r.tools {

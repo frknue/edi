@@ -40,14 +40,25 @@ func (s *Store) GoldBalance(userID int64) (int64, error) {
 	return bal, err
 }
 
-// ListGoldEvents returns the most recent gold ledger rows (mints and purchases).
-func (s *Store) ListGoldEvents(userID int64, limit int) ([]models.GoldEvent, error) {
+// ListGoldEvents returns the most recent gold ledger rows (mints and
+// purchases). When source is non-empty, only rows with that exact source
+// (e.g. "purchase", "grant", "quest") are returned — filtered at the query
+// layer (idx_gold_events_source) rather than after truncating to limit, so
+// callers can page through a single source without mints crowding it out.
+func (s *Store) ListGoldEvents(userID int64, limit int, source string) ([]models.GoldEvent, error) {
 	if limit <= 0 {
 		limit = 30
 	}
-	rows, err := s.db.Query(
-		`SELECT id, amount, source, label, shop_item_id, created_at
-		 FROM gold_events WHERE user_id = ? ORDER BY id DESC LIMIT ?`, userID, limit)
+	query := `SELECT id, amount, source, label, shop_item_id, created_at
+		 FROM gold_events WHERE user_id = ?`
+	args := []any{userID}
+	if source != "" {
+		query += ` AND source = ?`
+		args = append(args, source)
+	}
+	query += ` ORDER BY id DESC LIMIT ?`
+	args = append(args, limit)
+	rows, err := s.db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}

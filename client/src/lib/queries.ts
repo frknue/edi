@@ -235,8 +235,11 @@ export function useShopItems() {
   return useQuery({ queryKey: keys.shop, queryFn: api.listShop });
 }
 
-export function useGoldEvents(limit = 30) {
-  return useQuery({ queryKey: [...keys.goldEvents, limit], queryFn: () => api.listGoldEvents(limit) });
+export function useGoldEvents(limit = 30, source?: string) {
+  return useQuery({
+    queryKey: [...keys.goldEvents, limit, source ?? "all"],
+    queryFn: () => api.listGoldEvents(limit, source),
+  });
 }
 
 export function useCreateShopItem() {

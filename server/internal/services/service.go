@@ -293,9 +293,10 @@ func (s *Service) GoldBalance() (int64, error) {
 	return s.store.GoldBalance(s.userID)
 }
 
-// ListGoldEvents returns the most recent gold ledger rows.
-func (s *Service) ListGoldEvents(limit int) ([]models.GoldEvent, error) {
-	events, err := s.store.ListGoldEvents(s.userID, limit)
+// ListGoldEvents returns the most recent gold ledger rows. When source is
+// non-empty (e.g. "purchase"), only events of that source are returned.
+func (s *Service) ListGoldEvents(limit int, source string) ([]models.GoldEvent, error) {
+	events, err := s.store.ListGoldEvents(s.userID, limit, source)
 	return orEmpty(events), err
 }
 

@@ -197,9 +197,13 @@ func (c *Client) PurchaseShopItem(id int64) (models.PurchaseResult, error) {
 	return r, err
 }
 
-func (c *Client) ListGoldEvents(limit int) ([]models.GoldEvent, error) {
+func (c *Client) ListGoldEvents(limit int, source string) ([]models.GoldEvent, error) {
 	var out []models.GoldEvent
-	err := c.do(http.MethodGet, fmt.Sprintf("/api/gold/events?limit=%d", limit), nil, &out)
+	url := fmt.Sprintf("/api/gold/events?limit=%d", limit)
+	if source != "" {
+		url += "&source=" + source
+	}
+	err := c.do(http.MethodGet, url, nil, &out)
 	return out, err
 }
 

@@ -426,7 +426,7 @@ func cmdGold(c *apiclient.Client) error {
 		return err
 	}
 	fmt.Printf("Gold: %dg\n\nRecent ledger:\n", dash.GoldBalance)
-	events, err := c.ListGoldEvents(15)
+	events, err := c.ListGoldEvents(15, "")
 	if err != nil {
 		return err
 	}

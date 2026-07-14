@@ -142,11 +142,50 @@ func TestShopListsSerializeAsArrays(t *testing.T) {
 	if b, _ := json.Marshal(items); string(b) != "[]" {
 		t.Errorf("shop items marshal = %s, want []", b)
 	}
-	events, err := svc.ListGoldEvents(10)
+	events, err := svc.ListGoldEvents(10, "")
 	if err != nil {
 		t.Fatalf("list events: %v", err)
 	}
 	if b, _ := json.Marshal(events); string(b) != "[]" {
 		t.Errorf("gold events marshal = %s, want []", b)
+	}
+}
+
+// TestListGoldEventsSourceFilter guards the fix for Shop.tsx's purchase-history
+// section: mints dominate the ledger (2-5 per quest completion), so filtering
+// "purchase" client-side after fetching the last N events silently truncates
+// to nothing once ~30 mints accumulate. The source filter must be applied at
+// the query layer (idx_gold_events_source), not after truncation.
+func TestListGoldEventsSourceFilter(t *testing.T) {
+	svc := newTestService(t) // seeds one grant event of 252 gold
+	item, err := svc.CreateShopItem(models.ShopItemInput{Name: "Book", Price: 20})
+	if err != nil {
+		t.Fatalf("create item: %v", err)
+	}
+	if _, err := svc.PurchaseShopItem(item.ID); err != nil {
+		t.Fatalf("purchase: %v", err)
+	}
+
+	purchases, err := svc.ListGoldEvents(50, "purchase")
+	if err != nil {
+		t.Fatalf("list purchases: %v", err)
+	}
+	if len(purchases) != 1 || purchases[0].Source != "purchase" || purchases[0].Amount != -20 {
+		t.Errorf("purchases = %+v, want exactly one purchase event of -20", purchases)
+	}
+
+	all, err := svc.ListGoldEvents(50, "")
+	if err != nil {
+		t.Fatalf("list all: %v", err)
+	}
+	if len(all) != 2 {
+		t.Errorf("all events = %+v, want 2 (grant + purchase)", all)
+	}
+	sources := map[string]bool{}
+	for _, e := range all {
+		sources[e.Source] = true
+	}
+	if !sources["grant"] || !sources["purchase"] {
+		t.Errorf("all events sources = %v, want grant and purchase", sources)
 	}
 }

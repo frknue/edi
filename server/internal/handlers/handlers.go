@@ -444,7 +444,7 @@ func (h *Handlers) purchaseShopItem(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) listGoldEvents(w http.ResponseWriter, r *http.Request) {
-	events, err := h.svc.ListGoldEvents(queryInt(r, "limit", 30))
+	events, err := h.svc.ListGoldEvents(queryInt(r, "limit", 30), r.URL.Query().Get("source"))
 	if err != nil {
 		writeError(w, err)
 		return

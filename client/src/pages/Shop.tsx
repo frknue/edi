@@ -111,7 +111,7 @@ function AddItemForm() {
 export function ShopPage() {
   const dashboard = useDashboard();
   const items = useShopItems();
-  const ledger = useGoldEvents(30);
+  const ledger = useGoldEvents(30, "purchase");
 
   if (dashboard.isLoading || items.isLoading) return <Spinner label="Opening the shop…" />;
   if (dashboard.isError || items.isError || !dashboard.data || !items.data) {
@@ -124,7 +124,7 @@ export function ShopPage() {
   }
 
   const balance = dashboard.data.gold_balance;
-  const purchases = (ledger.data ?? []).filter((e) => e.source === "purchase");
+  const purchases = ledger.data ?? [];
 
   return (
     <div className="space-y-6">
@@ -162,9 +162,14 @@ export function ShopPage() {
 
       <section>
         <SectionTitle hint="Every purchase is a ledger entry — same audit trail as XP.">
-          Purchase history
+          Recent purchases
         </SectionTitle>
-        {purchases.length === 0 ? (
+        {ledger.isError ? (
+          <EmptyState
+            title="Couldn't load purchase history"
+            hint={(ledger.error as Error)?.message ?? "Is the Go server running on :8080?"}
+          />
+        ) : purchases.length === 0 ? (
           <EmptyState title="No purchases yet" hint="Earn gold by completing quests, then treat yourself." />
         ) : (
           <div className="space-y-1.5">

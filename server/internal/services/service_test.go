@@ -452,7 +452,7 @@ func TestSeedGoldGrant(t *testing.T) {
 	if bal != 252 {
 		t.Errorf("seed gold balance = %d, want 252", bal)
 	}
-	events, err := svc.ListGoldEvents(10)
+	events, err := svc.ListGoldEvents(10, "")
 	if err != nil {
 		t.Fatalf("list gold events: %v", err)
 	}
@@ -481,7 +481,7 @@ func TestCompleteQuestMintsGold(t *testing.T) {
 	if result.Dashboard.GoldBalance != balAfter {
 		t.Errorf("dashboard gold_balance = %d, want %d", result.Dashboard.GoldBalance, balAfter)
 	}
-	events, _ := svc.ListGoldEvents(5)
+	events, _ := svc.ListGoldEvents(5, "")
 	if len(events) < 2 || events[0].Source != "quest" || events[1].Source != "quest" {
 		t.Errorf("expected two quest mint events, got %+v", events)
 	}
