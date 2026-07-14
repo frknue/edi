@@ -38,12 +38,14 @@ type Attribute struct {
 	Key     string `json:"key"`
 	Name    string `json:"name"`
 	TotalXP int64  `json:"total_xp"`
+	PeakXP  int64  `json:"-"` // highest total_xp ever reached; anchors the decay floor
 
 	// Derived fields (computed on read, never stored).
-	Level          int     `json:"level"`
-	XPIntoLevel    int64   `json:"xp_into_level"`
-	XPForNextLevel int64   `json:"xp_for_next_level"`
-	Progress       float64 `json:"progress"` // 0..1 toward next level
+	Level          int             `json:"level"`
+	XPIntoLevel    int64           `json:"xp_into_level"`
+	XPForNextLevel int64           `json:"xp_for_next_level"`
+	Progress       float64         `json:"progress"`        // 0..1 toward next level
+	Decay          *AttributeDecay `json:"decay,omitempty"` // computed on read
 }
 
 // Quest is a real-life action the user can complete for XP.
@@ -206,6 +208,9 @@ type Dashboard struct {
 	TodayQuests      []Quest           `json:"today_quests"`
 	Streak           Streak            `json:"streak"`
 	GoldBalance      int64             `json:"gold_balance"`
+	RestMode         bool              `json:"rest_mode"`
+	RestSince        *time.Time        `json:"rest_since,omitempty"`
+	DecayedToday     int64             `json:"decayed_today"` // XP removed by this request's decay catch-up
 	RecentXPEvents   []XPEvent         `json:"recent_xp_events"`
 	RecommendedQuest *Quest            `json:"recommended_quest"`
 	DailyProgress    DailyProgress     `json:"daily_progress"`
@@ -367,4 +372,36 @@ type PurchaseResult struct {
 	Item    ShopItem  `json:"item"`
 	Event   GoldEvent `json:"event"`
 	Balance int64     `json:"balance"` // balance after the purchase
+}
+
+// Ward is a gold-bought decay shield for one attribute. Rows are never
+// deleted: lapsed windows still exclude the days they covered from billing.
+type Ward struct {
+	ID           int64     `json:"id"`
+	AttributeKey string    `json:"attribute_key"`
+	ExpiresAt    time.Time `json:"expires_at"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+// WardResult is returned after buying a ward.
+type WardResult struct {
+	Ward    Ward  `json:"ward"`
+	Balance int64 `json:"balance"` // gold balance after the purchase
+}
+
+// RestState reports whether decay is paused (vacation/sick mode).
+type RestState struct {
+	On    bool       `json:"on"`
+	Since *time.Time `json:"since,omitempty"`
+}
+
+// AttributeDecay describes an attribute's decay state, computed on read.
+// State is one of: fresh (active today), grace (idle 1-3 days), decaying
+// (idle beyond grace), warded (shielded by an active ward), rest (rest mode).
+type AttributeDecay struct {
+	State              string     `json:"state"`
+	IdleDays           int        `json:"idle_days"`
+	WardedUntil        *time.Time `json:"warded_until,omitempty"`
+	ProjectedDailyLoss int64      `json:"projected_daily_loss"` // 0 unless decaying
+	FloorLevel         int        `json:"floor_level"`
 }

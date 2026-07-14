@@ -78,3 +78,37 @@ func TestGoldForXP(t *testing.T) {
 		}
 	}
 }
+
+func TestDailyDecay(t *testing.T) {
+	cases := []struct {
+		total int64
+		want  int64
+	}{
+		{-10, 0}, {0, 0}, {1, 1}, {3, 3}, {4, 4}, {5, 5}, {6, 5}, {100, 5},
+		{499, 5}, {500, 5}, {600, 6}, {2520, 25}, {10000, 100},
+	}
+	for _, c := range cases {
+		if got := DailyDecay(c.total); got != c.want {
+			t.Errorf("DailyDecay(%d) = %d, want %d", c.total, got, c.want)
+		}
+	}
+}
+
+func TestDecayFloor(t *testing.T) {
+	cases := []struct {
+		peak int64
+		want int64
+	}{
+		{0, 0},      // peak level 1 -> floor level -1 -> clamp 0
+		{99, 0},     // level 1
+		{100, 0},    // level 2 -> floor level 0 -> clamp 0
+		{400, 0},    // level 3 -> floor level 1 -> 0 XP
+		{900, 100},  // level 4 -> floor level 2 -> 100 XP
+		{1600, 400}, // level 5 -> floor level 3 -> 400 XP
+	}
+	for _, c := range cases {
+		if got := DecayFloor(c.peak); got != c.want {
+			t.Errorf("DecayFloor(%d) = %d, want %d", c.peak, got, c.want)
+		}
+	}
+}

@@ -924,3 +924,12 @@ func levelForXP(xp int64) int {
 	}
 	return lvl // because (lvl-1) is the floor; loop overshoots by one => this equals floor()+1
 }
+
+// xpForLevel mirrors services.XPForLevel (kept in sync, avoids the cycle).
+func xpForLevel(level int) int64 {
+	if level < 1 {
+		level = 1
+	}
+	l := int64(level - 1)
+	return l * l * 100
+}
