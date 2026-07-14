@@ -1,6 +1,11 @@
 package services
 
-import "time"
+import (
+	"time"
+
+	"edi/internal/db"
+	"edi/internal/models"
+)
 
 // Decay & stakes: neglected attributes bleed XP. Pure math lives here (like
 // the level formula in xp.go); db/decay_math.go keeps private mirrors to
@@ -57,4 +62,47 @@ func (s *Service) ApplyDecay() (int64, error) {
 		return 0, err
 	}
 	return s.store.ApplyDecay(s.userID, ended, time.Now().UTC())
+}
+
+// decayStatus computes the read-side decay state for one attribute.
+func decayStatus(a models.Attribute, in db.DecayInput, rest models.RestState, restEnded *time.Time, now time.Time) *models.AttributeDecay {
+	d := &models.AttributeDecay{FloorLevel: LevelForXP(DecayFloor(a.PeakXP))}
+
+	anchor := time.Time{}
+	if in.LastActivity != nil {
+		anchor = *in.LastActivity
+	}
+	if restEnded != nil && restEnded.After(anchor) {
+		anchor = *restEnded
+	}
+	if !anchor.IsZero() {
+		d.IdleDays = localDaysBetween(anchor, now)
+	}
+	d.WardedUntil = in.WardExpiry
+
+	switch {
+	case rest.On:
+		d.State = "rest"
+	case in.WardExpiry != nil:
+		d.State = "warded"
+	case d.IdleDays == 0:
+		d.State = "fresh"
+	case d.IdleDays <= DecayGraceDays:
+		d.State = "grace"
+	default:
+		d.State = "decaying"
+		d.ProjectedDailyLoss = DailyDecay(a.TotalXP)
+		if DecayFloor(a.PeakXP) >= a.TotalXP {
+			d.ProjectedDailyLoss = 0 // already at the floor: nothing more to lose
+		}
+	}
+	return d
+}
+
+// localDaysBetween mirrors db.localDaysBetween (kept in sync).
+func localDaysBetween(a, b time.Time) int {
+	al, bl := a.Local(), b.Local()
+	ad := time.Date(al.Year(), al.Month(), al.Day(), 0, 0, 0, 0, time.Local)
+	bd := time.Date(bl.Year(), bl.Month(), bl.Day(), 0, 0, 0, 0, time.Local)
+	return int(bd.Sub(ad).Hours()/24 + 0.5)
 }

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"edi/internal/db"
 	"edi/internal/models"
@@ -81,6 +82,22 @@ func (s *Service) ListAttributes() ([]models.Attribute, error) {
 	out := make([]models.Attribute, 0, len(raw))
 	for _, a := range raw {
 		out = append(out, enrichAttribute(a))
+	}
+
+	rest, err := s.RestState()
+	if err != nil {
+		return nil, err
+	}
+	restEnded, err := s.restEndedAt()
+	if err != nil {
+		return nil, err
+	}
+	inputs, err := s.store.DecayInputs(s.userID, time.Now().UTC())
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		out[i].Decay = decayStatus(out[i], inputs[out[i].Key], rest, restEnded, time.Now().UTC())
 	}
 	return out, nil
 }
@@ -414,6 +431,10 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 	if err != nil {
 		return models.Dashboard{}, err
 	}
+	rest, err := s.RestState()
+	if err != nil {
+		return models.Dashboard{}, err
+	}
 
 	var totalXP int64
 	for _, a := range attrs {
@@ -440,6 +461,8 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 		TodayQuests:      orEmpty(todayQuests),
 		Streak:           streak,
 		GoldBalance:      goldBalance,
+		RestMode:         rest.On,
+		RestSince:        rest.Since,
 		RecentXPEvents:   orEmpty(events),
 		RecommendedQuest: recommended,
 		DailyProgress:    models.DailyProgress{CompletedToday: completedToday, Goal: goal, Ratio: dailyRatio},

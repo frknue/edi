@@ -5,6 +5,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"edi/internal/models"
 )
 
 func TestWardAttribute(t *testing.T) {
@@ -207,5 +209,55 @@ func TestDecayConcurrentSingleApplication(t *testing.T) {
 	svc.store.DB().QueryRow(`SELECT COUNT(1) FROM xp_events WHERE user_id=1 AND attribute_key='creativity' AND source='decay'`).Scan(&n)
 	if n != 5 {
 		t.Errorf("decay events = %d, want exactly 5 (no double billing)", n)
+	}
+}
+
+func TestDecayStatusOnAttributes(t *testing.T) {
+	svc := newTestService(t)
+	backdateAttribute(t, svc, "health", 2)  // grace
+	backdateAttribute(t, svc, "wealth", 10) // decaying
+	if _, err := svc.WardAttribute("focus"); err != nil {
+		t.Fatalf("ward: %v", err)
+	}
+
+	attrs, err := svc.ListAttributes()
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	get := func(key string) *models.AttributeDecay {
+		d := attrByKey(attrs, key).Decay
+		if d == nil {
+			t.Fatalf("%s has no decay status", key)
+		}
+		return d
+	}
+	if d := get("strength"); d.State != "fresh" || d.ProjectedDailyLoss != 0 {
+		t.Errorf("strength = %+v, want fresh", d)
+	}
+	if d := get("health"); d.State != "grace" || d.IdleDays != 2 {
+		t.Errorf("health = %+v, want grace/2", d)
+	}
+	if d := get("wealth"); d.State != "decaying" || d.ProjectedDailyLoss == 0 {
+		t.Errorf("wealth = %+v, want decaying with projected loss", d)
+	}
+	if d := get("focus"); d.State != "warded" || d.WardedUntil == nil {
+		t.Errorf("focus = %+v, want warded", d)
+	}
+
+	// Rest mode overrides every state.
+	if _, err := svc.SetRestMode(true); err != nil {
+		t.Fatalf("rest: %v", err)
+	}
+	attrs, _ = svc.ListAttributes()
+	if d := attrByKey(attrs, "wealth").Decay; d == nil || d.State != "rest" {
+		t.Errorf("wealth under rest = %+v, want rest", d)
+	}
+
+	dash, err := svc.GetDashboard()
+	if err != nil {
+		t.Fatalf("dashboard: %v", err)
+	}
+	if !dash.RestMode || dash.RestSince == nil {
+		t.Errorf("dashboard rest = %v/%v, want on with since", dash.RestMode, dash.RestSince)
 	}
 }

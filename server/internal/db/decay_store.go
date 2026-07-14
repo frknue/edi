@@ -175,3 +175,52 @@ func (s *Store) ApplyDecay(userID int64, restEndedAt *time.Time, now time.Time) 
 	}
 	return totalRemoved, nil
 }
+
+// DecayInput feeds the read-side decay status for one attribute.
+type DecayInput struct {
+	LastActivity *time.Time // last positive xp_event (nil if never trained)
+	WardExpiry   *time.Time // latest ACTIVE ward expiry (nil if none)
+}
+
+// DecayInputs returns per-attribute-key inputs for decay status display.
+func (s *Store) DecayInputs(userID int64, now time.Time) (map[string]DecayInput, error) {
+	out := map[string]DecayInput{}
+
+	rows, err := s.db.Query(
+		`SELECT attribute_key, MAX(created_at) FROM xp_events
+		 WHERE user_id = ? AND amount > 0 GROUP BY attribute_key`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var key, created string
+		if err := rows.Scan(&key, &created); err != nil {
+			return nil, err
+		}
+		t := mustParseTime(created)
+		out[key] = DecayInput{LastActivity: &t}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	wrows, err := s.db.Query(
+		`SELECT attribute_key, MAX(expires_at) FROM wards
+		 WHERE user_id = ? AND expires_at > ? GROUP BY attribute_key`, userID, formatTime(now))
+	if err != nil {
+		return nil, err
+	}
+	defer wrows.Close()
+	for wrows.Next() {
+		var key, expires string
+		if err := wrows.Scan(&key, &expires); err != nil {
+			return nil, err
+		}
+		t := mustParseTime(expires)
+		in := out[key]
+		in.WardExpiry = &t
+		out[key] = in
+	}
+	return out, wrows.Err()
+}
