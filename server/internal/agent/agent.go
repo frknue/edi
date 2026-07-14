@@ -250,6 +250,33 @@ func NewRegistry(svc *services.Service) *Registry {
 			return svc.ListGoldEvents(p.Limit, p.Source)
 		})
 
+	add("ward_attribute", "Buy a Maintenance Ward: spend 30 gold to shield one attribute from decay for 7 days (extends an active ward).",
+		`{"type":"object","required":["attribute_key"],"properties":{"attribute_key":{"type":"string"}}}`,
+		func(in json.RawMessage) (any, error) {
+			var p struct {
+				AttributeKey string `json:"attribute_key"`
+			}
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			if p.AttributeKey == "" {
+				return nil, fmt.Errorf("%w: attribute_key is required", services.ErrValidation)
+			}
+			return svc.WardAttribute(p.AttributeKey)
+		})
+
+	add("set_rest_mode", "Turn rest mode on or off. While on, ALL attribute decay is paused (vacation/sick weeks); turning it off restarts every idle clock.",
+		`{"type":"object","required":["on"],"properties":{"on":{"type":"boolean"}}}`,
+		func(in json.RawMessage) (any, error) {
+			var p struct {
+				On bool `json:"on"`
+			}
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			return svc.SetRestMode(p.On)
+		})
+
 	for i, t := range r.tools {
 		r.index[t.Name] = i
 	}

@@ -56,6 +56,11 @@ func NewRouter(h *Handlers, clientDir, apiToken string) http.Handler {
 	mux.HandleFunc("POST /api/shop/{id}/purchase", h.purchaseShopItem)
 	mux.HandleFunc("GET /api/gold/events", h.listGoldEvents)
 
+	// Decay & stakes — ward purchases and rest mode.
+	mux.HandleFunc("POST /api/attributes/{key}/ward", h.wardAttribute)
+	mux.HandleFunc("GET /api/rest", h.getRest)
+	mux.HandleFunc("POST /api/rest", h.setRest)
+
 	mux.HandleFunc("GET /api/agent/suggestions", h.listSuggestions)
 	mux.HandleFunc("POST /api/agent/suggestions/generate", h.generateSuggestions)
 	mux.HandleFunc("POST /api/agent/suggestions/{id}/accept", h.acceptSuggestion)

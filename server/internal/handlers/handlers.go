@@ -479,3 +479,39 @@ func (h *Handlers) invokeTool(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"tool": name, "result": result})
 }
+
+// --- decay & stakes -----------------------------------------------------------
+
+func (h *Handlers) wardAttribute(w http.ResponseWriter, r *http.Request) {
+	result, err := h.svc.WardAttribute(r.PathValue("key"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handlers) setRest(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		On bool `json:"on"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		writeError(w, err)
+		return
+	}
+	state, err := h.svc.SetRestMode(body.On)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, state)
+}
+
+func (h *Handlers) getRest(w http.ResponseWriter, _ *http.Request) {
+	state, err := h.svc.RestState()
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, state)
+}
