@@ -323,3 +323,44 @@ type OpenAIStatus struct {
 	EffortOptions []string   `json:"effort_options,omitempty"`
 	ExpiresAt     *time.Time `json:"expires_at,omitempty"`
 }
+
+// GoldEvent is the immutable audit record of a single gold change (mint or spend).
+type GoldEvent struct {
+	ID         int64     `json:"id"`
+	Amount     int64     `json:"amount"` // positive = mint, negative = purchase
+	Source     string    `json:"source"` // quest, subtask, tool, journal, purchase, grant
+	Label      string    `json:"label,omitempty"`
+	ShopItemID *int64    `json:"shop_item_id,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+// ShopItem is a self-defined real-life reward purchasable with gold. Items are
+// repeatable; archiving (not deleting) removes them from the shop while keeping
+// purchase history labels intact.
+type ShopItem struct {
+	ID         int64      `json:"id"`
+	UserID     int64      `json:"-"`
+	Name       string     `json:"name"`
+	Price      int64      `json:"price"`
+	CreatedAt  time.Time  `json:"created_at"`
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
+}
+
+// ShopItemInput is the payload for creating a shop item.
+type ShopItemInput struct {
+	Name  string `json:"name"`
+	Price int64  `json:"price"`
+}
+
+// ShopItemPatch is a partial update; nil fields are left untouched.
+type ShopItemPatch struct {
+	Name  *string `json:"name,omitempty"`
+	Price *int64  `json:"price,omitempty"`
+}
+
+// PurchaseResult is returned after buying a shop item.
+type PurchaseResult struct {
+	Item    ShopItem  `json:"item"`
+	Event   GoldEvent `json:"event"`
+	Balance int64     `json:"balance"` // balance after the purchase
+}

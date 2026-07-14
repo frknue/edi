@@ -286,6 +286,18 @@ func (s *Service) ListXPEvents(limit int) ([]models.XPEvent, error) {
 	return orEmpty(events), err
 }
 
+// GoldBalance returns the spendable gold balance (SUM of the ledger, computed
+// on read — same audit pattern as XP).
+func (s *Service) GoldBalance() (int64, error) {
+	return s.store.GoldBalance(s.userID)
+}
+
+// ListGoldEvents returns the most recent gold ledger rows.
+func (s *Service) ListGoldEvents(limit int) ([]models.GoldEvent, error) {
+	events, err := s.store.ListGoldEvents(s.userID, limit)
+	return orEmpty(events), err
+}
+
 // journalDailyRewards is the XP for the first reflection of each local day —
 // the habit of showing up, not volume (later entries the same day award nothing).
 var journalDailyRewards = map[string]int64{"spirituality": 10, "discipline": 5}

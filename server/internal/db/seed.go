@@ -78,6 +78,18 @@ func (s *Store) Seed() error {
 		}
 	}
 
+	// Gold grant matching the seeded XP (10:1, same rule as the migration's
+	// retroactive grant) so the shop is usable immediately on a fresh install.
+	var totalSeedXP int64
+	for _, xp := range startingXP {
+		totalSeedXP += xp
+	}
+	if _, err := tx.Exec(
+		`INSERT INTO gold_events(user_id, amount, source, label, created_at) VALUES(?, ?, 'grant', 'Starting gold', ?)`,
+		userID, goldForXP(totalSeedXP), formatTime(now)); err != nil {
+		return err
+	}
+
 	// Streak: 3-day streak ending yesterday, so the first completion today bumps it to 4.
 	if _, err := tx.Exec(`INSERT INTO streaks(user_id, current_count, longest_count, last_active_date) VALUES(?, 3, 7, ?)`,
 		userID, now.Local().AddDate(0, 0, -1).Format(dayFormat)); err != nil {

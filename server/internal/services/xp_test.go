@@ -63,3 +63,18 @@ func TestProgressForXP(t *testing.T) {
 		t.Errorf("at boundary 400: level=%d into=%d ratio=%f, want 3/0/0", level, into, ratio)
 	}
 }
+
+func TestGoldForXP(t *testing.T) {
+	cases := []struct {
+		xp   int64
+		want int64
+	}{
+		{-5, 0}, {0, 0}, {1, 1}, {5, 1}, {9, 1}, {10, 1}, {11, 1}, {19, 1},
+		{20, 2}, {40, 4}, {100, 10}, {2520, 252},
+	}
+	for _, c := range cases {
+		if got := GoldForXP(c.xp); got != c.want {
+			t.Errorf("GoldForXP(%d) = %d, want %d", c.xp, got, c.want)
+		}
+	}
+}

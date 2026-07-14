@@ -54,3 +54,16 @@ func ProgressForXP(totalXP int64) (level int, xpIntoLevel, xpForNextLevel int64,
 	}
 	return level, xpIntoLevel, xpForNextLevel, ratio
 }
+
+// GoldForXP converts one XP award into minted gold: 1 gold per 10 XP,
+// minimum 1 for any positive award. Non-positive XP mints nothing.
+// db/gold_store.go keeps a private mirror (goldForXP) — change both together.
+func GoldForXP(xp int64) int64 {
+	if xp <= 0 {
+		return 0
+	}
+	if g := xp / 10; g > 1 {
+		return g
+	}
+	return 1
+}

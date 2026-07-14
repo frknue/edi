@@ -441,3 +441,22 @@ func TestGetWeakestAttribute(t *testing.T) {
 		t.Errorf("weakest = %q, want spirituality", weakest.Key)
 	}
 }
+
+func TestSeedGoldGrant(t *testing.T) {
+	svc := newTestService(t)
+	bal, err := svc.GoldBalance()
+	if err != nil {
+		t.Fatalf("gold balance: %v", err)
+	}
+	// Seed XP totals 2520 across attributes -> 252 gold at 10:1.
+	if bal != 252 {
+		t.Errorf("seed gold balance = %d, want 252", bal)
+	}
+	events, err := svc.ListGoldEvents(10)
+	if err != nil {
+		t.Fatalf("list gold events: %v", err)
+	}
+	if len(events) != 1 || events[0].Source != "grant" || events[0].Amount != 252 {
+		t.Errorf("expected one grant event of 252, got %+v", events)
+	}
+}
