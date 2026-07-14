@@ -18,6 +18,10 @@
 //	suggest                         List pending agent suggestions
 //	suggest-gen                     Generate rule-based suggestions
 //	suggest-accept <id> | suggest-dismiss <id>
+//	shop                            List reward shop items
+//	shop-add --name N --price P     Add a reward to the shop
+//	buy <id>                        Purchase a shop item (spends gold)
+//	gold                            Gold balance + recent ledger
 //	tools                           List the agent tool catalog
 package main
 
@@ -85,6 +89,14 @@ func run(c *apiclient.Client, cmd string, args []string) error {
 		return cmdSuggestAccept(c, args)
 	case "suggest-dismiss":
 		return cmdSuggestDismiss(c, args)
+	case "shop":
+		return cmdShop(c)
+	case "shop-add":
+		return cmdShopAdd(c, args)
+	case "buy":
+		return cmdBuy(c, args)
+	case "gold":
+		return cmdGold(c)
 	case "tools":
 		return cmdTools(c)
 	case "help", "-h", "--help":
@@ -353,6 +365,77 @@ func cmdTools(c *apiclient.Client) error {
 	fmt.Printf("%s agent tools (same path the MCP bridge / AI agent uses)\n", bold(strconv.Itoa(len(tools))))
 	for _, t := range tools {
 		fmt.Printf("  %-22s %s\n", green(t.Name), dim(t.Description))
+	}
+	return nil
+}
+
+func cmdShop(c *apiclient.Client) error {
+	items, err := c.ListShopItems()
+	if err != nil {
+		return err
+	}
+	dash, err := c.Dashboard()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Gold: %dg\n\n", dash.GoldBalance)
+	if len(items) == 0 {
+		fmt.Println("The shop is empty. Add rewards with: edi-cli shop-add --name \"Gaming evening\" --price 50")
+		return nil
+	}
+	for _, it := range items {
+		fmt.Printf("  [%d] %-40s %6dg\n", it.ID, it.Name, it.Price)
+	}
+	return nil
+}
+
+func cmdShopAdd(c *apiclient.Client, args []string) error {
+	fs := flag.NewFlagSet("shop-add", flag.ExitOnError)
+	name := fs.String("name", "", "reward name (required)")
+	price := fs.Int64("price", 0, "gold price (required, > 0)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	it, err := c.CreateShopItem(models.ShopItemInput{Name: *name, Price: *price})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Added [%d] %s — %dg\n", it.ID, it.Name, it.Price)
+	return nil
+}
+
+func cmdBuy(c *apiclient.Client, args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("usage: buy <item-id>")
+	}
+	id, err := strconv.ParseInt(args[0], 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid id %q", args[0])
+	}
+	res, err := c.PurchaseShopItem(id)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Purchased %q for %dg. Balance: %dg. Enjoy it — you earned it.\n", res.Item.Name, res.Item.Price, res.Balance)
+	return nil
+}
+
+func cmdGold(c *apiclient.Client) error {
+	dash, err := c.Dashboard()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Gold: %dg\n\nRecent ledger:\n", dash.GoldBalance)
+	events, err := c.ListGoldEvents(15)
+	if err != nil {
+		return err
+	}
+	for _, e := range events {
+		sign := "+"
+		if e.Amount < 0 {
+			sign = ""
+		}
+		fmt.Printf("  %s%dg  %-9s %s\n", sign, e.Amount, e.Source, e.Label)
 	}
 	return nil
 }

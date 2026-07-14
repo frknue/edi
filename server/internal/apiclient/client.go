@@ -177,6 +177,32 @@ func (c *Client) DismissSuggestion(id int64) (models.AgentSuggestion, error) {
 	return s, err
 }
 
+// --- gold economy / reward shop ----------------------------------------------
+
+func (c *Client) ListShopItems() ([]models.ShopItem, error) {
+	var out []models.ShopItem
+	err := c.do(http.MethodGet, "/api/shop", nil, &out)
+	return out, err
+}
+
+func (c *Client) CreateShopItem(in models.ShopItemInput) (models.ShopItem, error) {
+	var it models.ShopItem
+	err := c.do(http.MethodPost, "/api/shop", in, &it)
+	return it, err
+}
+
+func (c *Client) PurchaseShopItem(id int64) (models.PurchaseResult, error) {
+	var r models.PurchaseResult
+	err := c.do(http.MethodPost, fmt.Sprintf("/api/shop/%d/purchase", id), nil, &r)
+	return r, err
+}
+
+func (c *Client) ListGoldEvents(limit int) ([]models.GoldEvent, error) {
+	var out []models.GoldEvent
+	err := c.do(http.MethodGet, fmt.Sprintf("/api/gold/events?limit=%d", limit), nil, &out)
+	return out, err
+}
+
 // --- agent tool surface (used by the MCP bridge) ----------------------------
 
 // ToolSpec mirrors one entry from GET /api/agent/tools.
