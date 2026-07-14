@@ -35,11 +35,12 @@ export function XPFeed({ events }: { events: XPEvent[] }) {
               <div className="text-[10px] uppercase tracking-wide text-faint">
                 {meta.label}
                 {e.source === "seed" && " · seed"}
+                {e.source === "decay" && " · decay"}
               </div>
             </div>
             <div className="text-right">
-              <div className="tabnum text-sm font-semibold" style={{ color: meta.color }}>
-                +{e.amount}
+              <div className="tabnum text-sm font-semibold" style={{ color: e.amount < 0 ? "#ff6a3d" : meta.color }}>
+                {e.amount < 0 ? e.amount : `+${e.amount}`}
               </div>
               <div className="text-[10px] text-faint">{relativeTime(e.created_at)}</div>
             </div>

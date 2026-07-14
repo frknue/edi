@@ -1,6 +1,13 @@
 import { motion } from "framer-motion";
-import { ArrowRight, Sparkles, Swords, Zap } from "lucide-react";
-import { useDashboard, useCompleteQuest, useSkipQuest, useAcceptSuggestion, useOpenAIStatus } from "../lib/queries";
+import { ArrowRight, Moon, Sparkles, Swords, Zap } from "lucide-react";
+import {
+  useDashboard,
+  useCompleteQuest,
+  useSkipQuest,
+  useAcceptSuggestion,
+  useOpenAIStatus,
+  useSetRestMode,
+} from "../lib/queries";
 import { useReward } from "../lib/reward";
 import { CharacterHeader } from "../components/CharacterHeader";
 import { AttributeCard } from "../components/AttributeCard";
@@ -22,6 +29,7 @@ export function DashboardPage({
   const complete = useCompleteQuest();
   const skip = useSkipQuest();
   const accept = useAcceptSuggestion();
+  const setRest = useSetRestMode();
   const { celebrate } = useReward();
 
   if (isLoading) return <Spinner label="Loading your character…" />;
@@ -52,12 +60,58 @@ export function DashboardPage({
     <div className="space-y-7">
       <CharacterHeader character={data.character} streak={data.streak} daily={data.daily_progress} gold={data.gold_balance} />
 
+      {data.rest_mode && (
+        <div
+          className="flex items-center justify-between rounded-lg border px-4 py-3"
+          style={{ borderColor: "var(--color-gold)", background: "rgba(255,176,0,0.06)" }}
+          data-testid="rest-banner"
+        >
+          <div className="flex items-center gap-2 text-sm" style={{ color: "var(--color-goldhi)" }}>
+            <Moon size={16} />
+            Rest mode is ON — all decay is paused. Recover well.
+          </div>
+          <button
+            onClick={() => setRest.mutate(false)}
+            className="rounded-md border border-edge px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:text-ink"
+          >
+            Wake up
+          </button>
+        </div>
+      )}
+
+      {data.decayed_today > 0 && (
+        <div
+          className="rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: "#ff6a3d88", background: "rgba(255,106,61,0.07)", color: "#ff8a65" }}
+          data-testid="decay-alert"
+        >
+          SYSTEM DEGRADATION — {data.decayed_today} XP lost to decay since your last visit. Train the rusting
+          attributes or ward them.
+        </div>
+      )}
+
       {/* Attributes */}
       <section>
-        <SectionTitle hint="Every action trains a real-life stat.">Attributes</SectionTitle>
+        <SectionTitle
+          hint="Every action trains a real-life stat."
+          action={
+            !data.rest_mode && (
+              <button
+                onClick={() => setRest.mutate(true)}
+                className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-faint transition-colors hover:text-muted"
+                title="Pause all decay (vacation/sick)"
+                data-testid="rest-toggle"
+              >
+                <Moon size={12} /> rest mode
+              </button>
+            )
+          }
+        >
+          Attributes
+        </SectionTitle>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {data.attributes.map((a, i) => (
-            <AttributeCard key={a.key} attribute={a} index={i} />
+            <AttributeCard key={a.key} attribute={a} index={i} goldBalance={data.gold_balance} />
           ))}
         </div>
       </section>
