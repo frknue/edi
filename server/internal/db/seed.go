@@ -64,8 +64,8 @@ func (s *Store) Seed() error {
 	}
 	for i, a := range DefaultAttributes {
 		xp := startingXP[a.Key]
-		if _, err := tx.Exec(`INSERT INTO attributes(user_id, key, name, total_xp, created_at) VALUES(?, ?, ?, ?, ?)`,
-			userID, a.Key, a.Name, xp, formatTime(now.AddDate(0, 0, -10))); err != nil {
+		if _, err := tx.Exec(`INSERT INTO attributes(user_id, key, name, total_xp, peak_xp, created_at) VALUES(?, ?, ?, ?, ?, ?)`,
+			userID, a.Key, a.Name, xp, xp, formatTime(now.AddDate(0, 0, -10))); err != nil {
 			return err
 		}
 		// One audit event per attribute so totals == sum(xp_events). Stagger the

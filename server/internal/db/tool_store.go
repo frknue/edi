@@ -57,7 +57,7 @@ func (s *Store) CompleteTool(userID int64, toolKey, toolName string, data []byte
 		if err != nil {
 			return models.ToolEntry{}, nil, nil, 0, err
 		}
-		if _, err := tx.Exec(`UPDATE attributes SET total_xp = total_xp + ? WHERE user_id = ? AND key = ?`, amount, userID, key); err != nil {
+		if _, err := tx.Exec(`UPDATE attributes SET total_xp = total_xp + ?, peak_xp = MAX(peak_xp, total_xp + ?) WHERE user_id = ? AND key = ?`, amount, amount, userID, key); err != nil {
 			return models.ToolEntry{}, nil, nil, 0, err
 		}
 		if g := goldForXP(amount); g > 0 {

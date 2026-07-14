@@ -537,3 +537,32 @@ func TestGoldAuditInvariant(t *testing.T) {
 		t.Errorf("audit broken: balance %d != SUM(gold_events) %d", bal, sum)
 	}
 }
+
+func TestPeakXPMaintainedOnAward(t *testing.T) {
+	svc := newTestService(t)
+	before, _ := svc.ListAttributes()
+	strBefore := attrByKey(before, "strength") // seed: 520 total, 520 peak
+
+	if strBefore.PeakXP != strBefore.TotalXP {
+		t.Fatalf("seed peak %d != total %d", strBefore.PeakXP, strBefore.TotalXP)
+	}
+
+	workout := findQuestByTitle(t, svc, "30 minute workout") // {strength:40, discipline:10}
+	if _, err := svc.CompleteQuest(workout.ID); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	after, _ := svc.ListAttributes()
+	strAfter := attrByKey(after, "strength")
+	if strAfter.PeakXP != strBefore.TotalXP+40 {
+		t.Errorf("peak = %d, want %d (raised with the award)", strAfter.PeakXP, strBefore.TotalXP+40)
+	}
+
+	// peak_xp is running-max auditable: it never decreases.
+	var peak int64
+	if err := svc.store.DB().QueryRow(`SELECT peak_xp FROM attributes WHERE user_id=1 AND key='strength'`).Scan(&peak); err != nil {
+		t.Fatalf("peak query: %v", err)
+	}
+	if peak != strAfter.PeakXP {
+		t.Errorf("stored peak %d != listed peak %d", peak, strAfter.PeakXP)
+	}
+}

@@ -51,10 +51,10 @@ func (s *Store) GetUser(id int64) (models.User, error) {
 
 // --- attributes -------------------------------------------------------------
 
-// ListAttributes returns raw attributes (TotalXP only); derived level/progress
+// ListAttributes returns raw attributes (TotalXP and PeakXP); derived level/progress
 // fields are filled by the service layer.
 func (s *Store) ListAttributes(userID int64) ([]models.Attribute, error) {
-	rows, err := s.db.Query(`SELECT id, user_id, key, name, total_xp FROM attributes WHERE user_id = ? ORDER BY id`, userID)
+	rows, err := s.db.Query(`SELECT id, user_id, key, name, total_xp, peak_xp FROM attributes WHERE user_id = ? ORDER BY id`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (s *Store) ListAttributes(userID int64) ([]models.Attribute, error) {
 	var out []models.Attribute
 	for rows.Next() {
 		var a models.Attribute
-		if err := rows.Scan(&a.ID, &a.UserID, &a.Key, &a.Name, &a.TotalXP); err != nil {
+		if err := rows.Scan(&a.ID, &a.UserID, &a.Key, &a.Name, &a.TotalXP, &a.PeakXP); err != nil {
 			return nil, err
 		}
 		out = append(out, a)
@@ -396,7 +396,7 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 		if err != nil {
 			return models.Quest{}, nil, nil, 0, err
 		}
-		if _, err := tx.Exec(`UPDATE attributes SET total_xp = total_xp + ? WHERE user_id = ? AND key = ?`, a.amount, userID, a.key); err != nil {
+		if _, err := tx.Exec(`UPDATE attributes SET total_xp = total_xp + ?, peak_xp = MAX(peak_xp, total_xp + ?) WHERE user_id = ? AND key = ?`, a.amount, a.amount, userID, a.key); err != nil {
 			return models.Quest{}, nil, nil, 0, err
 		}
 		if g := goldForXP(a.amount); g > 0 {
@@ -612,7 +612,7 @@ func (s *Store) InsertJournal(userID int64, in models.JournalInput, dailyRewards
 			if err != nil {
 				return models.JournalEntry{}, nil, nil, 0, err
 			}
-			if _, err := tx.Exec(`UPDATE attributes SET total_xp = total_xp + ? WHERE user_id = ? AND key = ?`, amount, userID, key); err != nil {
+			if _, err := tx.Exec(`UPDATE attributes SET total_xp = total_xp + ?, peak_xp = MAX(peak_xp, total_xp + ?) WHERE user_id = ? AND key = ?`, amount, amount, userID, key); err != nil {
 				return models.JournalEntry{}, nil, nil, 0, err
 			}
 			if g := goldForXP(amount); g > 0 {
