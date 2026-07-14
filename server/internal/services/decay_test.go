@@ -55,3 +55,29 @@ func TestWardErrors(t *testing.T) {
 		t.Errorf("balance = %d, want %d (failed ward must not charge)", bal, 252-8*WardCostGold)
 	}
 }
+
+func TestRestMode(t *testing.T) {
+	svc := newTestService(t)
+
+	st, err := svc.RestState()
+	if err != nil || st.On {
+		t.Fatalf("initial rest state = %+v, %v; want off", st, err)
+	}
+
+	on, err := svc.SetRestMode(true)
+	if err != nil || !on.On || on.Since == nil {
+		t.Fatalf("rest on = %+v, %v; want on with since", on, err)
+	}
+
+	off, err := svc.SetRestMode(false)
+	if err != nil || off.On {
+		t.Fatalf("rest off = %+v, %v", off, err)
+	}
+	ended, err := svc.restEndedAt()
+	if err != nil || ended == nil {
+		t.Fatalf("rest_ended_at = %v, %v; want a timestamp", ended, err)
+	}
+	if time.Since(*ended) > time.Minute {
+		t.Errorf("rest_ended_at %v not recent", *ended)
+	}
+}
