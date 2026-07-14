@@ -261,3 +261,72 @@ func TestDecayStatusOnAttributes(t *testing.T) {
 		t.Errorf("dashboard rest = %v/%v, want on with since", dash.RestMode, dash.RestSince)
 	}
 }
+
+func TestRedundantRestOffDoesNotResetClocks(t *testing.T) {
+	svc := newTestService(t)
+	backdateAttribute(t, svc, "wealth", 10) // seed wealth: 250 XP, 10 idle days
+	// Rest was never on; a redundant "off" must not move any idle clock.
+	if _, err := svc.SetRestMode(false); err != nil {
+		t.Fatalf("redundant rest off: %v", err)
+	}
+	removed, err := svc.ApplyDecay()
+	if err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	// Idle days 4..10 = 7 billable days at max(5, 250/100)=5 -> 35.
+	if removed != 35 {
+		t.Errorf("removed = %d, want 35 (redundant rest-off must not grant grace)", removed)
+	}
+}
+
+// A nonzero floor: raise health's peak to level 4 (900 XP) so the floor is
+// XPForLevel(2)=100, set the current total just above it, and verify the
+// final bleed is partial and lands EXACTLY on the floor.
+func TestDecayPartialBleedLandsOnFloor(t *testing.T) {
+	svc := newTestService(t)
+	// health seed: 90 XP. Force peak 900 and total 103 directly (test-only
+	// surgery; keep the audit invariant by inserting a matching xp_event).
+	if _, err := svc.store.DB().Exec(
+		`UPDATE attributes SET total_xp = 103, peak_xp = 900 WHERE user_id = 1 AND key = 'health'`); err != nil {
+		t.Fatalf("set totals: %v", err)
+	}
+	if _, err := svc.store.DB().Exec(
+		`INSERT INTO xp_events(user_id, attribute_key, amount, source, source_id, note, created_at)
+		 VALUES(1, 'health', 13, 'seed', NULL, 'test topup', '2000-01-01T00:00:00.000000000Z')`); err != nil {
+		t.Fatalf("audit event: %v", err)
+	}
+	backdateAttribute(t, svc, "health", 10) // long idleness
+	if _, err := svc.ApplyDecay(); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	attrs, _ := svc.ListAttributes()
+	got := attrByKey(attrs, "health").TotalXP
+	// Floor = XPForLevel(LevelForXP(900)-2) = XPForLevel(2) = 100.
+	// Day 1 of billing: max(5, 103/100=1) = 5, but 103-5 < 100 -> partial 3 -> exactly 100. Then stop.
+	if got != 100 {
+		t.Errorf("health total = %d, want exactly the floor 100 (partial final bleed)", got)
+	}
+}
+
+// Completing a quest after long idleness must decay FIRST, then award —
+// so the completion lands on post-decay numbers.
+func TestDecayAppliesBeforeCompletion(t *testing.T) {
+	svc := newTestService(t)
+	backdateAttribute(t, svc, "strength", 10)                // 520 XP -> 7 days * 5 = 35 owed
+	workout := findQuestByTitle(t, svc, "30 minute workout") // {strength:40, discipline:10}
+	result, err := svc.CompleteQuest(workout.ID)
+	if err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	attrs := result.Dashboard.Attributes
+	// 520 - 35 (decay) + 40 (award) = 525.
+	if got := attrByKey(attrs, "strength").TotalXP; got != 525 {
+		t.Errorf("strength total = %d, want 525 (decay applied before award)", got)
+	}
+	// Audit invariant still holds.
+	var sum int64
+	svc.store.DB().QueryRow(`SELECT COALESCE(SUM(amount),0) FROM xp_events WHERE user_id=1 AND attribute_key='strength'`).Scan(&sum)
+	if sum != 525 {
+		t.Errorf("event sum = %d, want 525", sum)
+	}
+}

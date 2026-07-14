@@ -16,7 +16,21 @@ const (
 )
 
 // SetRestMode turns rest mode on or off and returns the new state.
+//
+// Only a genuine transition writes a clock: off->on writes rest_since,
+// on->off writes rest_ended_at. A redundant call (already in the requested
+// state) is a no-op — it must NOT rewrite either clock, or it would grant
+// every attribute a fresh grace period (or restart the "since" clock) for
+// free. See the decay engine: the idle anchor is max(lastActivity,
+// rest_ended_at), so a stray rest_ended_at bump silently erases idle days.
 func (s *Service) SetRestMode(on bool) (models.RestState, error) {
+	current, err := s.RestState()
+	if err != nil {
+		return models.RestState{}, err
+	}
+	if current.On == on {
+		return current, nil
+	}
 	if on {
 		if err := s.store.SetSetting(s.userID, settingRestMode, "1"); err != nil {
 			return models.RestState{}, err
