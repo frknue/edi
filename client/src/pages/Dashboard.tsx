@@ -42,6 +42,7 @@ export function DashboardPage({
           xp_events: res.xp_events,
           level_ups: res.level_ups,
           label: "Quest Complete",
+          gold: res.gold,
         }),
     });
 
@@ -49,7 +50,7 @@ export function DashboardPage({
 
   return (
     <div className="space-y-7">
-      <CharacterHeader character={data.character} streak={data.streak} daily={data.daily_progress} />
+      <CharacterHeader character={data.character} streak={data.streak} daily={data.daily_progress} gold={data.gold_balance} />
 
       {/* Attributes */}
       <section>

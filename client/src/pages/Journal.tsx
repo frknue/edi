@@ -255,6 +255,7 @@ export function JournalPage() {
               xp_events: res.xp_events,
               level_ups: res.level_ups,
               label: "Journal",
+              gold: res.gold,
             });
           } else {
             setSaved(true);

@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUpRight, Sparkles, X } from "lucide-react";
+import { ArrowUpRight, Coins, Sparkles, X } from "lucide-react";
 import type { LevelUp, XPEvent } from "./types";
 import { getAttr } from "./theme";
 
@@ -19,6 +19,7 @@ export interface RewardPayload {
   xp_events: XPEvent[];
   level_ups: LevelUp[];
   label?: string; // small overline, e.g. "Quest Complete" / "Tool Complete"
+  gold?: number; // gold minted alongside the XP
 }
 
 interface RewardContextValue {
@@ -123,6 +124,19 @@ function RewardOverlay({
             >
               +{totalXP} XP
             </motion.div>
+
+            {typeof result.gold === "number" && result.gold > 0 && (
+              <motion.div
+                className="mt-1.5 flex items-center justify-center gap-1.5 text-base font-semibold"
+                style={{ color: "var(--color-gold)" }}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                <Coins size={16} />
+                +{result.gold} gold
+              </motion.div>
+            )}
 
             <div className="mt-5 flex flex-wrap justify-center gap-2">
               {result.xp_events.map((e, i) => {

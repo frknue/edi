@@ -284,6 +284,7 @@ function MoodLogFlow({ onClose }: { onClose: () => void }) {
           xp_events: res.xp_events,
           level_ups: res.level_ups,
           label: "Tool Complete",
+          gold: res.gold,
         });
         onClose();
       },

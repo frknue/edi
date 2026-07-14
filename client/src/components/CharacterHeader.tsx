@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Flame } from "lucide-react";
+import { Coins, Flame } from "lucide-react";
 import type { CharacterSummary, DailyProgress, Streak } from "../lib/types";
 import { ProgressBar } from "./ui";
 import { pct } from "../lib/format";
@@ -41,10 +41,12 @@ export function CharacterHeader({
   character,
   streak,
   daily,
+  gold,
 }: {
   character: CharacterSummary;
   streak: Streak;
   daily: DailyProgress;
+  gold: number;
 }) {
   return (
     <motion.section
@@ -105,6 +107,15 @@ export function CharacterHeader({
 
         {/* streak + daily */}
         <div className="flex items-center gap-5 border-t border-edge pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+          <div className="text-center" data-testid="header-gold">
+            <div className="flex items-center justify-center gap-1.5">
+              <Coins size={20} style={{ color: "var(--color-gold)" }} />
+              <span className="tabnum text-2xl font-bold text-ink">{gold}</span>
+            </div>
+            <div className="mt-0.5 font-display text-[10px] uppercase tracking-wider text-faint">
+              Gold
+            </div>
+          </div>
           <div className="text-center">
             <div className="flex items-center justify-center gap-1.5">
               <Flame size={20} style={{ color: streak.current > 0 ? "#ffa23e" : "var(--color-faint)" }} />

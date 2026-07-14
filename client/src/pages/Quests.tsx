@@ -67,6 +67,7 @@ export function QuestsPage() {
           xp_events: res.xp_events,
           level_ups: res.level_ups,
           label: "Quest Complete",
+          gold: res.gold,
         }),
     });
 
