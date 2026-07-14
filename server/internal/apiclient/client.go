@@ -207,6 +207,20 @@ func (c *Client) ListGoldEvents(limit int, source string) ([]models.GoldEvent, e
 	return out, err
 }
 
+// --- decay & stakes -----------------------------------------------------------
+
+func (c *Client) WardAttribute(key string) (models.WardResult, error) {
+	var r models.WardResult
+	err := c.do(http.MethodPost, "/api/attributes/"+url.PathEscape(key)+"/ward", nil, &r)
+	return r, err
+}
+
+func (c *Client) SetRestMode(on bool) (models.RestState, error) {
+	var r models.RestState
+	err := c.do(http.MethodPost, "/api/rest", map[string]bool{"on": on}, &r)
+	return r, err
+}
+
 // --- agent tool surface (used by the MCP bridge) ----------------------------
 
 // ToolSpec mirrors one entry from GET /api/agent/tools.

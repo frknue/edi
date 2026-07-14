@@ -22,6 +22,8 @@
 //	shop-add --name N --price P     Add a reward to the shop
 //	buy <id>                        Purchase a shop item (spends gold)
 //	gold                            Gold balance + recent ledger
+//	ward <attribute>                Buy a 7-day decay ward for an attribute (30g)
+//	rest on|off                     Pause/resume all attribute decay
 //	tools                           List the agent tool catalog
 package main
 
@@ -97,6 +99,10 @@ func run(c *apiclient.Client, cmd string, args []string) error {
 		return cmdBuy(c, args)
 	case "gold":
 		return cmdGold(c)
+	case "ward":
+		return cmdWard(c, args)
+	case "rest":
+		return cmdRest(c, args)
 	case "tools":
 		return cmdTools(c)
 	case "help", "-h", "--help":
@@ -123,7 +129,15 @@ func cmdDashboard(c *apiclient.Client) error {
 
 	fmt.Println(dim("  ATTRIBUTES"))
 	for _, a := range d.Attributes {
-		fmt.Printf("  %-14s Lv%-2d %s %s\n", a.Name, a.Level, bar(a.Progress, 16), dim(fmt.Sprintf("%d/%d", a.XPIntoLevel, a.XPForNextLevel)))
+		fmt.Printf("  %-14s Lv%-2d %s %s", a.Name, a.Level, bar(a.Progress, 16), dim(fmt.Sprintf("%d/%d", a.XPIntoLevel, a.XPForNextLevel)))
+		if a.Decay != nil && a.Decay.State != "fresh" {
+			fmt.Printf("  [%s", a.Decay.State)
+			if a.Decay.State == "decaying" {
+				fmt.Printf(": %dd idle, -%d/day", a.Decay.IdleDays, a.Decay.ProjectedDailyLoss)
+			}
+			fmt.Print("]")
+		}
+		fmt.Println()
 	}
 
 	fmt.Println("\n" + dim("  TODAY'S QUESTS"))
@@ -440,6 +454,35 @@ func cmdGold(c *apiclient.Client) error {
 	return nil
 }
 
+func cmdWard(c *apiclient.Client, args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("usage: ward <attribute-key>")
+	}
+	res, err := c.WardAttribute(args[0])
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Warded %s until %s. Balance: %dg\n",
+		res.Ward.AttributeKey, res.Ward.ExpiresAt.Local().Format("2006-01-02 15:04"), res.Balance)
+	return nil
+}
+
+func cmdRest(c *apiclient.Client, args []string) error {
+	if len(args) != 1 || (args[0] != "on" && args[0] != "off") {
+		return fmt.Errorf("usage: rest on|off")
+	}
+	state, err := c.SetRestMode(args[0] == "on")
+	if err != nil {
+		return err
+	}
+	if state.On {
+		fmt.Println("Rest mode ON — decay paused. Recover well.")
+	} else {
+		fmt.Println("Rest mode OFF — idle clocks restarted from now.")
+	}
+	return nil
+}
+
 // --- helpers ----------------------------------------------------------------
 
 type rewardFlag struct{ m map[string]int64 }
@@ -521,6 +564,8 @@ commands:
   shop-add --name N --price P     Add a reward to the shop
   buy <id>                        Purchase a shop item (spends gold)
   gold                            Gold balance + recent ledger
+  ward <attribute>                     buy a 7-day decay ward for an attribute (30g)
+  rest on|off                          pause/resume all attribute decay
   tools                              list the agent tool catalog
 `)
 }
