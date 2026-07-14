@@ -372,6 +372,86 @@ func (h *Handlers) openaiConfig(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, status)
 }
 
+// --- gold economy / reward shop ----------------------------------------------
+
+func (h *Handlers) listShop(w http.ResponseWriter, _ *http.Request) {
+	items, err := h.svc.ListShopItems()
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, items)
+}
+
+func (h *Handlers) createShopItem(w http.ResponseWriter, r *http.Request) {
+	var in models.ShopItemInput
+	if err := decodeBody(r, &in); err != nil {
+		writeError(w, err)
+		return
+	}
+	item, err := h.svc.CreateShopItem(in)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, item)
+}
+
+func (h *Handlers) updateShopItem(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	var patch models.ShopItemPatch
+	if err := decodeBody(r, &patch); err != nil {
+		writeError(w, err)
+		return
+	}
+	item, err := h.svc.UpdateShopItem(id, patch)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, item)
+}
+
+func (h *Handlers) archiveShopItem(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := h.svc.ArchiveShopItem(id); err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"archived": true})
+}
+
+func (h *Handlers) purchaseShopItem(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	result, err := h.svc.PurchaseShopItem(id)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handlers) listGoldEvents(w http.ResponseWriter, r *http.Request) {
+	events, err := h.svc.ListGoldEvents(queryInt(r, "limit", 30))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, events)
+}
+
 // --- agent tool interface ---------------------------------------------------
 
 // listTools exposes the agent-ready tool catalog (names, descriptions, schemas).

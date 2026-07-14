@@ -48,6 +48,14 @@ func NewRouter(h *Handlers, clientDir, apiToken string) http.Handler {
 	mux.HandleFunc("PATCH /api/journal/{id}", h.updateJournal)
 	mux.HandleFunc("DELETE /api/journal/{id}", h.deleteJournal)
 
+	// Gold economy — reward shop + auditable gold ledger.
+	mux.HandleFunc("GET /api/shop", h.listShop)
+	mux.HandleFunc("POST /api/shop", h.createShopItem)
+	mux.HandleFunc("PATCH /api/shop/{id}", h.updateShopItem)
+	mux.HandleFunc("POST /api/shop/{id}/archive", h.archiveShopItem)
+	mux.HandleFunc("POST /api/shop/{id}/purchase", h.purchaseShopItem)
+	mux.HandleFunc("GET /api/gold/events", h.listGoldEvents)
+
 	mux.HandleFunc("GET /api/agent/suggestions", h.listSuggestions)
 	mux.HandleFunc("POST /api/agent/suggestions/generate", h.generateSuggestions)
 	mux.HandleFunc("POST /api/agent/suggestions/{id}/accept", h.acceptSuggestion)

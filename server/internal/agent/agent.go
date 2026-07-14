@@ -187,6 +187,68 @@ func NewRegistry(svc *services.Service) *Registry {
 			return svc.DismissSuggestion(id)
 		})
 
+	add("list_shop_items", "List the reward shop: self-defined real-life rewards purchasable with gold.",
+		emptySchema, func(json.RawMessage) (any, error) { return svc.ListShopItems() })
+
+	add("create_shop_item", "Add a reward to the shop (a real-life indulgence with a gold price).",
+		`{"type":"object","required":["name","price"],"properties":{"name":{"type":"string"},"price":{"type":"integer","minimum":1}}}`,
+		func(in json.RawMessage) (any, error) {
+			var p models.ShopItemInput
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			return svc.CreateShopItem(p)
+		})
+
+	add("update_shop_item", "Update the name or price of an active shop item.",
+		`{"type":"object","required":["item_id"],"properties":{"item_id":{"type":"integer"},"name":{"type":"string"},"price":{"type":"integer","minimum":1}}}`,
+		func(in json.RawMessage) (any, error) {
+			id, err := decodeID(in, "item_id")
+			if err != nil {
+				return nil, err
+			}
+			var p models.ShopItemPatch
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			return svc.UpdateShopItem(id, p)
+		})
+
+	add("archive_shop_item", "Archive a shop item so it no longer appears in the shop (purchase history keeps its label).",
+		idSchema("item_id"),
+		func(in json.RawMessage) (any, error) {
+			id, err := decodeID(in, "item_id")
+			if err != nil {
+				return nil, err
+			}
+			if err := svc.ArchiveShopItem(id); err != nil {
+				return nil, err
+			}
+			return map[string]bool{"archived": true}, nil
+		})
+
+	add("purchase_shop_item", "Spend gold to buy a reward from the shop. Fails with a validation error if the balance is too low.",
+		idSchema("item_id"),
+		func(in json.RawMessage) (any, error) {
+			id, err := decodeID(in, "item_id")
+			if err != nil {
+				return nil, err
+			}
+			return svc.PurchaseShopItem(id)
+		})
+
+	add("list_gold_events", "List recent gold ledger entries (mints and purchases). The balance is SUM(amount) and also appears on the dashboard as gold_balance.",
+		`{"type":"object","properties":{"limit":{"type":"integer"}}}`,
+		func(in json.RawMessage) (any, error) {
+			var p struct {
+				Limit int `json:"limit"`
+			}
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			return svc.ListGoldEvents(p.Limit)
+		})
+
 	for i, t := range r.tools {
 		r.index[t.Name] = i
 	}
