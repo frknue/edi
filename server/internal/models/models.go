@@ -178,6 +178,7 @@ type JournalCreateResult struct {
 	Entry    JournalEntry `json:"entry"`
 	XPEvents []XPEvent    `json:"xp_events"`
 	LevelUps []LevelUp    `json:"level_ups"`
+	Gold     int64        `json:"gold"`
 }
 
 // CharacterSummary is the aggregate level across all attributes.
@@ -204,6 +205,7 @@ type Dashboard struct {
 	Attributes       []Attribute       `json:"attributes"`
 	TodayQuests      []Quest           `json:"today_quests"`
 	Streak           Streak            `json:"streak"`
+	GoldBalance      int64             `json:"gold_balance"`
 	RecentXPEvents   []XPEvent         `json:"recent_xp_events"`
 	RecommendedQuest *Quest            `json:"recommended_quest"`
 	DailyProgress    DailyProgress     `json:"daily_progress"`
@@ -224,6 +226,7 @@ type CompletionResult struct {
 	Quest     Quest     `json:"completed_quest"`
 	XPEvents  []XPEvent `json:"xp_events"`
 	LevelUps  []LevelUp `json:"level_ups"`
+	Gold      int64     `json:"gold"` // gold minted by this completion
 	Dashboard Dashboard `json:"dashboard"`
 }
 
@@ -252,6 +255,7 @@ type ToolCompletionResult struct {
 	Entry     ToolEntry `json:"entry"`
 	XPEvents  []XPEvent `json:"xp_events"`
 	LevelUps  []LevelUp `json:"level_ups"`
+	Gold      int64     `json:"gold"`
 	Dashboard Dashboard `json:"dashboard"`
 }
 

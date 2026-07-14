@@ -283,15 +283,15 @@ func (s *Store) QuestsSkippedRepeatedly(userID int64, threshold int) ([]models.Q
 // xp_event per rewarded attribute, bumps attribute totals, and updates the
 // streak — all atomically. It returns the completed quest, the created events,
 // and any attribute level-ups.
-func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPEvent, []models.LevelUp, error) {
+func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPEvent, []models.LevelUp, int64, error) {
 	names, err := s.AttributeNames(userID)
 	if err != nil {
-		return models.Quest{}, nil, nil, err
+		return models.Quest{}, nil, nil, 0, err
 	}
 
 	tx, err := s.db.Begin()
 	if err != nil {
-		return models.Quest{}, nil, nil, err
+		return models.Quest{}, nil, nil, 0, err
 	}
 	defer tx.Rollback() //nolint:errcheck — no-op after a successful Commit
 
@@ -308,22 +308,22 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 		 WHERE id = ? AND user_id = ? AND status NOT IN ('completed','archived')`,
 		nowStr, questID, userID)
 	if err != nil {
-		return models.Quest{}, nil, nil, err
+		return models.Quest{}, nil, nil, 0, err
 	}
 	affected, err := res.RowsAffected()
 	if err != nil {
-		return models.Quest{}, nil, nil, err
+		return models.Quest{}, nil, nil, 0, err
 	}
 	if affected == 0 {
 		// Distinguish "doesn't exist" from "not completable right now".
 		var status string
 		switch e := tx.QueryRow(`SELECT status FROM quests WHERE id = ? AND user_id = ?`, questID, userID).Scan(&status); e {
 		case sql.ErrNoRows:
-			return models.Quest{}, nil, nil, ErrNotFound
+			return models.Quest{}, nil, nil, 0, ErrNotFound
 		case nil:
-			return models.Quest{}, nil, nil, ErrQuestNotCompletable
+			return models.Quest{}, nil, nil, 0, ErrQuestNotCompletable
 		default:
-			return models.Quest{}, nil, nil, e
+			return models.Quest{}, nil, nil, 0, e
 		}
 	}
 
@@ -331,14 +331,14 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 	var rewardsJSON, title string
 	if err := tx.QueryRow(`SELECT title, attribute_rewards FROM quests WHERE id = ? AND user_id = ?`, questID, userID).
 		Scan(&title, &rewardsJSON); err != nil {
-		return models.Quest{}, nil, nil, err
+		return models.Quest{}, nil, nil, 0, err
 	}
 	rewards := unmarshalRewards(rewardsJSON)
 
 	// Checked subtasks add their own rewards as separately-labeled bonus awards.
 	doneSubs, err := doneSubtasksTx(tx, userID, questID)
 	if err != nil {
-		return models.Quest{}, nil, nil, err
+		return models.Quest{}, nil, nil, 0, err
 	}
 
 	// Build the award list: base quest rewards first, then one entry per checked
@@ -349,17 +349,18 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 		key    string
 		amount int64
 		note   string
+		src    string // gold_events source: "quest" or "subtask"
 	}
 	var awards []award
 	for _, key := range orderedKeys(rewards) {
 		if rewards[key] != 0 {
-			awards = append(awards, award{key, rewards[key], title})
+			awards = append(awards, award{key, rewards[key], title, "quest"})
 		}
 	}
 	for _, st := range doneSubs {
 		for _, key := range orderedKeys(st.AttributeRewards) {
 			if st.AttributeRewards[key] != 0 {
-				awards = append(awards, award{key, st.AttributeRewards[key], title + " · " + st.Title})
+				awards = append(awards, award{key, st.AttributeRewards[key], title + " · " + st.Title, "subtask"})
 			}
 		}
 	}
@@ -370,11 +371,12 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 	}
 	if _, err := tx.Exec(`INSERT INTO quest_completions(user_id, quest_id, xp_awarded, completed_at) VALUES(?, ?, ?, ?)`,
 		userID, questID, total, nowStr); err != nil {
-		return models.Quest{}, nil, nil, err
+		return models.Quest{}, nil, nil, 0, err
 	}
 
 	var events []models.XPEvent
 	var levelUps []models.LevelUp
+	var goldTotal int64
 	baseXP := map[string]int64{}    // XP before this completion, per touched attribute
 	runningXP := map[string]int64{} // XP after awards applied so far
 	for _, a := range awards {
@@ -384,7 +386,7 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 				if err == sql.ErrNoRows {
 					continue // unknown attribute key — skip silently
 				}
-				return models.Quest{}, nil, nil, err
+				return models.Quest{}, nil, nil, 0, err
 			}
 			baseXP[a.key] = old
 		}
@@ -392,10 +394,16 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 			`INSERT INTO xp_events(user_id, attribute_key, amount, source, source_id, note, created_at) VALUES(?, ?, ?, 'quest', ?, ?, ?)`,
 			userID, a.key, a.amount, questID, a.note, nowStr)
 		if err != nil {
-			return models.Quest{}, nil, nil, err
+			return models.Quest{}, nil, nil, 0, err
 		}
 		if _, err := tx.Exec(`UPDATE attributes SET total_xp = total_xp + ? WHERE user_id = ? AND key = ?`, a.amount, userID, a.key); err != nil {
-			return models.Quest{}, nil, nil, err
+			return models.Quest{}, nil, nil, 0, err
+		}
+		if g := goldForXP(a.amount); g > 0 {
+			if _, err := insertGoldEventTx(tx, userID, g, a.src, a.note, nil, nowStr); err != nil {
+				return models.Quest{}, nil, nil, 0, err
+			}
+			goldTotal += g
 		}
 		runningXP[a.key] = old + a.amount
 		evID, _ := res.LastInsertId()
@@ -415,18 +423,18 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 	}
 
 	if err := updateStreakTx(tx, userID, now); err != nil {
-		return models.Quest{}, nil, nil, err
+		return models.Quest{}, nil, nil, 0, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return models.Quest{}, nil, nil, err
+		return models.Quest{}, nil, nil, 0, err
 	}
 
 	updated, err := s.GetQuest(userID, questID)
 	if err != nil {
-		return models.Quest{}, nil, nil, err
+		return models.Quest{}, nil, nil, 0, err
 	}
-	return updated, events, levelUps, nil
+	return updated, events, levelUps, goldTotal, nil
 }
 
 // updateStreakTx advances the streak for "today" (local day).
@@ -555,15 +563,15 @@ func (s *Store) CompletionsSince(userID int64, since time.Time) (int, error) {
 // day, awards dailyRewards atomically the same auditable way as quests/tools:
 // xp_events (source='journal') + attribute bumps + streak, all in one tx.
 // Later entries the same day store fine but award nothing.
-func (s *Store) InsertJournal(userID int64, in models.JournalInput, dailyRewards map[string]int64) (models.JournalEntry, []models.XPEvent, []models.LevelUp, error) {
+func (s *Store) InsertJournal(userID int64, in models.JournalInput, dailyRewards map[string]int64) (models.JournalEntry, []models.XPEvent, []models.LevelUp, int64, error) {
 	names, err := s.AttributeNames(userID)
 	if err != nil {
-		return models.JournalEntry{}, nil, nil, err
+		return models.JournalEntry{}, nil, nil, 0, err
 	}
 
 	tx, err := s.db.Begin()
 	if err != nil {
-		return models.JournalEntry{}, nil, nil, err
+		return models.JournalEntry{}, nil, nil, 0, err
 	}
 	defer tx.Rollback() //nolint:errcheck
 
@@ -575,18 +583,19 @@ func (s *Store) InsertJournal(userID int64, in models.JournalInput, dailyRewards
 	if err := tx.QueryRow(
 		`SELECT COUNT(1) FROM journal_entries WHERE user_id = ? AND date(created_at,'localtime') = date('now','localtime')`,
 		userID).Scan(&existingToday); err != nil {
-		return models.JournalEntry{}, nil, nil, err
+		return models.JournalEntry{}, nil, nil, 0, err
 	}
 
 	res, err := tx.Exec(`INSERT INTO journal_entries(user_id, mood, energy, notes, created_at) VALUES(?, ?, ?, ?, ?)`,
 		userID, in.Mood, in.Energy, in.Notes, nowStr)
 	if err != nil {
-		return models.JournalEntry{}, nil, nil, err
+		return models.JournalEntry{}, nil, nil, 0, err
 	}
 	entryID, _ := res.LastInsertId()
 
 	var events []models.XPEvent
 	var levelUps []models.LevelUp
+	var goldTotal int64
 	if existingToday == 0 && len(dailyRewards) > 0 {
 		for _, key := range orderedKeys(dailyRewards) {
 			amount := dailyRewards[key]
@@ -601,10 +610,16 @@ func (s *Store) InsertJournal(userID int64, in models.JournalInput, dailyRewards
 				`INSERT INTO xp_events(user_id, attribute_key, amount, source, source_id, note, created_at) VALUES(?, ?, ?, 'journal', ?, ?, ?)`,
 				userID, key, amount, entryID, "Daily reflection", nowStr)
 			if err != nil {
-				return models.JournalEntry{}, nil, nil, err
+				return models.JournalEntry{}, nil, nil, 0, err
 			}
 			if _, err := tx.Exec(`UPDATE attributes SET total_xp = total_xp + ? WHERE user_id = ? AND key = ?`, amount, userID, key); err != nil {
-				return models.JournalEntry{}, nil, nil, err
+				return models.JournalEntry{}, nil, nil, 0, err
+			}
+			if g := goldForXP(amount); g > 0 {
+				if _, err := insertGoldEventTx(tx, userID, g, "journal", "Daily reflection", nil, nowStr); err != nil {
+					return models.JournalEntry{}, nil, nil, 0, err
+				}
+				goldTotal += g
 			}
 			evID, _ := ev.LastInsertId()
 			sid := entryID
@@ -619,15 +634,15 @@ func (s *Store) InsertJournal(userID int64, in models.JournalInput, dailyRewards
 			}
 		}
 		if err := updateStreakTx(tx, userID, now); err != nil {
-			return models.JournalEntry{}, nil, nil, err
+			return models.JournalEntry{}, nil, nil, 0, err
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
-		return models.JournalEntry{}, nil, nil, err
+		return models.JournalEntry{}, nil, nil, 0, err
 	}
 	entry, err := s.GetJournal(userID, entryID)
-	return entry, events, levelUps, err
+	return entry, events, levelUps, goldTotal, err
 }
 
 // UpdateJournal applies a partial patch to an entry.

@@ -460,3 +460,80 @@ func TestSeedGoldGrant(t *testing.T) {
 		t.Errorf("expected one grant event of 252, got %+v", events)
 	}
 }
+
+func TestCompleteQuestMintsGold(t *testing.T) {
+	svc := newTestService(t)
+	balBefore, _ := svc.GoldBalance()
+
+	workout := findQuestByTitle(t, svc, "30 minute workout") // {strength:40, discipline:10}
+	result, err := svc.CompleteQuest(workout.ID)
+	if err != nil {
+		t.Fatalf("complete quest: %v", err)
+	}
+	// 40 XP -> 4g, 10 XP -> 1g. Minted per xp_event.
+	if result.Gold != 5 {
+		t.Errorf("result.Gold = %d, want 5", result.Gold)
+	}
+	balAfter, _ := svc.GoldBalance()
+	if balAfter != balBefore+5 {
+		t.Errorf("balance = %d, want %d", balAfter, balBefore+5)
+	}
+	if result.Dashboard.GoldBalance != balAfter {
+		t.Errorf("dashboard gold_balance = %d, want %d", result.Dashboard.GoldBalance, balAfter)
+	}
+	events, _ := svc.ListGoldEvents(5)
+	if len(events) < 2 || events[0].Source != "quest" || events[1].Source != "quest" {
+		t.Errorf("expected two quest mint events, got %+v", events)
+	}
+}
+
+func TestJournalDailyGoldOnce(t *testing.T) {
+	svc := newTestService(t)
+	balBefore, _ := svc.GoldBalance()
+
+	first, err := svc.CreateJournalEntry(models.JournalInput{Mood: 7, Energy: 6, Notes: "first"})
+	if err != nil {
+		t.Fatalf("first entry: %v", err)
+	}
+	// journalDailyRewards: spirituality 10 -> 1g, discipline 5 -> 1g.
+	if first.Gold != 2 {
+		t.Errorf("first.Gold = %d, want 2", first.Gold)
+	}
+
+	second, err := svc.CreateJournalEntry(models.JournalInput{Mood: 5, Energy: 5, Notes: "second"})
+	if err != nil {
+		t.Fatalf("second entry: %v", err)
+	}
+	if second.Gold != 0 {
+		t.Errorf("second.Gold = %d, want 0 (daily XP already awarded)", second.Gold)
+	}
+	balAfter, _ := svc.GoldBalance()
+	if balAfter != balBefore+2 {
+		t.Errorf("balance = %d, want %d", balAfter, balBefore+2)
+	}
+}
+
+// TestGoldAuditInvariant checks balance == SUM(gold_events.amount) directly in
+// SQL after a mixed sequence, mirroring the XP audit check.
+func TestGoldAuditInvariant(t *testing.T) {
+	svc := newTestService(t)
+	workout := findQuestByTitle(t, svc, "30 minute workout")
+	if _, err := svc.CompleteQuest(workout.ID); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	if _, err := svc.CreateJournalEntry(models.JournalInput{Mood: 6, Energy: 6, Notes: "x"}); err != nil {
+		t.Fatalf("journal: %v", err)
+	}
+
+	bal, err := svc.GoldBalance()
+	if err != nil {
+		t.Fatalf("balance: %v", err)
+	}
+	var sum int64
+	if err := svc.store.DB().QueryRow(`SELECT COALESCE(SUM(amount),0) FROM gold_events WHERE user_id = 1`).Scan(&sum); err != nil {
+		t.Fatalf("sum query: %v", err)
+	}
+	if bal != sum {
+		t.Errorf("audit broken: balance %d != SUM(gold_events) %d", bal, sum)
+	}
+}

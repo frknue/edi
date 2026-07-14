@@ -29,7 +29,7 @@ func (s *Service) CompleteTool(key string, payload json.RawMessage) (models.Tool
 	}
 
 	def := tool.Definition()
-	entry, events, levelUps, err := s.store.CompleteTool(s.userID, def.Key, def.Name, clean, summary, def.AttributeRewards)
+	entry, events, levelUps, gold, err := s.store.CompleteTool(s.userID, def.Key, def.Name, clean, summary, def.AttributeRewards)
 	if err != nil {
 		return models.ToolCompletionResult{}, err
 	}
@@ -41,6 +41,7 @@ func (s *Service) CompleteTool(key string, payload json.RawMessage) (models.Tool
 		Entry:     entry,
 		XPEvents:  orEmpty(events),
 		LevelUps:  orEmpty(levelUps),
+		Gold:      gold,
 		Dashboard: dash,
 	}, nil
 }

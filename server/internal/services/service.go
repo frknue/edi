@@ -235,7 +235,7 @@ func (s *Service) UpdateQuest(id int64, p models.QuestPatch) (models.Quest, erro
 
 // CompleteQuest completes a quest and returns rich feedback + a refreshed dashboard.
 func (s *Service) CompleteQuest(id int64) (models.CompletionResult, error) {
-	quest, events, levelUps, err := s.store.CompleteQuest(s.userID, id)
+	quest, events, levelUps, gold, err := s.store.CompleteQuest(s.userID, id)
 	if err != nil {
 		switch {
 		case errors.Is(err, db.ErrNotFound):
@@ -255,6 +255,7 @@ func (s *Service) CompleteQuest(id int64) (models.CompletionResult, error) {
 		Quest:     quest,
 		XPEvents:  orEmpty(events),
 		LevelUps:  orEmpty(levelUps),
+		Gold:      gold,
 		Dashboard: dash,
 	}, nil
 }
@@ -318,11 +319,11 @@ func (s *Service) CreateJournalEntry(in models.JournalInput) (models.JournalCrea
 	if err := validMoodEnergy(in.Mood, in.Energy); err != nil {
 		return models.JournalCreateResult{}, err
 	}
-	entry, events, levelUps, err := s.store.InsertJournal(s.userID, in, journalDailyRewards)
+	entry, events, levelUps, gold, err := s.store.InsertJournal(s.userID, in, journalDailyRewards)
 	if err != nil {
 		return models.JournalCreateResult{}, err
 	}
-	return models.JournalCreateResult{Entry: entry, XPEvents: orEmpty(events), LevelUps: orEmpty(levelUps)}, nil
+	return models.JournalCreateResult{Entry: entry, XPEvents: orEmpty(events), LevelUps: orEmpty(levelUps), Gold: gold}, nil
 }
 
 // UpdateJournalEntry applies a partial patch to a reflection.
@@ -395,6 +396,10 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 	if err != nil {
 		return models.Dashboard{}, err
 	}
+	goldBalance, err := s.store.GoldBalance(s.userID)
+	if err != nil {
+		return models.Dashboard{}, err
+	}
 
 	var totalXP int64
 	for _, a := range attrs {
@@ -420,6 +425,7 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 		Attributes:       orEmpty(attrs),
 		TodayQuests:      orEmpty(todayQuests),
 		Streak:           streak,
+		GoldBalance:      goldBalance,
 		RecentXPEvents:   orEmpty(events),
 		RecommendedQuest: recommended,
 		DailyProgress:    models.DailyProgress{CompletedToday: completedToday, Goal: goal, Ratio: dailyRatio},
