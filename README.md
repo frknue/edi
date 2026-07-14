@@ -109,6 +109,14 @@ All clients understand it:
   computed on read, same as XP. Spend it in the **Shop** on rewards you define
   yourself ("guilt-free gaming evening"); purchases check the balance inside the
   purchase transaction so it can never go negative.
+- **Decay & stakes:** neglected attributes lose XP over time — idle days beyond a
+  3-day grace period bill 1% of the attribute's total (min 5 XP/day) as negative
+  `xp_events` (`source='decay'`), the same auditable path as every other award.
+  Decay never drops an attribute below its peak-based floor
+  (`floor(peak level) - 2`), is billed lazily and idempotently (once per idle day,
+  computed on read — no background job), and is paused by **wards** (30 gold buys
+  7 decay-free days for one attribute, stacking on top of an active ward) or
+  **rest mode** (pauses decay for every attribute at once, for planned downtime).
 
 ---
 
@@ -144,12 +152,16 @@ Base: `/api`
 | POST | `/shop/:id/archive` | Archive a shop item (purchase history keeps its label) |
 | POST | `/shop/:id/purchase` | Buy a reward — checks the gold balance inside the tx, never overspends |
 | GET | `/gold/events?limit=` | Recent gold ledger entries (mints + purchases); the balance is `SUM(amount)` |
+| POST | `/attributes/:key/ward` | Spend 30 gold to shield an attribute from decay for 7 days (stacks on an active ward) |
+| GET | `/rest` | Current rest mode state |
+| POST | `/rest` | Turn rest mode on/off — pauses decay for every attribute while on |
 
 ### Agent-ready by design
 
-`server/internal/agent` wraps the service layer as 20 named tools with JSON Schemas
+`server/internal/agent` wraps the service layer as 22 named tools with JSON Schemas
 (`get_dashboard`, `create_quest`, `complete_quest`, `generate_suggestions`,
-`accept_suggestion`, `list_shop_items`, `purchase_shop_item`, `list_gold_events`, …).
+`accept_suggestion`, `list_shop_items`, `purchase_shop_item`, `list_gold_events`,
+`ward_attribute`, `set_rest_mode`, …).
 They are discoverable at `GET /api/agent/tools` and callable
 at `POST /api/agent/tools/:name/invoke`. Each tool forwards to the **same**
 `services.Service` the REST handlers use — wiring an LLM or MCP bridge later requires
@@ -183,7 +195,7 @@ make cli ARGS=tools               # the agent tool catalog
 ### MCP server (AI agent bridge)
 
 `edi-mcp` is a Model Context Protocol server (stdio JSON-RPC) that exposes the
-20 agent tools to an AI client. It is a pure proxy to `/api/agent/tools` — the agent
+22 agent tools to an AI client. It is a pure proxy to `/api/agent/tools` — the agent
 drives the app through the **same service path** as every other client. A quest the
 agent creates is immediately visible to the web UI, CLI, and DB. New tools (like the
 gold economy ones below) appear automatically — the MCP server never needs a code

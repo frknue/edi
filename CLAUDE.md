@@ -99,6 +99,17 @@ caught and fixed — keep using it.
   `db.goldForXP`) happens inside the SAME tx as the xp_event; purchases check
   the balance inside the purchase tx so it can never go negative (regression
   tests: `TestGoldAuditInvariant`, `TestShopPurchaseConcurrentNoOverspend`).
+- **Decay is auditable, idempotent, and floored.** Neglected attributes lose
+  XP via negative `xp_events` (`source='decay'`, note `decay · YYYY-MM-DD`)
+  written by the lazy catch-up (`store.ApplyDecay`) inside one tx — never a
+  bare total_xp decrement. Billing is idempotent per attribute per local day
+  (the billed dates in the notes are re-read inside the tx), never bills
+  ward-covered days or rest periods, and never drops below
+  `XPForLevel(LevelForXP(peak_xp)-2)`. `peak_xp` is maintained in the same tx
+  as every award and never decreases. Rules live in `services/decay.go`
+  (mirrored in `db/decay_math.go`). Regression tests: `TestDecayCatchUp`,
+  `TestDecayConcurrentSingleApplication` (run with `-race`),
+  `TestDecaySkipsRest`, `TestDecayWardExcludesCoveredDays`.
 - **Completion goes through `CompleteQuest`/`SkipQuest` only** — never via a generic
   `PATCH status`. The service rejects `status:completed|skipped` patches on purpose.
 - **Quest completion is atomic and idempotent.** `store.CompleteQuest` gates on a
