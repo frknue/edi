@@ -517,6 +517,10 @@ commands:
   journal                            list recent reflections
   journal-add --mood N --energy N [--notes "..."]
   suggest | suggest-gen | suggest-accept <id> | suggest-dismiss <id>
+  shop                            List reward shop items
+  shop-add --name N --price P     Add a reward to the shop
+  buy <id>                        Purchase a shop item (spends gold)
+  gold                            Gold balance + recent ledger
   tools                              list the agent tool catalog
 `)
 }
