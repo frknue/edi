@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Bot, BookHeart, BrainCircuit, LayoutDashboard, ScrollText, Store } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { DashboardPage } from "./pages/Dashboard";
@@ -12,10 +12,28 @@ import type { View } from "./components/Sidebar";
 
 export default function App() {
   const [view, setView] = useState<View>("dashboard");
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("edi.sidebarCollapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleSidebar = useCallback(() => {
+    setCollapsed((c) => {
+      const next = !c;
+      try {
+        localStorage.setItem("edi.sidebarCollapsed", next ? "1" : "0");
+      } catch {
+        // private mode / quota — keep in-memory state only
+      }
+      return next;
+    });
+  }, []);
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-[1240px] flex-col lg:flex-row">
-      <Sidebar view={view} setView={setView} />
+      <Sidebar view={view} setView={setView} collapsed={collapsed} onToggle={toggleSidebar} />
 
       {/* Mobile top bar */}
       <header className="flex items-center justify-between border-b border-edge px-4 py-3 lg:hidden">
