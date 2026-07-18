@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Bot, BookHeart, BrainCircuit, LayoutDashboard, ScrollText, Store } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { DashboardPage } from "./pages/Dashboard";
@@ -30,6 +30,23 @@ export default function App() {
       return next;
     });
   }, []);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "b" || !(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+      const t = e.target;
+      if (
+        t instanceof HTMLElement &&
+        (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)
+      ) {
+        return; // never toggle mid-typing (e.g. journal entry)
+      }
+      e.preventDefault();
+      toggleSidebar();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [toggleSidebar]);
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-[1240px] flex-col lg:flex-row">
