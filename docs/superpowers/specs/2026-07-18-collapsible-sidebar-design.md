@@ -24,7 +24,7 @@ backend involvement.
 ### State & persistence
 
 - `collapsed: boolean` React state in `App`, initialized from
-  `localStorage["edi.sidebarCollapsed"]` ("1"/absent), written back on every
+  `localStorage["edi.sidebarCollapsed"]` ("1"/"0"), written back on every
   toggle. Defaults to expanded. Survives reloads.
 
 ### Toggles
@@ -63,9 +63,11 @@ backend involvement.
   the mobile header/bottom nav, and owns the collapsed state (with the
   localStorage read/write and the Cmd/Ctrl+B listener).
 - The `View` type and `TOOL_CHILDREN` list move to `Sidebar.tsx` and are
-  exported from there; `App.tsx` and the mobile bottom nav import them. No
-  duplication of the nav item list between expanded and collapsed modes — one
-  list rendered two ways.
+  exported from there; `App.tsx` imports `View`, and the mobile bottom nav
+  keeps its own inline list (shorter "Mood Log" label). `TOOL_CHILDREN` is
+  exported for the sidebar's two render modes (expanded group, collapsed
+  flattened rail) — no duplication of the nav item list between those two
+  modes, one list rendered two ways.
 
 ## Error handling
 

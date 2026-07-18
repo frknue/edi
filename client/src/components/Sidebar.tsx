@@ -98,6 +98,7 @@ export function Sidebar({
         key={id}
         onClick={() => setView(id)}
         data-testid={testId}
+        aria-label={label}
         title={collapsed ? label : undefined}
         className={`group relative flex w-full items-center rounded-lg py-2.5 text-sm font-medium transition-colors ${
           collapsed ? "justify-center px-0" : "gap-3 px-3"
@@ -190,6 +191,8 @@ export function Sidebar({
         onClick={onToggle}
         data-testid="sidebar-toggle"
         title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        aria-expanded={!collapsed}
         className="mt-3 flex w-full items-center justify-center rounded-lg border border-edge py-2 text-faint transition-colors hover:text-muted"
       >
         {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
