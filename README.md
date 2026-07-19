@@ -290,8 +290,18 @@ The morning briefing pushes at `EDI_BRIEFING_TIME` daily; the evening nudge at
 `EDI_NUDGE_TIME` fires only if nothing was completed yet today, at least one
 quest is open, and rest mode is off — it names the easiest open quest so
 `/done <id>` is one tap away. A failed push (server down) retries 3× at 30s
-spacing, then is skipped, never replayed later. Build it with `make build`
-(binary: `bin/edi-telegram`).
+spacing, then is skipped, never replayed later — the scheduler wakes at least
+every 5 minutes and re-checks the wall clock, so it stays correct across host
+suspend and DST shifts, but a wake-up landing more than 10 minutes past the
+scheduled time is also skipped rather than sent late. Build it with
+`make build` (binary: `bin/edi-telegram`).
+
+Telegram delivers updates at-least-once, and the bot keeps its `getUpdates`
+read offset only in memory (no DB access, per the one-architectural-rule
+above) — so if the bot crashes mid-batch, a command may re-execute on
+restart. That's harmless for `/done` (the API rejects re-completing an
+already-completed quest), but `/ward` could buy a second ward. This
+trade-off is accepted to keep the bot fully stateless.
 
 ### Shell status (`edi-cli status`)
 

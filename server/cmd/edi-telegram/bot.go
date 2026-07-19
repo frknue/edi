@@ -127,6 +127,22 @@ func nextFire(now time.Time, hhmm string) time.Time {
 	return fire
 }
 
+// fireStaleAfter is how far past a scheduled fire time a wake-up may still
+// send the push. Beyond this the push is skipped, never replayed — this is
+// what keeps a suspended/slept host from firing hours-late notifications.
+const fireStaleAfter = 10 * time.Minute
+
+// fireDue reports whether the scheduled fire time has arrived (due) and, if
+// so, whether the wake-up came in too late to still send it (stale). due is
+// true at/after fire; stale is true once now is more than fireStaleAfter
+// past fire.
+func fireDue(now, fire time.Time) (due bool, stale bool) {
+	if now.Before(fire) {
+		return false, false
+	}
+	return true, now.Sub(fire) > fireStaleAfter
+}
+
 // parseCommand splits "/done 42" into ("done", "42"). A "@botname" suffix on
 // the command (Telegram group convention) is stripped.
 func parseCommand(text string) (string, string) {

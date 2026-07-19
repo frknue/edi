@@ -112,6 +112,37 @@ func TestNextFire(t *testing.T) {
 	}
 }
 
+func TestFireDue(t *testing.T) {
+	fire := time.Date(2026, 7, 15, 8, 0, 0, 0, time.Local)
+
+	if due, stale := fireDue(fire.Add(-time.Minute), fire); due || stale {
+		t.Errorf("before fire: due=%v stale=%v, want false,false", due, stale)
+	}
+	if due, stale := fireDue(fire.Add(time.Minute), fire); !due || stale {
+		t.Errorf("just after fire: due=%v stale=%v, want true,false", due, stale)
+	}
+	if due, stale := fireDue(fire.Add(11*time.Minute), fire); !due || !stale {
+		t.Errorf("11m after fire: due=%v stale=%v, want true,true", due, stale)
+	}
+}
+
+// TestNextFireDSTSafe pins down that "next occurrence" is derived by
+// constructing tomorrow's wall-clock time via time.Date (which normalizes
+// correctly across a DST transition), not by adding a fixed 24h duration
+// (which would misfire — landing an hour off — whenever the intervening
+// night crosses a spring-forward/fall-back boundary).
+func TestNextFireDSTSafe(t *testing.T) {
+	now := time.Date(2026, 7, 15, 21, 30, 0, 0, time.Local)
+	fire := nextFire(now, "20:00")
+	want := time.Date(2026, 7, 16, 20, 0, 0, 0, time.Local)
+	if !fire.Equal(want) {
+		t.Errorf("nextFire(%v, 20:00) = %v, want %v", now, fire, want)
+	}
+	if fire.Hour() != 20 || fire.Minute() != 0 {
+		t.Errorf("nextFire wall-clock = %02d:%02d, want 20:00", fire.Hour(), fire.Minute())
+	}
+}
+
 func TestParseCommand(t *testing.T) {
 	cases := []struct{ in, cmd, arg string }{
 		{"/status", "status", ""},

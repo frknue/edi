@@ -56,8 +56,17 @@ func main() {
 		return
 	}
 
-	go pushLoop(api, tg, chatID, envOr("EDI_BRIEFING_TIME", "08:00"), sendBriefing, "briefing")
-	go pushLoop(api, tg, chatID, envOr("EDI_NUDGE_TIME", "20:00"), sendNudge, "nudge")
+	briefingTime := envOr("EDI_BRIEFING_TIME", "08:00")
+	if _, err := time.Parse("15:04", briefingTime); err != nil {
+		log.Fatalf("EDI_BRIEFING_TIME %q is not HH:MM", briefingTime)
+	}
+	nudgeTime := envOr("EDI_NUDGE_TIME", "20:00")
+	if _, err := time.Parse("15:04", nudgeTime); err != nil {
+		log.Fatalf("EDI_NUDGE_TIME %q is not HH:MM", nudgeTime)
+	}
+
+	go pushLoop(api, tg, chatID, briefingTime, sendBriefing, "briefing")
+	go pushLoop(api, tg, chatID, nudgeTime, sendNudge, "nudge")
 
 	log.Printf("edi-telegram up: chat %d, api %s", chatID, api.BaseURL)
 	pollLoop(api, tg, chatID)
@@ -115,25 +124,57 @@ func pollLoop(api *apiclient.Client, tg *telegram.Client, chatID int64) {
 	}
 }
 
-// pushLoop fires send() at the next local occurrence of hhmm, daily. A push
-// that fails (server down) is retried 3× at 30s spacing, then skipped —
-// never replayed later.
+// pushCheckInterval bounds how long pushLoop ever sleeps in one stretch, so
+// it re-checks the wall clock periodically instead of trusting a single
+// long monotonic sleep — the monotonic clock pauses across host suspend,
+// which otherwise makes pushes fire hours late.
+const pushCheckInterval = 5 * time.Minute
+
+// pushLoop fires send() at the next local occurrence of hhmm, daily. Instead
+// of one long time.Sleep(time.Until(fire)) — which relies on the monotonic
+// clock running continuously and breaks across suspend/DST — it wakes at
+// most every pushCheckInterval and re-derives due/stale from the wall clock
+// via fireDue. A push that fires on time is retried up to 3× at 30s spacing
+// on failure; a push whose wake-up lands more than fireStaleAfter late is
+// skipped outright — missed pushes are skipped, never replayed.
 func pushLoop(api *apiclient.Client, tg *telegram.Client, chatID int64, hhmm string,
 	send func(*apiclient.Client, *telegram.Client, int64) error, name string) {
+	fire := nextFire(time.Now(), hhmm)
+	log.Printf("next %s at %s", name, fire.Format("2006-01-02 15:04"))
 	for {
-		fire := nextFire(time.Now(), hhmm)
-		log.Printf("next %s at %s", name, fire.Format("2006-01-02 15:04"))
-		time.Sleep(time.Until(fire))
-		var err error
-		for attempt := 0; attempt < 3; attempt++ {
-			if err = send(api, tg, chatID); err == nil {
-				break
+		wait := time.Until(fire)
+		if wait > pushCheckInterval {
+			wait = pushCheckInterval
+		}
+		if wait > 0 {
+			time.Sleep(wait)
+		}
+
+		now := time.Now()
+		due, stale := fireDue(now, fire)
+		if !due {
+			continue
+		}
+
+		if stale {
+			log.Printf("%s skipped: woke %s past fire time", name, now.Sub(fire).Round(time.Second))
+		} else {
+			var err error
+			for attempt := 0; attempt < 3; attempt++ {
+				if err = send(api, tg, chatID); err == nil {
+					break
+				}
+				if attempt < 2 {
+					time.Sleep(30 * time.Second)
+				}
 			}
-			time.Sleep(30 * time.Second)
+			if err != nil {
+				log.Printf("%s skipped: %v", name, err)
+			}
 		}
-		if err != nil {
-			log.Printf("%s skipped: %v", name, err)
-		}
+
+		fire = nextFire(time.Now(), hhmm)
+		log.Printf("next %s at %s", name, fire.Format("2006-01-02 15:04"))
 	}
 }
 
