@@ -24,16 +24,19 @@
 //	gold                            Gold balance + recent ledger
 //	ward <attribute>                Buy a 7-day decay ward for an attribute (30g)
 //	rest on|off                     Pause/resume all attribute decay
+//	status                          Compact stats block for shell startup (fail-silent)
 //	tools                           List the agent tool catalog
 package main
 
 import (
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"edi/internal/apiclient"
 	"edi/internal/models"
@@ -103,6 +106,8 @@ func run(c *apiclient.Client, cmd string, args []string) error {
 		return cmdWard(c, args)
 	case "rest":
 		return cmdRest(c, args)
+	case "status":
+		return cmdStatus(c)
 	case "tools":
 		return cmdTools(c)
 	case "help", "-h", "--help":
@@ -483,6 +488,38 @@ func cmdRest(c *apiclient.Client, args []string) error {
 	return nil
 }
 
+// cmdStatus prints a compact stats block for shell startup. It is
+// deliberately fail-silent: any error (server down, timeout) prints nothing
+// and exits 0, so it can live in .zshrc without ever breaking a new shell.
+func cmdStatus(c *apiclient.Client) error {
+	fast := *c
+	fast.HTTP = &http.Client{Timeout: time.Second}
+	d, err := fast.Dashboard()
+	if err != nil {
+		return nil
+	}
+	fmt.Print(statusBlock(d))
+	return nil
+}
+
+// statusBlock renders the CRT-flavored shell block.
+func statusBlock(d models.Dashboard) string {
+	var b strings.Builder
+	b.WriteString("┌ edi ─────────────────────────\n")
+	fmt.Fprintf(&b, "│ Lv %d · streak %d🔥 · %dg\n", d.Character.Level, d.Streak.Current, d.GoldBalance)
+	fmt.Fprintf(&b, "│ %d quests open · %d done today\n", len(d.TodayQuests), d.DailyProgress.CompletedToday)
+	if d.RestMode {
+		b.WriteString("│ ☾ rest mode ON — decay paused\n")
+	}
+	for _, a := range d.Attributes {
+		if a.Decay != nil && a.Decay.State == "decaying" {
+			fmt.Fprintf(&b, "│ ⚠ %s rusting · -%d XP/day\n", a.Name, a.Decay.ProjectedDailyLoss)
+		}
+	}
+	b.WriteString("└──────────────────────────────\n")
+	return b.String()
+}
+
 // --- helpers ----------------------------------------------------------------
 
 type rewardFlag struct{ m map[string]int64 }
@@ -566,6 +603,7 @@ commands:
   gold                            Gold balance + recent ledger
   ward <attribute>                   buy a 7-day decay ward for an attribute (30g)
   rest on|off                        pause/resume all attribute decay
+  status                             compact stats block for .zshrc (prints nothing if server is down)
   tools                              list the agent tool catalog
 `)
 }
