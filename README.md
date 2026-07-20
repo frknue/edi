@@ -56,9 +56,10 @@ make test        # backend Go tests
 make reset       # delete the SQLite DB (re-seeds on next start)
 ```
 
-Environment variables: `EDI_ADDR` (default `:8080`), `EDI_DB` (default
-`edi.db`), `EDI_CLIENT_DIR` (default `../client/dist`), `EDI_TOKEN` (optional —
-see below; empty means no auth, the localhost default).
+Environment variables: `EDI_ADDR` (default `:8080`; falls back to `PORT` if
+set, for PaaS hosts), `EDI_DB` (default `edi.db`), `EDI_CLIENT_DIR` (default
+`../client/dist`), `EDI_TOKEN` (optional — see below; empty means no auth, the
+localhost default).
 
 ### API token auth (for connecting agents / remote clients)
 
@@ -76,6 +77,40 @@ All clients understand it:
 - **CLI / MCP:** set `EDI_TOKEN` in the environment (`EDI_TOKEN=$(cat .edi-token) ./bin/edi-cli dashboard`)
 - **Web UI:** open `http://host:8080/#token=<secret>` once — the token is stored
   in localStorage and sent automatically afterwards.
+
+### Deploy to Railway (cloud hosting)
+
+The repo ships a multi-stage `Dockerfile` + `railway.json` (health check on
+`/api/health`, Dockerfile builder), so deploying to [Railway](https://railway.com)
+is a few clicks:
+
+1. **New Project → Deploy from GitHub repo** and pick this repo. Railway
+   detects the `Dockerfile` and builds the client + server automatically.
+2. **Attach a volume** to the service (Command/Ctrl+K → "Create volume"), any
+   mount path. The container finds it via `RAILWAY_VOLUME_MOUNT_PATH` and puts
+   `edi.db` there. **Without a volume the DB is wiped on every deploy.**
+3. **Set variables** on the service:
+   - `EDI_TOKEN` — required in practice: the app is on a public URL and this is
+     the only thing keeping your life data private (`openssl rand -hex 24`).
+   - `TZ` — your IANA timezone (e.g. `Europe/Berlin`) so daily streaks, journal
+     XP, and decay bill on *your* local day, not UTC.
+4. **Generate a domain** (Settings → Networking), then open
+   `https://<app>.up.railway.app/#token=<your token>` once to store the token.
+
+The Railway `PORT` is honored automatically; no other config needed. Point the
+CLI/MCP at it with `EDI_API=https://<app>.up.railway.app EDI_TOKEN=<token>`.
+
+To get an actual one-click **Deploy on Railway** button, publish the deployed
+project as a template (Railway dashboard → Create Template) — that captures the
+volume + variables so others (or future you) can stamp out a copy in one click.
+This requires the GitHub repo to be public.
+
+The same `Dockerfile` works anywhere else that runs containers:
+
+```bash
+docker build -t edi .
+docker run -p 8080:8080 -v edi-data:/data -e EDI_TOKEN=<secret> -e TZ=Europe/Berlin edi
+```
 
 ---
 

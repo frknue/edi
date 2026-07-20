@@ -23,7 +23,7 @@ import (
 const singleUserID = 1
 
 func main() {
-	addr := envOr("EDI_ADDR", ":8080")
+	addr := listenAddr()
 	dbPath := envOr("EDI_DB", "edi.db")
 	clientDir := envOr("EDI_CLIENT_DIR", "../client/dist")
 	apiToken := os.Getenv("EDI_TOKEN") // empty = no auth (localhost default)
@@ -76,4 +76,16 @@ func envOr(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// listenAddr resolves the listen address: EDI_ADDR wins, then PORT (injected by
+// PaaS hosts like Railway), then the :8080 default.
+func listenAddr() string {
+	if v := os.Getenv("EDI_ADDR"); v != "" {
+		return v
+	}
+	if p := os.Getenv("PORT"); p != "" {
+		return ":" + p
+	}
+	return ":8080"
 }
