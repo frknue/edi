@@ -117,10 +117,11 @@ All clients understand it:
   computed on read — no background job), and is paused by **wards** (30 gold buys
   7 decay-free days for one attribute, stacking on top of an active ward) or
   **rest mode** (pauses decay for every attribute at once, for planned downtime).
-- **Presence:** a Telegram bot (`edi-telegram`) pushes a morning briefing and an
-  evening nudge and answers `/status /quests /done /ward /rest`, and `edi-cli
-  status` prints a fail-silent stats block for your shell prompt — both are
-  thin clients over the same REST API as everything else.
+- **Presence:** a Telegram bot (`edi-telegram`, *not yet live-tested — see
+  below*) pushes a morning briefing and an evening nudge and answers
+  `/status /quests /done /ward /rest`, and `edi-cli status` prints a
+  fail-silent stats block for your shell prompt — both are thin clients over
+  the same REST API as everything else.
 
 ---
 
@@ -250,6 +251,13 @@ surface the same dashboard without opening the app. Both are thin clients over
 the REST API, same as the CLI and MCP server.
 
 ### Telegram bot (`edi-telegram`)
+
+> **Status: not yet validated against a live bot.** The code is complete and
+> covered by tests (unit + an offline integration test driving the real API
+> with a stub Telegram), and the server-side behavior was verified live, but
+> nobody has run it end to end with a real @BotFather token — no briefing has
+> been received on a phone, no `/done` sent from Telegram. Do that pass before
+> relying on it. Everything below is the setup path to use when you get to it.
 
 `edi-telegram` is a two-way Telegram companion: it answers commands and pushes
 a morning briefing + a conditional evening nudge. Set it up:
