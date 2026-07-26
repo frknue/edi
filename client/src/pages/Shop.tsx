@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { Archive, Coins, Plus, ShoppingCart } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Archive, CalendarDays, Coins, Plus, ShoppingCart, X } from "lucide-react";
 import {
   useArchiveShopItem,
   useCreateShopItem,
@@ -13,7 +14,196 @@ import { Btn, EmptyState, SectionTitle, Spinner } from "../components/ui";
 import { relativeTime } from "../lib/format";
 import type { ShopItem } from "../lib/types";
 
-function ItemRow({ item, balance }: { item: ShopItem; balance: number }) {
+function formatDateTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "Unknown";
+  return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
+
+function ShopItemModal({
+  item,
+  balance,
+  onClose,
+}: {
+  item: ShopItem;
+  balance: number;
+  onClose: () => void;
+}) {
+  const purchase = usePurchaseShopItem();
+  const [arming, setArming] = useState(false);
+  const closeButton = useRef<HTMLButtonElement>(null);
+  const dialog = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setArming(false);
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const frame = window.requestAnimationFrame(() => closeButton.current?.focus());
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab" || !dialog.current) return;
+
+      const focusable = Array.from(
+        dialog.current.querySelectorAll<HTMLElement>("button:not(:disabled), [href], input, select, textarea"),
+      );
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("keydown", onKeyDown);
+      previousFocus?.focus();
+    };
+  }, [item, onClose]);
+
+  const affordable = balance >= item.price;
+  const shortfall = Math.max(0, item.price - balance);
+
+  const buy = () => {
+    if (!arming) {
+      setArming(true);
+      return;
+    }
+    setArming(false);
+    purchase.mutate(item.id, {
+      onSuccess: (res) => {
+        pushToast(`Purchased "${res.item.name}" for ${res.item.price}g — enjoy it, you earned it.`, "success");
+        onClose();
+      },
+    });
+  };
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      style={{ background: "rgba(4,5,9,0.76)", backdropFilter: "blur(4px)" }}
+      onClick={onClose}
+      data-testid="shop-item-modal"
+    >
+      <motion.div
+        ref={dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="shop-item-modal-title"
+        aria-describedby="shop-item-modal-status"
+        className="hud-panel w-full max-w-md overflow-hidden"
+        initial={{ y: 30, opacity: 0, scale: 0.98 }}
+        animate={{ y: 0, opacity: 1, scale: 1 }}
+        exit={{ y: 20, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 300, damping: 28 }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-edge px-5 py-3.5">
+          <h2
+            id="shop-item-modal-title"
+            className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-ink"
+          >
+            Reward details
+          </h2>
+          <button
+            ref={closeButton}
+            type="button"
+            onClick={onClose}
+            className="rounded-sm text-faint hover:text-ink focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-phos)]"
+            aria-label="Close reward details"
+            data-testid="shop-item-modal-close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="space-y-5 px-5 py-5">
+          <div>
+            <p className="mb-1 font-display text-xs uppercase tracking-[0.14em] text-faint">Reward</p>
+            <p className="break-words text-lg font-semibold leading-snug text-ink">{item.name}</p>
+          </div>
+
+          <dl className="grid grid-cols-2 gap-3">
+            <div className="rounded-sm border border-edge bg-white/[0.02] p-3">
+              <dt className="mb-1 flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-faint">
+                <Coins size={13} />
+                Price
+              </dt>
+              <dd className="tabnum text-lg font-bold text-[var(--color-goldhi)]">{item.price}g</dd>
+            </div>
+            <div className="rounded-sm border border-edge bg-white/[0.02] p-3">
+              <dt className="mb-1 flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-faint">
+                <Coins size={13} />
+                Balance
+              </dt>
+              <dd className="tabnum text-lg font-bold text-ink">{balance}g</dd>
+            </div>
+          </dl>
+
+          <div className="flex items-start gap-2.5 text-xs text-muted">
+            <CalendarDays size={15} className="mt-0.5 shrink-0 text-faint" />
+            <div>
+              <p className="text-faint">Added to your wares</p>
+              <p>
+                {formatDateTime(item.created_at)} · {relativeTime(item.created_at)}
+              </p>
+            </div>
+          </div>
+
+          <div
+            id="shop-item-modal-status"
+            className="rounded-sm border px-3 py-2.5 text-xs"
+            style={{
+              borderColor: affordable ? "var(--color-edge2)" : "rgba(255,176,0,0.3)",
+              background: affordable ? "rgba(75,255,126,0.04)" : "rgba(255,176,0,0.04)",
+              color: affordable ? "var(--color-muted)" : "var(--color-gold)",
+            }}
+          >
+            {affordable
+              ? "You have enough gold for this reward."
+              : `You need ${shortfall}g more before you can claim this reward.`}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-edge px-5 py-3.5">
+          <Btn variant="ghost" onClick={onClose}>
+            Close
+          </Btn>
+          <Btn
+            variant={affordable ? "primary" : "ghost"}
+            disabled={!affordable || purchase.isPending}
+            onClick={buy}
+            data-testid="shop-item-modal-buy"
+          >
+            <ShoppingCart size={14} />
+            {arming ? "Confirm?" : affordable ? "Buy reward" : "Too costly"}
+          </Btn>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function ItemRow({
+  item,
+  balance,
+  onOpen,
+}: {
+  item: ShopItem;
+  balance: number;
+  onOpen: (item: ShopItem) => void;
+}) {
   const purchase = usePurchaseShopItem();
   const archive = useArchiveShopItem();
   const [arming, setArming] = useState(false);
@@ -33,13 +223,20 @@ function ItemRow({ item, balance }: { item: ShopItem; balance: number }) {
   };
 
   return (
-    <div className="hud-panel flex items-center gap-3 p-3.5" data-testid={`shop-item-${item.id}`}>
-      <div className="min-w-0 flex-1">
+    <div className="hud-panel hud-panel-hover flex items-center gap-3 p-3.5" data-testid={`shop-item-${item.id}`}>
+      <button
+        type="button"
+        onClick={() => onOpen(item)}
+        className="min-w-0 flex-1 cursor-pointer rounded-sm text-left focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-phos)]"
+        aria-label={`View details for ${item.name}`}
+        aria-haspopup="dialog"
+        data-testid={`shop-item-details-${item.id}`}
+      >
         <div className="truncate text-sm font-medium text-ink">{item.name}</div>
         <div className="tabnum text-xs" style={{ color: "var(--color-gold)" }}>
           {item.price}g
         </div>
-      </div>
+      </button>
       <Btn
         variant={affordable ? "primary" : "ghost"}
         disabled={!affordable || purchase.isPending}
@@ -112,6 +309,7 @@ export function ShopPage() {
   const dashboard = useDashboard();
   const items = useShopItems();
   const ledger = useGoldEvents(30, "purchase");
+  const [selectedItem, setSelectedItem] = useState<ShopItem | null>(null);
 
   if (dashboard.isLoading || items.isLoading) return <Spinner label="Opening the shop…" />;
   if (dashboard.isError || items.isError || !dashboard.data || !items.data) {
@@ -154,7 +352,7 @@ export function ShopPage() {
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {items.data.map((it) => (
-              <ItemRow key={it.id} item={it} balance={balance} />
+              <ItemRow key={it.id} item={it} balance={balance} onOpen={setSelectedItem} />
             ))}
           </div>
         )}
@@ -187,6 +385,12 @@ export function ShopPage() {
           </div>
         )}
       </section>
+
+      <AnimatePresence>
+        {selectedItem && (
+          <ShopItemModal item={selectedItem} balance={balance} onClose={() => setSelectedItem(null)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
