@@ -4,6 +4,7 @@ import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react
 import { RewardProvider } from "./lib/reward";
 import { AiConsentProvider } from "./lib/aiConsent";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { TokenGate } from "./components/TokenGate";
 import { Toaster, pushToast } from "./lib/toast";
 import App from "./App";
 import "./index.css";
@@ -29,7 +30,9 @@ createRoot(document.getElementById("root")!).render(
       <ErrorBoundary>
         <RewardProvider>
           <AiConsentProvider>
-            <App />
+            <TokenGate>
+              <App />
+            </TokenGate>
           </AiConsentProvider>
           <Toaster />
         </RewardProvider>

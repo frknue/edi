@@ -48,6 +48,21 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+export function saveToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token.trim());
+}
+
+// Installed to the home screen, the app runs in its own storage partition —
+// the token captured in Safari is not there, and a standalone launch has no
+// address bar to re-enter `#token=` with. So a 401 raises this signal and the
+// UI asks for the token instead of failing forever.
+type UnauthorizedListener = () => void;
+let onUnauthorized: UnauthorizedListener | null = null;
+
+export function setUnauthorizedHandler(fn: UnauthorizedListener | null): void {
+  onUnauthorized = fn;
+}
+
 class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -69,6 +84,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       /* ignore */
     }
+    if (res.status === 401) onUnauthorized?.();
     throw new ApiError(res.status, msg);
   }
   if (res.status === 204) return undefined as T;
