@@ -6,9 +6,7 @@ package services
 import (
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"edi/internal/db"
@@ -44,15 +42,25 @@ type Service struct {
 	userID int64
 	tools  *tools.Registry
 
-	// OpenAI "Sign in with ChatGPT" connect state (see openai.go).
-	oauthMu      sync.Mutex
-	oauthPending *oauthPending
-	oauthServer  *http.Server
+	// OpenAI "Sign in with ChatGPT" connect state (see openai.go). A pointer
+	// shared by every ForUser copy: the process has ONE :1455 callback
+	// listener, and the pending flow records which user initiated it.
+	oauth *oauthRuntime
 }
 
-// New builds a Service for the given user (1 in single-user mode).
+// New builds a Service bound to the given user (the dev-fallback user 1 for
+// the base service; per-request services come from ForUser).
 func New(store *db.Store, userID int64) *Service {
-	return &Service{store: store, userID: userID, tools: tools.NewRegistry()}
+	return &Service{store: store, userID: userID, tools: tools.NewRegistry(), oauth: &oauthRuntime{}}
+}
+
+// ForUser returns a shallow copy of the service bound to another user. Cheap
+// (per-request) by design: the store pool, tool registry, and OAuth runtime
+// are shared pointers; only the user binding changes.
+func (s *Service) ForUser(userID int64) *Service {
+	c := *s
+	c.userID = userID
+	return &c
 }
 
 var (

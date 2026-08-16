@@ -4,34 +4,29 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"edi/internal/agent"
 	"edi/internal/apiclient"
-	"edi/internal/db"
+	"edi/internal/db/dbtest"
 	"edi/internal/handlers"
 	"edi/internal/services"
 	"edi/internal/telegram"
 )
 
-// newTestAPI boots the REAL edi API (handlers over a seeded temp SQLite DB)
+// newTestAPI boots the REAL edi API (handlers over a seeded Postgres schema)
 // on an httptest server — the bot exercises the same code path production
 // uses, proving the "no hidden data path" rule end to end.
 func newTestAPI(t *testing.T) (*apiclient.Client, *services.Service) {
 	t.Helper()
-	store, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	t.Cleanup(func() { store.Close() })
+	store := dbtest.Open(t)
 	if err := store.Seed(); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 	svc := services.New(store, 1)
-	h := handlers.New(svc, agent.NewRegistry(svc))
-	srv := httptest.NewServer(handlers.NewRouter(h, "", ""))
+	h := handlers.New(svc, agent.NewRegistry())
+	srv := httptest.NewServer(handlers.NewRouter(h, "", false))
 	t.Cleanup(srv.Close)
 	return apiclient.New(srv.URL), svc
 }

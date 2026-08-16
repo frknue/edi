@@ -27,7 +27,22 @@ const (
 type User struct {
 	ID        int64     `json:"id"`
 	Name      string    `json:"name"`
+	IsAdmin   bool      `json:"is_admin"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+// RegisterInput is the self-serve signup payload. The invite code must match
+// the server's EDI_INVITE_CODE (registration is disabled when that is unset).
+type RegisterInput struct {
+	Name       string `json:"name"`
+	InviteCode string `json:"invite_code"`
+}
+
+// CreatedUser is returned once at user creation/token rotation: the only time
+// the plaintext token is ever visible (the server stores just its hash).
+type CreatedUser struct {
+	User  User   `json:"user"`
+	Token string `json:"token"`
 }
 
 // Attribute is a trainable life stat. TotalXP is the stored truth; Level and the

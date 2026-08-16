@@ -2,20 +2,20 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
+	"time"
 
 	"edi/internal/models"
 )
 
 func scanShopItem(scanner interface{ Scan(...any) error }) (models.ShopItem, error) {
 	var it models.ShopItem
-	var created string
-	var archived sql.NullString
-	if err := scanner.Scan(&it.ID, &it.UserID, &it.Name, &it.Price, &created, &archived); err != nil {
+	var archived sql.NullTime
+	if err := scanner.Scan(&it.ID, &it.UserID, &it.Name, &it.Price, &it.CreatedAt, &archived); err != nil {
 		return it, err
 	}
-	it.CreatedAt = mustParseTime(created)
-	it.ArchivedAt = parseTimePtr(archived)
+	it.ArchivedAt = timePtr(archived)
 	return it, nil
 }
 
@@ -23,7 +23,7 @@ const shopColumns = `id, user_id, name, price, created_at, archived_at`
 
 // ListShopItems returns active (non-archived) items, oldest first.
 func (s *Store) ListShopItems(userID int64) ([]models.ShopItem, error) {
-	rows, err := s.db.Query(`SELECT `+shopColumns+` FROM shop_items WHERE user_id = ? AND archived_at IS NULL ORDER BY id`, userID)
+	rows, err := s.db.Query(`SELECT `+shopColumns+` FROM shop_items WHERE user_id = $1 AND archived_at IS NULL ORDER BY id`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +40,7 @@ func (s *Store) ListShopItems(userID int64) ([]models.ShopItem, error) {
 }
 
 func (s *Store) GetShopItem(userID, id int64) (models.ShopItem, error) {
-	row := s.db.QueryRow(`SELECT `+shopColumns+` FROM shop_items WHERE id = ? AND user_id = ?`, id, userID)
+	row := s.db.QueryRow(`SELECT `+shopColumns+` FROM shop_items WHERE id = $1 AND user_id = $2`, id, userID)
 	it, err := scanShopItem(row)
 	if err == sql.ErrNoRows {
 		return it, ErrNotFound
@@ -49,12 +49,12 @@ func (s *Store) GetShopItem(userID, id int64) (models.ShopItem, error) {
 }
 
 func (s *Store) InsertShopItem(userID int64, in models.ShopItemInput) (models.ShopItem, error) {
-	res, err := s.db.Exec(`INSERT INTO shop_items(user_id, name, price, created_at) VALUES(?, ?, ?, ?)`,
-		userID, in.Name, in.Price, nowString())
+	var id int64
+	err := s.db.QueryRow(`INSERT INTO shop_items(user_id, name, price, created_at) VALUES($1, $2, $3, $4) RETURNING id`,
+		userID, in.Name, in.Price, time.Now().UTC()).Scan(&id)
 	if err != nil {
 		return models.ShopItem{}, err
 	}
-	id, _ := res.LastInsertId()
 	return s.GetShopItem(userID, id)
 }
 
@@ -62,13 +62,15 @@ func (s *Store) InsertShopItem(userID int64, in models.ShopItemInput) (models.Sh
 func (s *Store) UpdateShopItem(userID, id int64, p models.ShopItemPatch) (models.ShopItem, error) {
 	var sets []string
 	var args []any
+	set := func(col string, v any) {
+		args = append(args, v)
+		sets = append(sets, fmt.Sprintf("%s = $%d", col, len(args)))
+	}
 	if p.Name != nil {
-		sets = append(sets, "name = ?")
-		args = append(args, *p.Name)
+		set("name", *p.Name)
 	}
 	if p.Price != nil {
-		sets = append(sets, "price = ?")
-		args = append(args, *p.Price)
+		set("price", *p.Price)
 	}
 	if len(sets) == 0 {
 		// Nothing to change — still 404 if the item isn't active.
@@ -79,7 +81,9 @@ func (s *Store) UpdateShopItem(userID, id int64, p models.ShopItemPatch) (models
 		return it, err
 	}
 	args = append(args, id, userID)
-	res, err := s.db.Exec(`UPDATE shop_items SET `+strings.Join(sets, ", ")+` WHERE id = ? AND user_id = ? AND archived_at IS NULL`, args...)
+	q := fmt.Sprintf(`UPDATE shop_items SET %s WHERE id = $%d AND user_id = $%d AND archived_at IS NULL`,
+		strings.Join(sets, ", "), len(args)-1, len(args))
+	res, err := s.db.Exec(q, args...)
 	if err != nil {
 		return models.ShopItem{}, err
 	}
@@ -92,8 +96,8 @@ func (s *Store) UpdateShopItem(userID, id int64, p models.ShopItemPatch) (models
 // ArchiveShopItem hides an item from the shop; the row (and purchase-history
 // labels) stay. Idempotent archiving of an archived item -> ErrNotFound.
 func (s *Store) ArchiveShopItem(userID, id int64) error {
-	res, err := s.db.Exec(`UPDATE shop_items SET archived_at = ? WHERE id = ? AND user_id = ? AND archived_at IS NULL`,
-		nowString(), id, userID)
+	res, err := s.db.Exec(`UPDATE shop_items SET archived_at = $1 WHERE id = $2 AND user_id = $3 AND archived_at IS NULL`,
+		time.Now().UTC(), id, userID)
 	if err != nil {
 		return err
 	}
@@ -104,39 +108,37 @@ func (s *Store) ArchiveShopItem(userID, id int64) error {
 }
 
 // PurchaseShopItem spends gold on an active item, atomically: the balance
-// check and the negative ledger write happen inside one transaction on the
-// single writer connection, so racing purchases serialize and the balance can
-// never go negative (gold sibling of the CompleteQuest gate).
+// check and the negative ledger write happen inside one transaction that holds
+// the per-user advisory lock, so racing purchases serialize and the balance
+// can never go negative (gold sibling of the CompleteQuest gate).
 func (s *Store) PurchaseShopItem(userID, itemID int64) (models.PurchaseResult, error) {
-	tx, err := s.db.Begin()
+	tx, err := s.beginUserTx(userID)
 	if err != nil {
 		return models.PurchaseResult{}, err
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	nowStr := nowString()
+	now := time.Now().UTC()
 
 	var it models.ShopItem
-	var created string
-	err = tx.QueryRow(`SELECT id, user_id, name, price, created_at FROM shop_items WHERE id = ? AND user_id = ? AND archived_at IS NULL`,
-		itemID, userID).Scan(&it.ID, &it.UserID, &it.Name, &it.Price, &created)
+	err = tx.QueryRow(`SELECT id, user_id, name, price, created_at FROM shop_items WHERE id = $1 AND user_id = $2 AND archived_at IS NULL`,
+		itemID, userID).Scan(&it.ID, &it.UserID, &it.Name, &it.Price, &it.CreatedAt)
 	if err == sql.ErrNoRows {
 		return models.PurchaseResult{}, ErrNotFound
 	}
 	if err != nil {
 		return models.PurchaseResult{}, err
 	}
-	it.CreatedAt = mustParseTime(created)
 
 	var balance int64
-	if err := tx.QueryRow(`SELECT COALESCE(SUM(amount),0) FROM gold_events WHERE user_id = ?`, userID).Scan(&balance); err != nil {
+	if err := tx.QueryRow(`SELECT COALESCE(SUM(amount),0) FROM gold_events WHERE user_id = $1`, userID).Scan(&balance); err != nil {
 		return models.PurchaseResult{}, err
 	}
 	if balance < it.Price {
 		return models.PurchaseResult{}, ErrInsufficientGold
 	}
 
-	evID, err := insertGoldEventTx(tx, userID, -it.Price, "purchase", it.Name, &it.ID, nowStr)
+	evID, err := insertGoldEventTx(tx, userID, -it.Price, "purchase", it.Name, &it.ID, now)
 	if err != nil {
 		return models.PurchaseResult{}, err
 	}
@@ -149,7 +151,7 @@ func (s *Store) PurchaseShopItem(userID, itemID int64) (models.PurchaseResult, e
 		Item: it,
 		Event: models.GoldEvent{
 			ID: evID, Amount: -it.Price, Source: "purchase", Label: it.Name,
-			ShopItemID: &itemID2, CreatedAt: mustParseTime(nowStr),
+			ShopItemID: &itemID2, CreatedAt: now,
 		},
 		Balance: balance - it.Price,
 	}, nil

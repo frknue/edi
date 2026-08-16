@@ -3,23 +3,18 @@ package services
 import (
 	"encoding/json"
 	"errors"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 
-	"edi/internal/db"
+	"edi/internal/db/dbtest"
 	"edi/internal/models"
 )
 
-// newTestService spins up a fresh, seeded SQLite DB in a temp dir.
+// newTestService spins up a fresh, seeded store in an isolated Postgres schema.
 func newTestService(t *testing.T) *Service {
 	t.Helper()
-	store, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	t.Cleanup(func() { store.Close() })
+	store := dbtest.Open(t)
 	if err := store.Seed(); err != nil {
 		t.Fatalf("seed: %v", err)
 	}

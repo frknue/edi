@@ -1,4 +1,4 @@
-// Package db owns all persistence: opening the SQLite connection, running
+// Package db owns all persistence: opening the PostgreSQL pool, running
 // embedded migrations, and the Store type that exposes typed CRUD methods.
 // Higher layers (services) never write SQL directly.
 package db
@@ -7,14 +7,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/url"
 	"sort"
 	"strings"
 	"time"
 
 	"edi/migrations"
 
-	_ "modernc.org/sqlite" // pure-Go SQLite driver (no CGO)
+	_ "github.com/jackc/pgx/v5/stdlib" // pure-Go PostgreSQL driver (no CGO)
 )
 
 // Sentinel errors the service layer translates into HTTP status codes.
@@ -29,31 +28,26 @@ var (
 	ErrInsufficientGold = errors.New("not enough gold")
 )
 
-// timeLayout is the canonical on-disk timestamp format: RFC3339 with FIXED-WIDTH
-// nanoseconds. Fixed width matters because timestamps are stored as TEXT and some
-// queries compare them with `created_at >= ?`; variable-width fractional seconds
-// (time.RFC3339Nano trims trailing zeros) would sort incorrectly at sub-second
-// boundaries since '.' < 'Z' lexicographically.
-const timeLayout = "2006-01-02T15:04:05.000000000Z07:00"
-
 // Store wraps the database handle and provides domain persistence methods.
 type Store struct {
 	db *sql.DB
 }
 
-// Open connects to the SQLite database at path, applying sensible pragmas for a
-// self-hosted single-user app, then runs migrations.
-func Open(path string) (*Store, error) {
-	dsn := buildDSN(path)
-	sqlDB, err := sql.Open("sqlite", dsn)
+// Open connects to the PostgreSQL database at url (a postgres:// DSN), then
+// runs any pending embedded migrations.
+func Open(url string) (*Store, error) {
+	sqlDB, err := sql.Open("pgx", url)
 	if err != nil {
-		return nil, fmt.Errorf("open sqlite: %w", err)
+		return nil, fmt.Errorf("open postgres: %w", err)
 	}
-	// Serialize access: simplest reliable way to avoid "database is locked" for
-	// the WAL writer in a single-user app.
-	sqlDB.SetMaxOpenConns(1)
+	// Modest pool for a small self-hosted app. Correctness does NOT depend on
+	// pool size: every read-then-write transaction serializes per user via
+	// beginUserTx's advisory lock.
+	sqlDB.SetMaxOpenConns(10)
+	sqlDB.SetMaxIdleConns(5)
+	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
 	if err := sqlDB.Ping(); err != nil {
-		return nil, fmt.Errorf("ping sqlite: %w", err)
+		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
 	s := &Store{db: sqlDB}
 	if err := s.migrate(); err != nil {
@@ -62,26 +56,28 @@ func Open(path string) (*Store, error) {
 	return s, nil
 }
 
-func buildDSN(path string) string {
-	q := url.Values{}
-	q.Add("_pragma", "busy_timeout(5000)")
-	q.Add("_pragma", "journal_mode(WAL)")
-	q.Add("_pragma", "foreign_keys(1)")
-	q.Add("_pragma", "synchronous(NORMAL)")
-	return "file:" + path + "?" + q.Encode()
-}
-
 // DB exposes the underlying handle (used by tests and graceful shutdown).
 func (s *Store) DB() *sql.DB { return s.db }
 
-// Close folds the WAL back into the main database file (best-effort) and closes
-// the connection, so the on-disk file is tidy after a graceful shutdown.
-func (s *Store) Close() error {
-	if _, err := s.db.Exec(`PRAGMA wal_checkpoint(TRUNCATE)`); err != nil {
-		// Non-fatal: the WAL is still durable and will be folded in on next open.
-		_ = err
+// Close closes the connection pool.
+func (s *Store) Close() error { return s.db.Close() }
+
+// beginUserTx opens a transaction whose FIRST statement takes the per-user
+// advisory lock. This serializes all of a user's writing transactions —
+// exactly the guarantee the SQLite single-writer connection used to provide —
+// while different users proceed in parallel. Every read-then-write tx
+// (completion gates, gold balance checks, decay idempotency, first-entry-of-
+// the-day checks) MUST start here, before its first read.
+func (s *Store) beginUserTx(userID int64) (*sql.Tx, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, err
 	}
-	return s.db.Close()
+	if _, err := tx.Exec(`SELECT pg_advisory_xact_lock($1)`, userID); err != nil {
+		_ = tx.Rollback()
+		return nil, err
+	}
+	return tx, nil
 }
 
 // migrate applies any embedded migration files not yet recorded in
@@ -89,7 +85,7 @@ func (s *Store) Close() error {
 func (s *Store) migrate() error {
 	if _, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
 		version TEXT PRIMARY KEY,
-		applied_at TEXT NOT NULL
+		applied_at timestamptz NOT NULL
 	)`); err != nil {
 		return fmt.Errorf("create schema_migrations: %w", err)
 	}
@@ -108,7 +104,7 @@ func (s *Store) migrate() error {
 
 	for _, name := range names {
 		var exists int
-		if err := s.db.QueryRow(`SELECT COUNT(1) FROM schema_migrations WHERE version = ?`, name).Scan(&exists); err != nil {
+		if err := s.db.QueryRow(`SELECT COUNT(1) FROM schema_migrations WHERE version = $1`, name).Scan(&exists); err != nil {
 			return fmt.Errorf("check migration %s: %w", name, err)
 		}
 		if exists > 0 {
@@ -126,7 +122,7 @@ func (s *Store) migrate() error {
 			_ = tx.Rollback()
 			return fmt.Errorf("apply migration %s: %w", name, err)
 		}
-		if _, err := tx.Exec(`INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)`, name, nowString()); err != nil {
+		if _, err := tx.Exec(`INSERT INTO schema_migrations(version, applied_at) VALUES ($1, $2)`, name, time.Now().UTC()); err != nil {
 			_ = tx.Rollback()
 			return fmt.Errorf("record migration %s: %w", name, err)
 		}
@@ -138,40 +134,30 @@ func (s *Store) migrate() error {
 }
 
 // --- time helpers -----------------------------------------------------------
+//
+// Timestamps are timestamptz; time.Time values pass in and out of the driver
+// directly. The only remaining helpers deal with nullable columns and the
+// local-day bounds used by streak/daily-XP/decay math (computed in Go so SQL
+// never needs a zone name).
 
-func nowString() string { return time.Now().UTC().Format(timeLayout) }
+func timePtr(nt sql.NullTime) *time.Time {
+	if !nt.Valid {
+		return nil
+	}
+	t := nt.Time
+	return &t
+}
 
-func formatTime(t time.Time) string { return t.UTC().Format(timeLayout) }
-
-func formatTimePtr(t *time.Time) interface{} {
+func nullTime(t *time.Time) interface{} {
 	if t == nil {
 		return nil
 	}
-	return t.UTC().Format(timeLayout)
+	return *t
 }
 
-// parseTime parses a stored timestamp; tolerant of a few layouts.
-func parseTime(s string) (time.Time, error) {
-	for _, layout := range []string{timeLayout, time.RFC3339Nano, time.RFC3339, "2006-01-02 15:04:05.999999999-07:00", "2006-01-02 15:04:05"} {
-		if t, err := time.Parse(layout, s); err == nil {
-			return t, nil
-		}
-	}
-	return time.Time{}, fmt.Errorf("unrecognized time %q", s)
-}
-
-func mustParseTime(s string) time.Time {
-	t, _ := parseTime(s)
-	return t
-}
-
-func parseTimePtr(ns sql.NullString) *time.Time {
-	if !ns.Valid || ns.String == "" {
-		return nil
-	}
-	t, err := parseTime(ns.String)
-	if err != nil {
-		return nil
-	}
-	return &t
+// localDayBounds returns [start, end) of the local calendar day containing t.
+func localDayBounds(t time.Time) (time.Time, time.Time) {
+	l := t.Local()
+	start := time.Date(l.Year(), l.Month(), l.Day(), 0, 0, 0, 0, time.Local)
+	return start, start.AddDate(0, 0, 1)
 }

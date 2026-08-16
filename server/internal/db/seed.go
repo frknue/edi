@@ -23,7 +23,9 @@ var DefaultAttributes = []struct {
 	{"spirituality", "Spirituality"},
 }
 
-// Seed populates demo data on a fresh database (no-op if a user already exists).
+// Seed populates DEMO data on a fresh database (no-op if a user already
+// exists). Dev/test convenience only — deployed instances bootstrap a blank
+// admin via CreateUserWithDefaults + token adoption instead (see main.go).
 // It guarantees the audit invariant: each attribute's total_xp equals the sum
 // of its xp_events.
 func (s *Store) Seed() error {
@@ -43,14 +45,14 @@ func (s *Store) Seed() error {
 
 	now := time.Now().UTC()
 
-	res, err := tx.Exec(`INSERT INTO users(name, created_at) VALUES(?, ?)`, "Hero", formatTime(now.AddDate(0, 0, -10)))
-	if err != nil {
+	var userID int64
+	if err := tx.QueryRow(`INSERT INTO users(name, is_admin, created_at) VALUES($1, TRUE, $2) RETURNING id`,
+		"Hero", now.AddDate(0, 0, -10)).Scan(&userID); err != nil {
 		return err
 	}
-	userID, _ := res.LastInsertId()
 
 	// Attributes with starting XP (Health & Spirituality intentionally low so the
-	// rule-based suggestion engine has something to recommend).
+	// suggestion engine has something to recommend).
 	startingXP := map[string]int64{
 		"strength":      520,
 		"discipline":    380,
@@ -64,34 +66,34 @@ func (s *Store) Seed() error {
 	}
 	for i, a := range DefaultAttributes {
 		xp := startingXP[a.Key]
-		if _, err := tx.Exec(`INSERT INTO attributes(user_id, key, name, total_xp, peak_xp, created_at) VALUES(?, ?, ?, ?, ?, ?)`,
-			userID, a.Key, a.Name, xp, xp, formatTime(now.AddDate(0, 0, -10))); err != nil {
+		if _, err := tx.Exec(`INSERT INTO attributes(user_id, key, name, total_xp, peak_xp, created_at) VALUES($1, $2, $3, $4, $5, $6)`,
+			userID, a.Key, a.Name, xp, xp, now.AddDate(0, 0, -10)); err != nil {
 			return err
 		}
 		// One audit event per attribute so totals == sum(xp_events). Stagger the
 		// timestamps so the recent-XP feed looks alive.
 		created := now.Add(-time.Duration(i*7) * time.Hour)
 		if _, err := tx.Exec(
-			`INSERT INTO xp_events(user_id, attribute_key, amount, source, source_id, note, created_at) VALUES(?, ?, ?, 'seed', NULL, ?, ?)`,
-			userID, a.Key, xp, "Starting progress", formatTime(created)); err != nil {
+			`INSERT INTO xp_events(user_id, attribute_key, amount, source, source_id, note, created_at) VALUES($1, $2, $3, 'seed', NULL, $4, $5)`,
+			userID, a.Key, xp, "Starting progress", created); err != nil {
 			return err
 		}
 	}
 
-	// Gold grant matching the seeded XP (10:1, same rule as the migration's
-	// retroactive grant) so the shop is usable immediately on a fresh install.
+	// Gold grant matching the seeded XP (10:1, same rule as the retroactive
+	// grant) so the shop is usable immediately on a fresh install.
 	var totalSeedXP int64
 	for _, xp := range startingXP {
 		totalSeedXP += xp
 	}
 	if _, err := tx.Exec(
-		`INSERT INTO gold_events(user_id, amount, source, label, created_at) VALUES(?, ?, 'grant', 'Starting gold', ?)`,
-		userID, goldForXP(totalSeedXP), formatTime(now)); err != nil {
+		`INSERT INTO gold_events(user_id, amount, source, label, created_at) VALUES($1, $2, 'grant', 'Starting gold', $3)`,
+		userID, goldForXP(totalSeedXP), now); err != nil {
 		return err
 	}
 
 	// Streak: 3-day streak ending yesterday, so the first completion today bumps it to 4.
-	if _, err := tx.Exec(`INSERT INTO streaks(user_id, current_count, longest_count, last_active_date) VALUES(?, 3, 7, ?)`,
+	if _, err := tx.Exec(`INSERT INTO streaks(user_id, current_count, longest_count, last_active_date) VALUES($1, 3, 7, $2)`,
 		userID, now.Local().AddDate(0, 0, -1).Format(dayFormat)); err != nil {
 		return err
 	}
@@ -110,15 +112,15 @@ func (s *Store) Seed() error {
 	for _, q := range seedQuests {
 		rewards, _ := json.Marshal(q.AttributeRewards)
 		if _, err := tx.Exec(
-			`INSERT INTO quests(user_id, title, description, type, difficulty, status, attribute_rewards, created_at) VALUES(?, ?, ?, ?, ?, 'active', ?, ?)`,
-			userID, q.Title, q.Description, q.Type, q.Difficulty, string(rewards), formatTime(now.AddDate(0, 0, -2))); err != nil {
+			`INSERT INTO quests(user_id, title, description, type, difficulty, status, attribute_rewards, created_at) VALUES($1, $2, $3, $4, $5, 'active', $6, $7)`,
+			userID, q.Title, q.Description, q.Type, q.Difficulty, string(rewards), now.AddDate(0, 0, -2)); err != nil {
 			return err
 		}
 	}
 
 	// Journal entry.
-	if _, err := tx.Exec(`INSERT INTO journal_entries(user_id, mood, energy, notes, created_at) VALUES(?, ?, ?, ?, ?)`,
-		userID, 7, 6, "Felt good today. Shipped the first slice of the project and kept my focus block.", formatTime(now.AddDate(0, 0, -1))); err != nil {
+	if _, err := tx.Exec(`INSERT INTO journal_entries(user_id, mood, energy, notes, created_at) VALUES($1, $2, $3, $4, $5)`,
+		userID, 7, 6, "Felt good today. Shipped the first slice of the project and kept my focus block.", now.AddDate(0, 0, -1)); err != nil {
 		return err
 	}
 

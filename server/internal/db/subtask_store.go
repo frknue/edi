@@ -2,7 +2,9 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
+	"time"
 
 	"edi/internal/models"
 )
@@ -27,16 +29,16 @@ func (s *Store) subtasksForQuests(userID int64, questIDs []int64) (map[int64][]m
 	if len(questIDs) == 0 {
 		return out, nil
 	}
-	placeholders := strings.Repeat("?,", len(questIDs))
-	placeholders = placeholders[:len(placeholders)-1]
 	args := make([]any, 0, len(questIDs)+1)
 	args = append(args, userID)
+	ph := make([]string, 0, len(questIDs))
 	for _, id := range questIDs {
 		args = append(args, id)
+		ph = append(ph, fmt.Sprintf("$%d", len(args)))
 	}
 	rows, err := s.db.Query(
 		`SELECT id, quest_id, title, attribute_rewards, done FROM quest_subtasks
-		 WHERE user_id = ? AND quest_id IN (`+placeholders+`) ORDER BY id`, args...)
+		 WHERE user_id = $1 AND quest_id IN (`+strings.Join(ph, ",")+`) ORDER BY id`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -73,18 +75,18 @@ func (s *Store) attachSubtasks(userID int64, quests []models.Quest) error {
 
 // replaceSubtasks deletes and reinserts a quest's subtasks (done flags reset).
 func (s *Store) replaceSubtasks(userID, questID int64, subtasks []models.SubtaskInput) error {
-	tx, err := s.db.Begin()
+	tx, err := s.beginUserTx(userID)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback() //nolint:errcheck
-	if _, err := tx.Exec(`DELETE FROM quest_subtasks WHERE user_id = ? AND quest_id = ?`, userID, questID); err != nil {
+	if _, err := tx.Exec(`DELETE FROM quest_subtasks WHERE user_id = $1 AND quest_id = $2`, userID, questID); err != nil {
 		return err
 	}
 	for _, st := range subtasks {
 		if _, err := tx.Exec(
-			`INSERT INTO quest_subtasks(user_id, quest_id, title, attribute_rewards, done, created_at) VALUES(?, ?, ?, ?, 0, ?)`,
-			userID, questID, st.Title, marshalRewards(st.AttributeRewards), nowString()); err != nil {
+			`INSERT INTO quest_subtasks(user_id, quest_id, title, attribute_rewards, done, created_at) VALUES($1, $2, $3, $4, 0, $5)`,
+			userID, questID, st.Title, marshalRewards(st.AttributeRewards), time.Now().UTC()); err != nil {
 			return err
 		}
 	}
@@ -95,7 +97,7 @@ func (s *Store) replaceSubtasks(userID, questID int64, subtasks []models.Subtask
 // already completed or archived (bonuses are frozen at completion).
 func (s *Store) ToggleSubtask(userID, questID, subtaskID int64) (models.Subtask, error) {
 	var status string
-	switch err := s.db.QueryRow(`SELECT status FROM quests WHERE id = ? AND user_id = ?`, questID, userID).Scan(&status); err {
+	switch err := s.db.QueryRow(`SELECT status FROM quests WHERE id = $1 AND user_id = $2`, questID, userID).Scan(&status); err {
 	case sql.ErrNoRows:
 		return models.Subtask{}, ErrNotFound
 	case nil:
@@ -107,7 +109,7 @@ func (s *Store) ToggleSubtask(userID, questID, subtaskID int64) (models.Subtask,
 	}
 
 	res, err := s.db.Exec(
-		`UPDATE quest_subtasks SET done = 1 - done WHERE id = ? AND quest_id = ? AND user_id = ?`,
+		`UPDATE quest_subtasks SET done = 1 - done WHERE id = $1 AND quest_id = $2 AND user_id = $3`,
 		subtaskID, questID, userID)
 	if err != nil {
 		return models.Subtask{}, err
@@ -116,7 +118,7 @@ func (s *Store) ToggleSubtask(userID, questID, subtaskID int64) (models.Subtask,
 		return models.Subtask{}, ErrNotFound
 	}
 	row := s.db.QueryRow(
-		`SELECT id, quest_id, title, attribute_rewards, done FROM quest_subtasks WHERE id = ? AND user_id = ?`,
+		`SELECT id, quest_id, title, attribute_rewards, done FROM quest_subtasks WHERE id = $1 AND user_id = $2`,
 		subtaskID, userID)
 	return scanSubtask(row)
 }
@@ -125,7 +127,7 @@ func (s *Store) ToggleSubtask(userID, questID, subtaskID int64) (models.Subtask,
 func doneSubtasksTx(tx *sql.Tx, userID, questID int64) ([]models.Subtask, error) {
 	rows, err := tx.Query(
 		`SELECT id, quest_id, title, attribute_rewards, done FROM quest_subtasks
-		 WHERE user_id = ? AND quest_id = ? AND done = 1 ORDER BY id`, userID, questID)
+		 WHERE user_id = $1 AND quest_id = $2 AND done = 1 ORDER BY id`, userID, questID)
 	if err != nil {
 		return nil, err
 	}

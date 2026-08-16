@@ -6,8 +6,8 @@ Guidance for AI agents (and humans) editing this repo. Read this before changing
 ## What this is
 
 A self-hosted Life RPG. Real-life actions are "quests"; completing them awards XP to
-9 life attributes, which level up. Single-user MVP. Go + SQLite backend, React + Vite
-frontend. See `README.md` for the product/run overview.
+9 life attributes, which level up. Multi-tenant (token per user). Go + PostgreSQL
+backend, React + Vite frontend. See `README.md` for the product/run overview.
 
 ## The one architectural rule
 
@@ -41,9 +41,12 @@ make backend  # API only
 make frontend # Vite only
 make build    # client dist + all Go binaries -> bin/ (edi, edi-cli, edi-mcp, edi-telegram)
 make prod     # build + run the self-hosted binary on :8080
-make test     # go test ./...
-make reset    # delete SQLite db (re-seeds on next start)
+make test     # go test ./... (needs local Postgres — see make db-setup)
+make db-setup # one-time: create the local edi_dev + edi_test Postgres databases
+make reset    # drop + recreate edi_dev (re-seeds on next start)
 ```
+
+Local Postgres must be running on :5432 (Postgres.app / homebrew).
 
 Always run from the repo root. Go module root is `server/` (module `edi`).
 
@@ -54,7 +57,7 @@ This codebase is built and maintained with a continuous validation loop, not
 
 1. **Implement a small vertical slice** — the smallest change that produces an
    observable result. Don't build a large unverified system.
-2. **Run the relevant command** (build / test / curl / SQLite query / browser).
+2. **Run the relevant command** (build / test / curl / psql query / browser).
 3. **Inspect the actual output** — read it, don't assume it.
 4. **Verify the feature actually works** against expected behavior.
 5. **If it fails:** read the error carefully, fix the root cause, and **rerun**.
@@ -72,9 +75,9 @@ alternative; don't silently skip the check.
   covers XP math, completion + level-ups, **concurrent** completion with `-race`,
   suggestions, journal, and the JSON array contract).
 - **Live API:** start `make backend`, hit it with `curl`, and **confirm the side
-  effects in the DB**: `sqlite3 server/edi.db "<query>"` (e.g. verify xp_events
-  were written and the audit invariant still holds). Check status codes too —
-  client-caused errors must be 400/404, not 500.
+  effects in the DB**: `psql edi_dev -c "<query>"` (e.g. verify xp_events were
+  written and the audit invariant still holds). Check status codes too —
+  client-caused errors must be 400/404, not 500 (and unauthenticated must be 401).
 - **Frontend:** `cd client && npm run build` (runs `tsc --noEmit` + Vite build).
 - **UI behavior:** drive a real browser (the `agent-browser` skill / Playwright) —
   load the page, perform the action, confirm the DOM/XP updates, and check the
@@ -116,8 +119,9 @@ caught and fixed — keep using it.
   `PATCH status`. The service rejects `status:completed|skipped` patches on purpose.
 - **Quest completion is atomic and idempotent.** `store.CompleteQuest` gates on a
   conditional `UPDATE ... AND status NOT IN ('completed','archived')` and checks
-  `RowsAffected()` *inside the transaction*. Don't reintroduce a read-status-then-write
-  pattern outside the tx — that double-awards XP under concurrent/double-tap requests
+  `RowsAffected()` *inside a `beginUserTx` transaction* (per-user advisory lock).
+  Don't reintroduce a read-status-then-write pattern outside such a tx — that
+  double-awards XP under concurrent/double-tap requests
   (regression test: `TestCompleteQuestConcurrentNoDoubleAward`, run with `-race`).
 - **Subtask bonuses are frozen at completion.** Checked subtasks (bonus objectives)
   are read and awarded *inside* the same completion tx as separately-labeled
@@ -204,12 +208,27 @@ server errors).
 ## Conventions
 
 ### Backend (Go)
-- SQLite driver is `modernc.org/sqlite` (pure Go, **no CGO**). `SetMaxOpenConns(1)` —
-  a single writer serializes access; keep it.
-- Timestamps: stored as **TEXT, UTC, fixed-width** (`timeLayout` in `db/db.go`). Fixed
-  width matters for `created_at >= ?` text comparisons. Use the existing helpers.
-- All SQL lives in `internal/db` (`Store`). Services never write SQL directly. Swapping
-  to Postgres later = reimplement `Store`, nothing else.
+- Storage is **PostgreSQL** via `github.com/jackc/pgx/v5/stdlib` (pure Go, no CGO)
+  over `database/sql`. DSN: `EDI_DATABASE_URL` → `DATABASE_URL` → localhost
+  `edi_dev`.
+- **Per-user write serialization is an invariant.** Every read-then-write
+  transaction (completion gates, gold balance checks, decay idempotency,
+  first-entry-of-day checks) MUST start with `store.beginUserTx(userID)`, which
+  takes `pg_advisory_xact_lock(userID)` as its first statement. This is what
+  replaced SQLite's single-writer connection; the concurrency regression tests
+  (`-race`) only stay honest if new write paths keep doing this.
+- Timestamps are `timestamptz`; pass/scan `time.Time` (UTC in, driver converts).
+  Local-day math (streaks, decay, journal daily XP) happens in **Go** —
+  `localDayBounds`/`localDate` — never with SQL zone names.
+- Placeholders are `$1..$n` (pgx has no `?`). Inserts needing the id use
+  `INSERT ... RETURNING id` + `QueryRow.Scan` — `LastInsertId` does not work.
+- All SQL lives in `internal/db` (`Store`). Services never write SQL directly.
+- Tests get isolated stores from `internal/db/dbtest` (a throwaway schema per
+  test in `edi_test`, real migrations applied). Skip/fail rule: with
+  `EDI_TEST_DATABASE_URL` set the DB must be reachable (CI can never silently
+  skip); unset, tests skip loudly when localhost Postgres is absent — which is
+  why the Docker build only gates on vet + pure tests, and `.github/workflows/
+  ci.yml` (postgres service container) is the full gate.
 - **Error → HTTP mapping**: return `services.ErrValidation` (→400) or
   `services.ErrNotFound` (→404) from the service; anything else is 500. Store-level
   sentinels (`db.ErrNotFound`, `db.ErrQuestNotCompletable`, `db.ErrSuggestionNotPending`)
@@ -231,29 +250,58 @@ server errors).
   states (`Spinner`, `EmptyState`, `ErrorBoundary`, toasts). Don't hide backend failures.
 - Strict TS (`noUnusedLocals`/`noUnusedParameters`); the build fails on unused symbols.
 
-## Single-user mode & auth
+## Users & auth (multi-tenant)
 
-Fixed `userID = 1` (`main.go`). Auth is an **optional shared bearer token**: set
-`EDI_TOKEN` on the server and every `/api` route except `/api/health` requires
-`Authorization: Bearer <token>` (`authMW` in `router.go`, constant-time compare).
-Empty `EDI_TOKEN` = tokenless localhost default. All clients already send it when
-the env var is set (apiclient/CLI/MCP) or via `#token=` → localStorage (web UI) —
-keep that behavior when adding endpoints. The local secret lives in `.edi-token`
-(gitignored); never commit it. CORS stays restricted to loopback origins
-(`isLoopbackOrigin`) — a token is not a reason to loosen it.
+Multi-tenant, **token-based, no passwords**: every user owns one bearer token
+(48 hex chars, shown once at creation; the server stores only its SHA-256 in
+`users.token_hash`). Every client — web UI, CLI, MCP, Telegram — sends it as
+`Authorization: Bearer <token>`; the middleware (`handlers/auth.go`) resolves
+it to a user id in the request context, and handlers call
+`h.forUser(r)` → `svc.ForUser(id)` (a cheap per-request copy). **Never bind a
+handler or agent tool to `h.svc` directly** — that's the dev-fallback user.
 
-External agents connect through the MCP server with the token, e.g.
+Two server modes, decided by `EDI_TOKEN`:
+- **Set (deployed):** at every boot the server *adopts* it as user 1's token
+  (creating a blank admin "Hero" on an empty DB). Idempotent — which makes
+  changing the env var + restart the recovery path for user 1's access, and is
+  why the admin token-rotation API refuses user 1. Anonymous /api requests are
+  401 (except `/api/health`, `GET /api/auth/config`, `POST /api/auth/register`).
+- **Unset (localhost dev):** no auth; anonymous requests act as user 1; demo
+  data seeds on a fresh DB. This means `EDI_TOKEN` is load-bearing for auth on
+  a public deployment — never unset it there.
+
+More users: self-serve registration gated on `EDI_INVITE_CODE` (unset =
+registration closed; `POST /api/auth/register {name, invite_code}` → token,
+shown once), or the admin API (`POST /api/admin/users`, `POST
+/api/admin/users/{id}/token` to re-mint a lost token). User management is
+deliberately NOT in the agent tool registry. Isolation is enforced by the
+`user_id` filter in every store query — `TestTenantIsolation` is the
+regression; extend it when adding entities. The web UI's `TokenGate` handles
+401 → paste-token / register; a one-time `/#token=<t>` URL also works.
+
+External agents connect through the MCP server with a user's token, e.g.
 `codex mcp add edi --env EDI_API=... --env EDI_TOKEN=... -- bin/edi-mcp`.
+CORS stays restricted to loopback origins (`isLoopbackOrigin`) — a token is
+not a reason to loosen it.
 
-## Deployment (Docker / Railway)
+## Deployment (Railway) — the live instance is real
 
-The multi-stage `Dockerfile` + `railway.json` (health check `/api/health`) ship
-the same single self-hosted server as `make prod`. The container resolves the DB
-path as `EDI_DB` → `$RAILWAY_VOLUME_MOUNT_PATH/edi.db` → `/data/edi.db`
-(ephemeral without a volume — always attach one). The runtime image installs
-`tzdata` because local-day math (decay, journal daily XP) honors `TZ`; keep that
-if you touch the Dockerfile. Railway's `PORT` is honored automatically. Set
-`EDI_TOKEN` when exposing the server publicly.
+**Push to `main` deploys.** The `edi-server` Railway service builds this repo's
+`Dockerfile` on every push to `frknue/edi@main` (health check `/api/health`;
+`PORT` honored; `TZ` must stay set — local-day math depends on it). The image
+build gates on vet + pure tests only; the full suite (Postgres-backed, `-race`)
+runs in GitHub Actions. `make deploy` (`railway up`) is the out-of-band path.
+
+Data lives in the Railway **Postgres service** (`DATABASE_URL` reference on
+edi-server) and is the ONLY copy of the real characters. Rules that keep it
+safe:
+- **Migrations must be additive** (new tables/columns/indexes). Anything
+  destructive or shape-changing needs a backup first and a written revert path.
+- **`make backup-prod` before any schema or storage change** — dumps the live
+  DB into `backups/` (gitignored).
+- Never point a local dev server at the production `DATABASE_URL`.
+- The one-shot SQLite-era restore tool is `scripts/sqlite-to-pg.py` (kept for
+  the old backups in `backups/`).
 
 ## Don't
 
@@ -261,3 +309,6 @@ if you touch the Dockerfile. Railway's `PORT` is honored automatically. Set
 - Don't put logic the agent would need behind UI-only code.
 - Don't store derived values (levels, progress) — compute them from `total_xp` on read.
 - Don't claim completion without validating via build/test/curl/browser output.
+- Don't write a read-then-write transaction without `beginUserTx` (see Backend
+  conventions) — it reintroduces the race class the advisory locks closed.
+- Don't ship a migration to main without `make backup-prod` — main deploys.

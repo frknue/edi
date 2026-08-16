@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -19,31 +20,43 @@ import (
 	"edi/internal/services"
 )
 
-// singleUserID is the fixed user in MVP single-user mode.
-const singleUserID = 1
+// devUserID is who anonymous requests act as in tokenless dev mode.
+const devUserID = 1
 
 func main() {
 	addr := listenAddr()
-	dbPath := envOr("EDI_DB", "edi.db")
+	dbURL := databaseURL()
 	clientDir := envOr("EDI_CLIENT_DIR", "../client/dist")
-	apiToken := os.Getenv("EDI_TOKEN") // empty = no auth (localhost default)
+	apiToken := os.Getenv("EDI_TOKEN") // empty = tokenless localhost dev mode
 
-	store, err := db.Open(dbPath)
+	store, err := db.Open(dbURL)
 	if err != nil {
 		log.Fatalf("open db: %v", err)
 	}
 	defer store.Close()
 
-	if err := store.Seed(); err != nil {
-		log.Fatalf("seed: %v", err)
+	svc := services.New(store, devUserID)
+	if apiToken != "" {
+		// Token mode: guarantee user 1 exists (blank admin on an empty DB) and
+		// idempotently bind EDI_TOKEN as their login token. Further users come
+		// from registration (EDI_INVITE_CODE) or the admin API.
+		if err := svc.AdoptEnvToken(apiToken); err != nil {
+			log.Fatalf("adopt EDI_TOKEN: %v", err)
+		}
+		log.Println("per-user token auth enabled (EDI_TOKEN adopted as user 1's token)")
+		if services.RegistrationOpen() {
+			log.Println("self-serve registration open (EDI_INVITE_CODE set)")
+		}
+	} else {
+		// Dev mode: no auth, anonymous requests act as user 1; seed demo data
+		// on a fresh database.
+		if err := store.Seed(); err != nil {
+			log.Fatalf("seed: %v", err)
+		}
 	}
 
-	svc := services.New(store, singleUserID)
-	registry := agent.NewRegistry(svc)
-	router := handlers.NewRouter(handlers.New(svc, registry), clientDir, apiToken)
-	if apiToken != "" {
-		log.Println("API token auth enabled (EDI_TOKEN set)")
-	}
+	registry := agent.NewRegistry()
+	router := handlers.NewRouter(handlers.New(svc, registry), clientDir, apiToken != "")
 
 	srv := &http.Server{
 		Addr:              addr,
@@ -52,7 +65,7 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("Life RPG server listening on %s (db=%s)", addr, dbPath)
+		log.Printf("Life RPG server listening on %s (db=%s)", addr, redactDSN(dbURL))
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("listen: %v", err)
 		}
@@ -69,6 +82,31 @@ func main() {
 		log.Printf("graceful shutdown failed (%v); forcing close", err)
 		_ = srv.Close()
 	}
+}
+
+// databaseURL resolves the PostgreSQL DSN: EDI_DATABASE_URL wins, then
+// DATABASE_URL (injected by Railway when the Postgres service is referenced),
+// then a localhost dev default.
+func databaseURL() string {
+	if v := os.Getenv("EDI_DATABASE_URL"); v != "" {
+		return v
+	}
+	if v := os.Getenv("DATABASE_URL"); v != "" {
+		return v
+	}
+	return "postgres://localhost:5432/edi_dev?sslmode=disable"
+}
+
+// redactDSN hides the password when logging the connection target.
+func redactDSN(dsn string) string {
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return "postgres"
+	}
+	if u.User != nil {
+		u.User = url.User(u.User.Username())
+	}
+	return u.Redacted()
 }
 
 func envOr(key, def string) string {

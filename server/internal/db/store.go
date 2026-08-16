@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -39,14 +40,88 @@ func (s *Store) CountUsers() (int, error) {
 
 func (s *Store) GetUser(id int64) (models.User, error) {
 	var u models.User
-	var created string
-	err := s.db.QueryRow(`SELECT id, name, created_at FROM users WHERE id = ?`, id).
-		Scan(&u.ID, &u.Name, &created)
-	if err != nil {
-		return u, err
+	err := s.db.QueryRow(`SELECT id, name, is_admin, created_at FROM users WHERE id = $1`, id).
+		Scan(&u.ID, &u.Name, &u.IsAdmin, &u.CreatedAt)
+	if err == sql.ErrNoRows {
+		return u, ErrNotFound
 	}
-	u.CreatedAt = mustParseTime(created)
-	return u, nil
+	return u, err
+}
+
+func (s *Store) ListUsers() ([]models.User, error) {
+	rows, err := s.db.Query(`SELECT id, name, is_admin, created_at FROM users ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []models.User
+	for rows.Next() {
+		var u models.User
+		if err := rows.Scan(&u.ID, &u.Name, &u.IsAdmin, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+// GetUserIDByTokenHash resolves a bearer token (pre-hashed by the service
+// layer) to a user id. ErrNotFound for unknown tokens.
+func (s *Store) GetUserIDByTokenHash(hash string) (int64, error) {
+	var id int64
+	err := s.db.QueryRow(`SELECT id FROM users WHERE token_hash = $1`, hash).Scan(&id)
+	if err == sql.ErrNoRows {
+		return 0, ErrNotFound
+	}
+	return id, err
+}
+
+// SetUserTokenHash sets (or clears, with "") a user's login token hash.
+func (s *Store) SetUserTokenHash(userID int64, hash string) error {
+	var v interface{}
+	if hash != "" {
+		v = hash
+	}
+	res, err := s.db.Exec(`UPDATE users SET token_hash = $1 WHERE id = $2`, v, userID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// CreateUserWithDefaults creates a user plus everything a playable character
+// needs — the nine attributes at 0 XP (no xp_events: SUM(0 rows)==0 keeps the
+// audit invariant) and a zeroed streak row — in one transaction.
+func (s *Store) CreateUserWithDefaults(name string, isAdmin bool) (models.User, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return models.User{}, err
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	now := time.Now().UTC()
+	var id int64
+	if err := tx.QueryRow(`INSERT INTO users(name, is_admin, created_at) VALUES($1, $2, $3) RETURNING id`,
+		name, isAdmin, now).Scan(&id); err != nil {
+		return models.User{}, err
+	}
+	for _, a := range DefaultAttributes {
+		if _, err := tx.Exec(
+			`INSERT INTO attributes(user_id, key, name, total_xp, peak_xp, created_at) VALUES($1, $2, $3, 0, 0, $4)`,
+			id, a.Key, a.Name, now); err != nil {
+			return models.User{}, err
+		}
+	}
+	if _, err := tx.Exec(`INSERT INTO streaks(user_id, current_count, longest_count) VALUES($1, 0, 0)`, id); err != nil {
+		return models.User{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return models.User{}, err
+	}
+	return models.User{ID: id, Name: name, IsAdmin: isAdmin, CreatedAt: now}, nil
 }
 
 // --- attributes -------------------------------------------------------------
@@ -54,7 +129,7 @@ func (s *Store) GetUser(id int64) (models.User, error) {
 // ListAttributes returns raw attributes (TotalXP and PeakXP); derived level/progress
 // fields are filled by the service layer.
 func (s *Store) ListAttributes(userID int64) ([]models.Attribute, error) {
-	rows, err := s.db.Query(`SELECT id, user_id, key, name, total_xp, peak_xp FROM attributes WHERE user_id = ? ORDER BY id`, userID)
+	rows, err := s.db.Query(`SELECT id, user_id, key, name, total_xp, peak_xp FROM attributes WHERE user_id = $1 ORDER BY id`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -87,8 +162,8 @@ func (s *Store) AttributeNames(userID int64) (map[string]string, error) {
 func (s *Store) WeeklyXPByAttribute(userID int64, since time.Time) (map[string]int64, error) {
 	rows, err := s.db.Query(
 		`SELECT attribute_key, COALESCE(SUM(amount),0) FROM xp_events
-		 WHERE user_id = ? AND created_at >= ? GROUP BY attribute_key`,
-		userID, formatTime(since))
+		 WHERE user_id = $1 AND created_at >= $2 GROUP BY attribute_key`,
+		userID, since)
 	if err != nil {
 		return nil, err
 	}
@@ -109,26 +184,24 @@ func (s *Store) WeeklyXPByAttribute(userID int64, since time.Time) (map[string]i
 
 func scanQuest(scanner interface{ Scan(...any) error }) (models.Quest, error) {
 	var q models.Quest
-	var created string
-	var completed, due sql.NullString
+	var completed, due sql.NullTime
 	var rewards string
 	var srcSug sql.NullInt64
 	err := scanner.Scan(&q.ID, &q.UserID, &q.Title, &q.Description, &q.Type, &q.Difficulty,
-		&q.Status, &rewards, &q.SkipCount, &srcSug, &created, &completed, &due)
+		&q.Status, &rewards, &q.SkipCount, &srcSug, &q.CreatedAt, &completed, &due)
 	if err != nil {
 		return q, err
 	}
 	q.AttributeRewards = unmarshalRewards(rewards)
-	q.CreatedAt = mustParseTime(created)
-	q.CompletedAt = parseTimePtr(completed)
-	q.DueDate = parseTimePtr(due)
+	q.CompletedAt = timePtr(completed)
+	q.DueDate = timePtr(due)
 	return q, nil
 }
 
 const questColumns = `id, user_id, title, description, type, difficulty, status, attribute_rewards, skip_count, source_suggestion_id, created_at, completed_at, due_date`
 
 func (s *Store) GetQuest(userID, id int64) (models.Quest, error) {
-	row := s.db.QueryRow(`SELECT `+questColumns+` FROM quests WHERE id = ? AND user_id = ?`, id, userID)
+	row := s.db.QueryRow(`SELECT `+questColumns+` FROM quests WHERE id = $1 AND user_id = $2`, id, userID)
 	q, err := scanQuest(row)
 	if err != nil {
 		return q, err
@@ -142,15 +215,15 @@ func (s *Store) GetQuest(userID, id int64) (models.Quest, error) {
 
 // ListQuests returns quests filtered by optional type and status (empty = all).
 func (s *Store) ListQuests(userID int64, questType, status string) ([]models.Quest, error) {
-	q := `SELECT ` + questColumns + ` FROM quests WHERE user_id = ?`
+	q := `SELECT ` + questColumns + ` FROM quests WHERE user_id = $1`
 	args := []any{userID}
 	if questType != "" {
-		q += ` AND type = ?`
 		args = append(args, questType)
+		q += fmt.Sprintf(` AND type = $%d`, len(args))
 	}
 	if status != "" {
-		q += ` AND status = ?`
 		args = append(args, status)
+		q += fmt.Sprintf(` AND status = $%d`, len(args))
 	}
 	q += ` ORDER BY
 		CASE type WHEN 'boss' THEN 0 WHEN 'main' THEN 1 WHEN 'daily' THEN 2 WHEN 'weekly' THEN 3 WHEN 'side' THEN 4 WHEN 'recovery' THEN 5 ELSE 6 END,
@@ -178,15 +251,15 @@ func (s *Store) ListQuests(userID int64, questType, status string) ([]models.Que
 }
 
 func (s *Store) InsertQuest(userID int64, in models.QuestInput, sourceSuggestionID *int64) (models.Quest, error) {
-	res, err := s.db.Exec(
+	var id int64
+	err := s.db.QueryRow(
 		`INSERT INTO quests(user_id, title, description, type, difficulty, status, attribute_rewards, skip_count, source_suggestion_id, created_at, due_date)
-		 VALUES(?, ?, ?, ?, ?, 'active', ?, 0, ?, ?, ?)`,
+		 VALUES($1, $2, $3, $4, $5, 'active', $6, 0, $7, $8, $9) RETURNING id`,
 		userID, in.Title, in.Description, in.Type, in.Difficulty, marshalRewards(in.AttributeRewards),
-		nullInt64(sourceSuggestionID), nowString(), formatTimePtr(in.DueDate))
+		nullInt64(sourceSuggestionID), time.Now().UTC(), nullTime(in.DueDate)).Scan(&id)
 	if err != nil {
 		return models.Quest{}, err
 	}
-	id, _ := res.LastInsertId()
 	if len(in.Subtasks) > 0 {
 		if err := s.replaceSubtasks(userID, id, in.Subtasks); err != nil {
 			return models.Quest{}, err
@@ -199,37 +272,36 @@ func (s *Store) InsertQuest(userID int64, in models.QuestInput, sourceSuggestion
 func (s *Store) UpdateQuest(userID, id int64, p models.QuestPatch) (models.Quest, error) {
 	var sets []string
 	var args []any
+	set := func(col string, v any) {
+		args = append(args, v)
+		sets = append(sets, fmt.Sprintf("%s = $%d", col, len(args)))
+	}
 	if p.Title != nil {
-		sets = append(sets, "title = ?")
-		args = append(args, *p.Title)
+		set("title", *p.Title)
 	}
 	if p.Description != nil {
-		sets = append(sets, "description = ?")
-		args = append(args, *p.Description)
+		set("description", *p.Description)
 	}
 	if p.Type != nil {
-		sets = append(sets, "type = ?")
-		args = append(args, *p.Type)
+		set("type", *p.Type)
 	}
 	if p.Difficulty != nil {
-		sets = append(sets, "difficulty = ?")
-		args = append(args, *p.Difficulty)
+		set("difficulty", *p.Difficulty)
 	}
 	if p.Status != nil {
-		sets = append(sets, "status = ?")
-		args = append(args, *p.Status)
+		set("status", *p.Status)
 	}
 	if p.AttributeRewards != nil {
-		sets = append(sets, "attribute_rewards = ?")
-		args = append(args, marshalRewards(*p.AttributeRewards))
+		set("attribute_rewards", marshalRewards(*p.AttributeRewards))
 	}
 	if p.DueDate != nil {
-		sets = append(sets, "due_date = ?")
-		args = append(args, formatTimePtr(p.DueDate))
+		set("due_date", nullTime(p.DueDate))
 	}
 	if len(sets) > 0 {
 		args = append(args, id, userID)
-		if _, err := s.db.Exec(`UPDATE quests SET `+strings.Join(sets, ", ")+` WHERE id = ? AND user_id = ?`, args...); err != nil {
+		q := fmt.Sprintf(`UPDATE quests SET %s WHERE id = $%d AND user_id = $%d`,
+			strings.Join(sets, ", "), len(args)-1, len(args))
+		if _, err := s.db.Exec(q, args...); err != nil {
 			return models.Quest{}, err
 		}
 	}
@@ -243,14 +315,14 @@ func (s *Store) UpdateQuest(userID, id int64, p models.QuestPatch) (models.Quest
 
 // SetQuestStatus updates only the status column.
 func (s *Store) SetQuestStatus(userID, id int64, status string) error {
-	_, err := s.db.Exec(`UPDATE quests SET status = ? WHERE id = ? AND user_id = ?`, status, id, userID)
+	_, err := s.db.Exec(`UPDATE quests SET status = $1 WHERE id = $2 AND user_id = $3`, status, id, userID)
 	return err
 }
 
 // SkipQuest marks a quest skipped and increments its skip counter.
 func (s *Store) SkipQuest(userID, id int64) (models.Quest, error) {
 	if _, err := s.db.Exec(
-		`UPDATE quests SET status = 'skipped', skip_count = skip_count + 1 WHERE id = ? AND user_id = ?`,
+		`UPDATE quests SET status = 'skipped', skip_count = skip_count + 1 WHERE id = $1 AND user_id = $2`,
 		id, userID); err != nil {
 		return models.Quest{}, err
 	}
@@ -260,7 +332,7 @@ func (s *Store) SkipQuest(userID, id int64) (models.Quest, error) {
 // QuestsSkippedRepeatedly returns active/skipped quests skipped >= threshold times.
 func (s *Store) QuestsSkippedRepeatedly(userID int64, threshold int) ([]models.Quest, error) {
 	rows, err := s.db.Query(`SELECT `+questColumns+` FROM quests
-		WHERE user_id = ? AND skip_count >= ? AND status IN ('active','skipped') ORDER BY skip_count DESC`,
+		WHERE user_id = $1 AND skip_count >= $2 AND status IN ('active','skipped') ORDER BY skip_count DESC`,
 		userID, threshold)
 	if err != nil {
 		return nil, err
@@ -289,24 +361,22 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 		return models.Quest{}, nil, nil, 0, err
 	}
 
-	tx, err := s.db.Begin()
+	// The per-user advisory lock (beginUserTx) serializes concurrent completes
+	// the way the SQLite single-writer used to; the conditional UPDATE below is
+	// the completion gate itself: only the first request flips the status and
+	// gets RowsAffected()==1 — no double XP, no duplicate completion row.
+	tx, err := s.beginUserTx(userID)
 	if err != nil {
 		return models.Quest{}, nil, nil, 0, err
 	}
 	defer tx.Rollback() //nolint:errcheck — no-op after a successful Commit
 
 	now := time.Now().UTC()
-	nowStr := formatTime(now)
 
-	// The completion gate is the conditional UPDATE itself, evaluated *inside* the
-	// transaction. With a single writer (SetMaxOpenConns(1)) this serializes
-	// concurrent completes: only the first request flips the status and gets
-	// RowsAffected()==1; any racing duplicate (double-tapped button, second client)
-	// matches zero rows and is rejected — no double XP, no duplicate completion row.
 	res, err := tx.Exec(
-		`UPDATE quests SET status = 'completed', completed_at = ?
-		 WHERE id = ? AND user_id = ? AND status NOT IN ('completed','archived')`,
-		nowStr, questID, userID)
+		`UPDATE quests SET status = 'completed', completed_at = $1
+		 WHERE id = $2 AND user_id = $3 AND status NOT IN ('completed','archived')`,
+		now, questID, userID)
 	if err != nil {
 		return models.Quest{}, nil, nil, 0, err
 	}
@@ -317,7 +387,7 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 	if affected == 0 {
 		// Distinguish "doesn't exist" from "not completable right now".
 		var status string
-		switch e := tx.QueryRow(`SELECT status FROM quests WHERE id = ? AND user_id = ?`, questID, userID).Scan(&status); e {
+		switch e := tx.QueryRow(`SELECT status FROM quests WHERE id = $1 AND user_id = $2`, questID, userID).Scan(&status); e {
 		case sql.ErrNoRows:
 			return models.Quest{}, nil, nil, 0, ErrNotFound
 		case nil:
@@ -329,7 +399,7 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 
 	// Read the rewards/title inside the tx, now that the row is locked as completed.
 	var rewardsJSON, title string
-	if err := tx.QueryRow(`SELECT title, attribute_rewards FROM quests WHERE id = ? AND user_id = ?`, questID, userID).
+	if err := tx.QueryRow(`SELECT title, attribute_rewards FROM quests WHERE id = $1 AND user_id = $2`, questID, userID).
 		Scan(&title, &rewardsJSON); err != nil {
 		return models.Quest{}, nil, nil, 0, err
 	}
@@ -369,8 +439,8 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 	for _, a := range awards {
 		total += a.amount
 	}
-	if _, err := tx.Exec(`INSERT INTO quest_completions(user_id, quest_id, xp_awarded, completed_at) VALUES(?, ?, ?, ?)`,
-		userID, questID, total, nowStr); err != nil {
+	if _, err := tx.Exec(`INSERT INTO quest_completions(user_id, quest_id, xp_awarded, completed_at) VALUES($1, $2, $3, $4)`,
+		userID, questID, total, now); err != nil {
 		return models.Quest{}, nil, nil, 0, err
 	}
 
@@ -382,7 +452,7 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 	for _, a := range awards {
 		old, seen := runningXP[a.key]
 		if !seen {
-			if err := tx.QueryRow(`SELECT total_xp FROM attributes WHERE user_id = ? AND key = ?`, userID, a.key).Scan(&old); err != nil {
+			if err := tx.QueryRow(`SELECT total_xp FROM attributes WHERE user_id = $1 AND key = $2`, userID, a.key).Scan(&old); err != nil {
 				if err == sql.ErrNoRows {
 					continue // unknown attribute key — skip silently
 				}
@@ -390,23 +460,22 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 			}
 			baseXP[a.key] = old
 		}
-		res, err := tx.Exec(
-			`INSERT INTO xp_events(user_id, attribute_key, amount, source, source_id, note, created_at) VALUES(?, ?, ?, 'quest', ?, ?, ?)`,
-			userID, a.key, a.amount, questID, a.note, nowStr)
-		if err != nil {
+		var evID int64
+		if err := tx.QueryRow(
+			`INSERT INTO xp_events(user_id, attribute_key, amount, source, source_id, note, created_at) VALUES($1, $2, $3, 'quest', $4, $5, $6) RETURNING id`,
+			userID, a.key, a.amount, questID, a.note, now).Scan(&evID); err != nil {
 			return models.Quest{}, nil, nil, 0, err
 		}
-		if _, err := tx.Exec(`UPDATE attributes SET total_xp = total_xp + ?, peak_xp = MAX(peak_xp, total_xp + ?) WHERE user_id = ? AND key = ?`, a.amount, a.amount, userID, a.key); err != nil {
+		if _, err := tx.Exec(`UPDATE attributes SET total_xp = total_xp + $1, peak_xp = GREATEST(peak_xp, total_xp + $1) WHERE user_id = $2 AND key = $3`, a.amount, userID, a.key); err != nil {
 			return models.Quest{}, nil, nil, 0, err
 		}
 		if g := goldForXP(a.amount); g > 0 {
-			if _, err := insertGoldEventTx(tx, userID, g, a.src, a.note, nil, nowStr); err != nil {
+			if _, err := insertGoldEventTx(tx, userID, g, a.src, a.note, nil, now); err != nil {
 				return models.Quest{}, nil, nil, 0, err
 			}
 			goldTotal += g
 		}
 		runningXP[a.key] = old + a.amount
-		evID, _ := res.LastInsertId()
 		sid := questID
 		events = append(events, models.XPEvent{
 			ID: evID, AttributeKey: a.key, AttributeName: names[a.key], Amount: a.amount,
@@ -442,10 +511,10 @@ func updateStreakTx(tx *sql.Tx, userID int64, now time.Time) error {
 	today := now.Local().Format(dayFormat)
 	var current, longest int
 	var last sql.NullString
-	err := tx.QueryRow(`SELECT current_count, longest_count, last_active_date FROM streaks WHERE user_id = ?`, userID).
+	err := tx.QueryRow(`SELECT current_count, longest_count, last_active_date FROM streaks WHERE user_id = $1`, userID).
 		Scan(&current, &longest, &last)
 	if err == sql.ErrNoRows {
-		_, e := tx.Exec(`INSERT INTO streaks(user_id, current_count, longest_count, last_active_date) VALUES(?, 1, 1, ?)`, userID, today)
+		_, e := tx.Exec(`INSERT INTO streaks(user_id, current_count, longest_count, last_active_date) VALUES($1, 1, 1, $2)`, userID, today)
 		return e
 	}
 	if err != nil {
@@ -462,7 +531,7 @@ func updateStreakTx(tx *sql.Tx, userID int64, now time.Time) error {
 	if current > longest {
 		longest = current
 	}
-	_, e := tx.Exec(`UPDATE streaks SET current_count = ?, longest_count = ?, last_active_date = ? WHERE user_id = ?`,
+	_, e := tx.Exec(`UPDATE streaks SET current_count = $1, longest_count = $2, last_active_date = $3 WHERE user_id = $4`,
 		current, longest, today, userID)
 	return e
 }
@@ -470,7 +539,7 @@ func updateStreakTx(tx *sql.Tx, userID int64, now time.Time) error {
 func (s *Store) GetStreak(userID int64) (models.Streak, error) {
 	var st models.Streak
 	var last sql.NullString
-	err := s.db.QueryRow(`SELECT current_count, longest_count, last_active_date FROM streaks WHERE user_id = ?`, userID).
+	err := s.db.QueryRow(`SELECT current_count, longest_count, last_active_date FROM streaks WHERE user_id = $1`, userID).
 		Scan(&st.Current, &st.Longest, &last)
 	if err == sql.ErrNoRows {
 		return models.Streak{}, nil
@@ -494,7 +563,7 @@ func (s *Store) ListXPEvents(userID int64, limit int) ([]models.XPEvent, error) 
 	rows, err := s.db.Query(
 		`SELECT e.id, e.attribute_key, COALESCE(a.name, e.attribute_key), e.amount, e.source, e.source_id, e.note, e.created_at
 		 FROM xp_events e LEFT JOIN attributes a ON a.user_id = e.user_id AND a.key = e.attribute_key
-		 WHERE e.user_id = ? ORDER BY e.id DESC LIMIT ?`, userID, limit)
+		 WHERE e.user_id = $1 ORDER BY e.id DESC LIMIT $2`, userID, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -502,16 +571,14 @@ func (s *Store) ListXPEvents(userID int64, limit int) ([]models.XPEvent, error) 
 	var out []models.XPEvent
 	for rows.Next() {
 		var e models.XPEvent
-		var created string
 		var srcID sql.NullInt64
-		if err := rows.Scan(&e.ID, &e.AttributeKey, &e.AttributeName, &e.Amount, &e.Source, &srcID, &e.Note, &created); err != nil {
+		if err := rows.Scan(&e.ID, &e.AttributeKey, &e.AttributeName, &e.Amount, &e.Source, &srcID, &e.Note, &e.CreatedAt); err != nil {
 			return nil, err
 		}
 		if srcID.Valid {
 			v := srcID.Int64
 			e.SourceID = &v
 		}
-		e.CreatedAt = mustParseTime(created)
 		out = append(out, e)
 	}
 	return out, rows.Err()
@@ -523,37 +590,51 @@ func (s *Store) DistinctQuestsRewardingAttributeSince(userID int64, attr string,
 	var n int
 	err := s.db.QueryRow(
 		`SELECT COUNT(DISTINCT source_id) FROM xp_events
-		 WHERE user_id = ? AND attribute_key = ? AND source = 'quest' AND created_at >= ?`,
-		userID, attr, formatTime(since)).Scan(&n)
+		 WHERE user_id = $1 AND attribute_key = $2 AND source = 'quest' AND created_at >= $3`,
+		userID, attr, since).Scan(&n)
 	return n, err
 }
 
 // --- completions / activity -------------------------------------------------
 
-// CompletedTodayCount counts quest completions on the local "today".
+// CompletedTodayCount counts quest completions on the local "today"
+// (day bounds computed in Go, honoring TZ).
 func (s *Store) CompletedTodayCount(userID int64) (int, error) {
+	start, end := localDayBounds(time.Now())
 	var n int
 	err := s.db.QueryRow(
 		`SELECT COUNT(1) FROM quest_completions
-		 WHERE user_id = ? AND date(completed_at,'localtime') = date('now','localtime')`, userID).Scan(&n)
+		 WHERE user_id = $1 AND completed_at >= $2 AND completed_at < $3`, userID, start, end).Scan(&n)
 	return n, err
 }
 
-// ActiveDaysSince counts distinct local days with at least one completion since cutoff.
+// ActiveDaysSince counts distinct local days with at least one completion since
+// cutoff. The distinct-day bucketing happens in Go so SQL never needs the zone.
 func (s *Store) ActiveDaysSince(userID int64, since time.Time) (int, error) {
-	var n int
-	err := s.db.QueryRow(
-		`SELECT COUNT(DISTINCT date(completed_at,'localtime')) FROM quest_completions
-		 WHERE user_id = ? AND completed_at >= ?`, userID, formatTime(since)).Scan(&n)
-	return n, err
+	rows, err := s.db.Query(
+		`SELECT completed_at FROM quest_completions WHERE user_id = $1 AND completed_at >= $2`,
+		userID, since)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	days := map[string]bool{}
+	for rows.Next() {
+		var t time.Time
+		if err := rows.Scan(&t); err != nil {
+			return 0, err
+		}
+		days[t.Local().Format(dayFormat)] = true
+	}
+	return len(days), rows.Err()
 }
 
 // CompletionsSince counts total completions since cutoff.
 func (s *Store) CompletionsSince(userID int64, since time.Time) (int, error) {
 	var n int
 	err := s.db.QueryRow(
-		`SELECT COUNT(1) FROM quest_completions WHERE user_id = ? AND completed_at >= ?`,
-		userID, formatTime(since)).Scan(&n)
+		`SELECT COUNT(1) FROM quest_completions WHERE user_id = $1 AND completed_at >= $2`,
+		userID, since).Scan(&n)
 	return n, err
 }
 
@@ -569,29 +650,30 @@ func (s *Store) InsertJournal(userID int64, in models.JournalInput, dailyRewards
 		return models.JournalEntry{}, nil, nil, 0, err
 	}
 
-	tx, err := s.db.Begin()
+	// Per-user lock: the first-entry-of-the-day check below is a read the
+	// following writes depend on.
+	tx, err := s.beginUserTx(userID)
 	if err != nil {
 		return models.JournalEntry{}, nil, nil, 0, err
 	}
 	defer tx.Rollback() //nolint:errcheck
 
 	now := time.Now().UTC()
-	nowStr := formatTime(now)
+	dayStart, dayEnd := localDayBounds(now)
 
 	// First entry of the local day? (checked inside the tx, before our insert)
 	var existingToday int
 	if err := tx.QueryRow(
-		`SELECT COUNT(1) FROM journal_entries WHERE user_id = ? AND date(created_at,'localtime') = date('now','localtime')`,
-		userID).Scan(&existingToday); err != nil {
+		`SELECT COUNT(1) FROM journal_entries WHERE user_id = $1 AND created_at >= $2 AND created_at < $3`,
+		userID, dayStart, dayEnd).Scan(&existingToday); err != nil {
 		return models.JournalEntry{}, nil, nil, 0, err
 	}
 
-	res, err := tx.Exec(`INSERT INTO journal_entries(user_id, mood, energy, notes, created_at) VALUES(?, ?, ?, ?, ?)`,
-		userID, in.Mood, in.Energy, in.Notes, nowStr)
-	if err != nil {
+	var entryID int64
+	if err := tx.QueryRow(`INSERT INTO journal_entries(user_id, mood, energy, notes, created_at) VALUES($1, $2, $3, $4, $5) RETURNING id`,
+		userID, in.Mood, in.Energy, in.Notes, now).Scan(&entryID); err != nil {
 		return models.JournalEntry{}, nil, nil, 0, err
 	}
-	entryID, _ := res.LastInsertId()
 
 	var events []models.XPEvent
 	var levelUps []models.LevelUp
@@ -603,25 +685,24 @@ func (s *Store) InsertJournal(userID int64, in models.JournalInput, dailyRewards
 				continue
 			}
 			var oldXP int64
-			if err := tx.QueryRow(`SELECT total_xp FROM attributes WHERE user_id = ? AND key = ?`, userID, key).Scan(&oldXP); err != nil {
+			if err := tx.QueryRow(`SELECT total_xp FROM attributes WHERE user_id = $1 AND key = $2`, userID, key).Scan(&oldXP); err != nil {
 				continue // unknown attribute — skip
 			}
-			ev, err := tx.Exec(
-				`INSERT INTO xp_events(user_id, attribute_key, amount, source, source_id, note, created_at) VALUES(?, ?, ?, 'journal', ?, ?, ?)`,
-				userID, key, amount, entryID, "Daily reflection", nowStr)
-			if err != nil {
+			var evID int64
+			if err := tx.QueryRow(
+				`INSERT INTO xp_events(user_id, attribute_key, amount, source, source_id, note, created_at) VALUES($1, $2, $3, 'journal', $4, $5, $6) RETURNING id`,
+				userID, key, amount, entryID, "Daily reflection", now).Scan(&evID); err != nil {
 				return models.JournalEntry{}, nil, nil, 0, err
 			}
-			if _, err := tx.Exec(`UPDATE attributes SET total_xp = total_xp + ?, peak_xp = MAX(peak_xp, total_xp + ?) WHERE user_id = ? AND key = ?`, amount, amount, userID, key); err != nil {
+			if _, err := tx.Exec(`UPDATE attributes SET total_xp = total_xp + $1, peak_xp = GREATEST(peak_xp, total_xp + $1) WHERE user_id = $2 AND key = $3`, amount, userID, key); err != nil {
 				return models.JournalEntry{}, nil, nil, 0, err
 			}
 			if g := goldForXP(amount); g > 0 {
-				if _, err := insertGoldEventTx(tx, userID, g, "journal", "Daily reflection", nil, nowStr); err != nil {
+				if _, err := insertGoldEventTx(tx, userID, g, "journal", "Daily reflection", nil, now); err != nil {
 					return models.JournalEntry{}, nil, nil, 0, err
 				}
 				goldTotal += g
 			}
-			evID, _ := ev.LastInsertId()
 			sid := entryID
 			events = append(events, models.XPEvent{
 				ID: evID, AttributeKey: key, AttributeName: names[key], Amount: amount,
@@ -649,21 +730,24 @@ func (s *Store) InsertJournal(userID int64, in models.JournalInput, dailyRewards
 func (s *Store) UpdateJournal(userID, id int64, p models.JournalPatch) (models.JournalEntry, error) {
 	var sets []string
 	var args []any
+	set := func(col string, v any) {
+		args = append(args, v)
+		sets = append(sets, fmt.Sprintf("%s = $%d", col, len(args)))
+	}
 	if p.Mood != nil {
-		sets = append(sets, "mood = ?")
-		args = append(args, *p.Mood)
+		set("mood", *p.Mood)
 	}
 	if p.Energy != nil {
-		sets = append(sets, "energy = ?")
-		args = append(args, *p.Energy)
+		set("energy", *p.Energy)
 	}
 	if p.Notes != nil {
-		sets = append(sets, "notes = ?")
-		args = append(args, *p.Notes)
+		set("notes", *p.Notes)
 	}
 	if len(sets) > 0 {
 		args = append(args, id, userID)
-		res, err := s.db.Exec(`UPDATE journal_entries SET `+strings.Join(sets, ", ")+` WHERE id = ? AND user_id = ?`, args...)
+		q := fmt.Sprintf(`UPDATE journal_entries SET %s WHERE id = $%d AND user_id = $%d`,
+			strings.Join(sets, ", "), len(args)-1, len(args))
+		res, err := s.db.Exec(q, args...)
 		if err != nil {
 			return models.JournalEntry{}, err
 		}
@@ -677,7 +761,7 @@ func (s *Store) UpdateJournal(userID, id int64, p models.JournalPatch) (models.J
 // DeleteJournal removes an entry. Awarded XP is NOT clawed back — xp_events are
 // an immutable audit log, and the reflection still happened.
 func (s *Store) DeleteJournal(userID, id int64) error {
-	res, err := s.db.Exec(`DELETE FROM journal_entries WHERE id = ? AND user_id = ?`, id, userID)
+	res, err := s.db.Exec(`DELETE FROM journal_entries WHERE id = $1 AND user_id = $2`, id, userID)
 	if err != nil {
 		return err
 	}
@@ -689,14 +773,9 @@ func (s *Store) DeleteJournal(userID, id int64) error {
 
 func (s *Store) GetJournal(userID, id int64) (models.JournalEntry, error) {
 	var e models.JournalEntry
-	var created string
-	err := s.db.QueryRow(`SELECT id, mood, energy, notes, created_at FROM journal_entries WHERE id = ? AND user_id = ?`, id, userID).
-		Scan(&e.ID, &e.Mood, &e.Energy, &e.Notes, &created)
-	if err != nil {
-		return e, err
-	}
-	e.CreatedAt = mustParseTime(created)
-	return e, nil
+	err := s.db.QueryRow(`SELECT id, mood, energy, notes, created_at FROM journal_entries WHERE id = $1 AND user_id = $2`, id, userID).
+		Scan(&e.ID, &e.Mood, &e.Energy, &e.Notes, &e.CreatedAt)
+	return e, err
 }
 
 // ListJournal returns recent entries, optionally full-text filtered on notes.
@@ -704,15 +783,16 @@ func (s *Store) ListJournal(userID int64, limit int, search string) ([]models.Jo
 	if limit <= 0 {
 		limit = 30
 	}
-	q := `SELECT id, mood, energy, notes, created_at FROM journal_entries WHERE user_id = ?`
+	q := `SELECT id, mood, energy, notes, created_at FROM journal_entries WHERE user_id = $1`
 	args := []any{userID}
 	if search != "" {
-		q += ` AND notes LIKE ? ESCAPE '\'`
+		// ILIKE keeps the SQLite behavior (LIKE there is ASCII case-insensitive).
 		escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(search)
 		args = append(args, "%"+escaped+"%")
+		q += fmt.Sprintf(` AND notes ILIKE $%d`, len(args))
 	}
-	q += ` ORDER BY id DESC LIMIT ?`
 	args = append(args, limit)
+	q += fmt.Sprintf(` ORDER BY id DESC LIMIT $%d`, len(args))
 	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return nil, err
@@ -721,11 +801,9 @@ func (s *Store) ListJournal(userID int64, limit int, search string) ([]models.Jo
 	var out []models.JournalEntry
 	for rows.Next() {
 		var e models.JournalEntry
-		var created string
-		if err := rows.Scan(&e.ID, &e.Mood, &e.Energy, &e.Notes, &created); err != nil {
+		if err := rows.Scan(&e.ID, &e.Mood, &e.Energy, &e.Notes, &e.CreatedAt); err != nil {
 			return nil, err
 		}
-		e.CreatedAt = mustParseTime(created)
 		out = append(out, e)
 	}
 	return out, rows.Err()
@@ -735,31 +813,31 @@ func (s *Store) ListJournal(userID int64, limit int, search string) ([]models.Jo
 
 func (s *Store) InsertSuggestion(userID int64, sug models.AgentSuggestion) (models.AgentSuggestion, error) {
 	tmpl, _ := json.Marshal(sug.SuggestedQuest)
-	res, err := s.db.Exec(
+	var id int64
+	err := s.db.QueryRow(
 		`INSERT INTO agent_suggestions(user_id, type, title, reason, suggested_quest, status, source_quest_id, created_at)
-		 VALUES(?, ?, ?, ?, ?, 'pending', ?, ?)`,
-		userID, sug.Type, sug.Title, sug.Reason, string(tmpl), nullInt64(sug.SourceQuestID), nowString())
+		 VALUES($1, $2, $3, $4, $5, 'pending', $6, $7) RETURNING id`,
+		userID, sug.Type, sug.Title, sug.Reason, string(tmpl), nullInt64(sug.SourceQuestID), time.Now().UTC()).Scan(&id)
 	if err != nil {
 		return models.AgentSuggestion{}, err
 	}
-	id, _ := res.LastInsertId()
 	return s.GetSuggestion(userID, id)
 }
 
 func (s *Store) GetSuggestion(userID, id int64) (models.AgentSuggestion, error) {
 	row := s.db.QueryRow(
 		`SELECT id, type, title, reason, suggested_quest, status, created_quest_id, source_quest_id, created_at, resolved_at
-		 FROM agent_suggestions WHERE id = ? AND user_id = ?`, id, userID)
+		 FROM agent_suggestions WHERE id = $1 AND user_id = $2`, id, userID)
 	return scanSuggestion(row)
 }
 
 func (s *Store) ListSuggestions(userID int64, status string) ([]models.AgentSuggestion, error) {
 	q := `SELECT id, type, title, reason, suggested_quest, status, created_quest_id, source_quest_id, created_at, resolved_at
-		FROM agent_suggestions WHERE user_id = ?`
+		FROM agent_suggestions WHERE user_id = $1`
 	args := []any{userID}
 	if status != "" {
-		q += ` AND status = ?`
 		args = append(args, status)
+		q += fmt.Sprintf(` AND status = $%d`, len(args))
 	}
 	q += ` ORDER BY id DESC`
 	rows, err := s.db.Query(q, args...)
@@ -781,18 +859,18 @@ func (s *Store) ListSuggestions(userID int64, status string) ([]models.AgentSugg
 // DeletePendingSuggestions removes all still-pending suggestions for a user
 // (used to refresh the set when regenerating).
 func (s *Store) DeletePendingSuggestions(userID int64) error {
-	_, err := s.db.Exec(`DELETE FROM agent_suggestions WHERE user_id = ? AND status = 'pending'`, userID)
+	_, err := s.db.Exec(`DELETE FROM agent_suggestions WHERE user_id = $1 AND status = 'pending'`, userID)
 	return err
 }
 
 // HasPendingSuggestionOfType reports whether a pending suggestion of the given
 // type already exists (used to avoid duplicate suggestions).
 func (s *Store) HasPendingSuggestionOfType(userID int64, sugType string, sourceQuestID *int64) (bool, error) {
-	q := `SELECT COUNT(1) FROM agent_suggestions WHERE user_id = ? AND type = ? AND status = 'pending'`
+	q := `SELECT COUNT(1) FROM agent_suggestions WHERE user_id = $1 AND type = $2 AND status = 'pending'`
 	args := []any{userID, sugType}
 	if sourceQuestID != nil {
-		q += ` AND source_quest_id = ?`
 		args = append(args, *sourceQuestID)
+		q += fmt.Sprintf(` AND source_quest_id = $%d`, len(args))
 	}
 	var n int
 	if err := s.db.QueryRow(q, args...).Scan(&n); err != nil {
@@ -805,8 +883,8 @@ func (s *Store) HasPendingSuggestionOfType(userID int64, sugType string, sourceQ
 // for an accepted one, links the created quest.
 func (s *Store) ResolveSuggestion(userID, id int64, status string, createdQuestID *int64) error {
 	_, err := s.db.Exec(
-		`UPDATE agent_suggestions SET status = ?, created_quest_id = ?, resolved_at = ? WHERE id = ? AND user_id = ?`,
-		status, nullInt64(createdQuestID), nowString(), id, userID)
+		`UPDATE agent_suggestions SET status = $1, created_quest_id = $2, resolved_at = $3 WHERE id = $4 AND user_id = $5`,
+		status, nullInt64(createdQuestID), time.Now().UTC(), id, userID)
 	return err
 }
 
@@ -815,14 +893,15 @@ func (s *Store) ResolveSuggestion(userID, id int64, status string, createdQuestI
 // neither does — no orphan quests, no double-accept. Returns ErrNotFound if the
 // suggestion is missing or ErrSuggestionNotPending if already resolved.
 func (s *Store) AcceptSuggestion(userID, suggestionID int64, in models.QuestInput) (models.Quest, error) {
-	tx, err := s.db.Begin()
+	// Per-user lock: the pending-status read gates the writes.
+	tx, err := s.beginUserTx(userID)
 	if err != nil {
 		return models.Quest{}, err
 	}
 	defer tx.Rollback() //nolint:errcheck
 
 	var status string
-	switch e := tx.QueryRow(`SELECT status FROM agent_suggestions WHERE id = ? AND user_id = ?`, suggestionID, userID).Scan(&status); e {
+	switch e := tx.QueryRow(`SELECT status FROM agent_suggestions WHERE id = $1 AND user_id = $2`, suggestionID, userID).Scan(&status); e {
 	case sql.ErrNoRows:
 		return models.Quest{}, ErrNotFound
 	case nil:
@@ -833,19 +912,19 @@ func (s *Store) AcceptSuggestion(userID, suggestionID int64, in models.QuestInpu
 		return models.Quest{}, e
 	}
 
-	res, err := tx.Exec(
+	now := time.Now().UTC()
+	var questID int64
+	if err := tx.QueryRow(
 		`INSERT INTO quests(user_id, title, description, type, difficulty, status, attribute_rewards, skip_count, source_suggestion_id, created_at, due_date)
-		 VALUES(?, ?, ?, ?, ?, 'active', ?, 0, ?, ?, ?)`,
+		 VALUES($1, $2, $3, $4, $5, 'active', $6, 0, $7, $8, $9) RETURNING id`,
 		userID, in.Title, in.Description, in.Type, in.Difficulty, marshalRewards(in.AttributeRewards),
-		suggestionID, nowString(), formatTimePtr(in.DueDate))
-	if err != nil {
+		suggestionID, now, nullTime(in.DueDate)).Scan(&questID); err != nil {
 		return models.Quest{}, err
 	}
-	questID, _ := res.LastInsertId()
 
 	if _, err := tx.Exec(
-		`UPDATE agent_suggestions SET status = 'accepted', created_quest_id = ?, resolved_at = ? WHERE id = ? AND user_id = ?`,
-		questID, nowString(), suggestionID, userID); err != nil {
+		`UPDATE agent_suggestions SET status = 'accepted', created_quest_id = $1, resolved_at = $2 WHERE id = $3 AND user_id = $4`,
+		questID, now, suggestionID, userID); err != nil {
 		return models.Quest{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -858,10 +937,9 @@ func scanSuggestion(scanner interface{ Scan(...any) error }) (models.AgentSugges
 	var sug models.AgentSuggestion
 	var tmpl string
 	var createdQuestID, sourceQuestID sql.NullInt64
-	var created string
-	var resolved sql.NullString
+	var resolved sql.NullTime
 	err := scanner.Scan(&sug.ID, &sug.Type, &sug.Title, &sug.Reason, &tmpl, &sug.Status,
-		&createdQuestID, &sourceQuestID, &created, &resolved)
+		&createdQuestID, &sourceQuestID, &sug.CreatedAt, &resolved)
 	if err != nil {
 		return sug, err
 	}
@@ -878,8 +956,7 @@ func scanSuggestion(scanner interface{ Scan(...any) error }) (models.AgentSugges
 		v := sourceQuestID.Int64
 		sug.SourceQuestID = &v
 	}
-	sug.CreatedAt = mustParseTime(created)
-	sug.ResolvedAt = parseTimePtr(resolved)
+	sug.ResolvedAt = timePtr(resolved)
 	return sug, nil
 }
 

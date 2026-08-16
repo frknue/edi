@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"edi/internal/db"
+	"edi/internal/db/dbtest"
 	"edi/internal/models"
 )
 
@@ -128,11 +128,7 @@ func TestShopPurchaseConcurrentNoOverspend(t *testing.T) {
 // Extend the JSON array contract to the new list endpoints: a user with no
 // shop items / gold events must serialize [] not null.
 func TestShopListsSerializeAsArrays(t *testing.T) {
-	store, err := db.Open(t.TempDir() + "/bare.db")
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
-	t.Cleanup(func() { store.Close() })
+	store := dbtest.Open(t)
 	svc := New(store, 1) // no Seed: completely empty user
 
 	items, err := svc.ListShopItems()

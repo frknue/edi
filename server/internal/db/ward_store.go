@@ -9,12 +9,9 @@ import (
 
 func scanWard(scanner interface{ Scan(...any) error }) (models.Ward, error) {
 	var w models.Ward
-	var expires, created string
-	if err := scanner.Scan(&w.ID, &w.AttributeKey, &expires, &created); err != nil {
+	if err := scanner.Scan(&w.ID, &w.AttributeKey, &w.ExpiresAt, &w.CreatedAt); err != nil {
 		return w, err
 	}
-	w.ExpiresAt = mustParseTime(expires)
-	w.CreatedAt = mustParseTime(created)
 	return w, nil
 }
 
@@ -23,7 +20,7 @@ func scanWard(scanner interface{ Scan(...any) error }) (models.Ward, error) {
 func (s *Store) ListWards(userID int64, attrKey string) ([]models.Ward, error) {
 	rows, err := s.db.Query(
 		`SELECT id, attribute_key, expires_at, created_at FROM wards
-		 WHERE user_id = ? AND attribute_key = ? ORDER BY id`, userID, attrKey)
+		 WHERE user_id = $1 AND attribute_key = $2 ORDER BY id`, userID, attrKey)
 	if err != nil {
 		return nil, err
 	}
@@ -41,32 +38,31 @@ func (s *Store) ListWards(userID int64, attrKey string) ([]models.Ward, error) {
 
 // ActiveWardExpiry returns the latest future expiry for an attribute, or nil.
 func (s *Store) ActiveWardExpiry(userID int64, attrKey string, now time.Time) (*time.Time, error) {
-	var expires sql.NullString
+	var expires sql.NullTime
 	err := s.db.QueryRow(
-		`SELECT MAX(expires_at) FROM wards WHERE user_id = ? AND attribute_key = ? AND expires_at > ?`,
-		userID, attrKey, formatTime(now)).Scan(&expires)
+		`SELECT MAX(expires_at) FROM wards WHERE user_id = $1 AND attribute_key = $2 AND expires_at > $3`,
+		userID, attrKey, now).Scan(&expires)
 	if err != nil {
 		return nil, err
 	}
-	return parseTimePtr(expires), nil
+	return timePtr(expires), nil
 }
 
 // CreateWard buys decay protection for one attribute: balance check, gold
-// spend (source 'ward'), and the ward insert happen in ONE tx on the single
-// writer connection — the same never-overspend discipline as shop purchases.
-// A still-active ward extends from its current expiry (stacking).
+// spend (source 'ward'), and the ward insert happen in ONE tx holding the
+// per-user advisory lock — the same never-overspend discipline as shop
+// purchases. A still-active ward extends from its current expiry (stacking).
 func (s *Store) CreateWard(userID int64, attrKey, attrName string, cost int64, days int) (models.Ward, int64, error) {
-	tx, err := s.db.Begin()
+	tx, err := s.beginUserTx(userID)
 	if err != nil {
 		return models.Ward{}, 0, err
 	}
 	defer tx.Rollback() //nolint:errcheck
 
 	now := time.Now().UTC()
-	nowStr := formatTime(now)
 
 	var balance int64
-	if err := tx.QueryRow(`SELECT COALESCE(SUM(amount),0) FROM gold_events WHERE user_id = ?`, userID).Scan(&balance); err != nil {
+	if err := tx.QueryRow(`SELECT COALESCE(SUM(amount),0) FROM gold_events WHERE user_id = $1`, userID).Scan(&balance); err != nil {
 		return models.Ward{}, 0, err
 	}
 	if balance < cost {
@@ -75,25 +71,24 @@ func (s *Store) CreateWard(userID int64, attrKey, attrName string, cost int64, d
 
 	// Extend from the current active expiry when one exists.
 	base := now
-	var current sql.NullString
+	var current sql.NullTime
 	if err := tx.QueryRow(
-		`SELECT MAX(expires_at) FROM wards WHERE user_id = ? AND attribute_key = ? AND expires_at > ?`,
-		userID, attrKey, nowStr).Scan(&current); err != nil {
+		`SELECT MAX(expires_at) FROM wards WHERE user_id = $1 AND attribute_key = $2 AND expires_at > $3`,
+		userID, attrKey, now).Scan(&current); err != nil {
 		return models.Ward{}, 0, err
 	}
-	if cur := parseTimePtr(current); cur != nil {
-		base = *cur
+	if current.Valid {
+		base = current.Time
 	}
 	expires := base.Add(time.Duration(days) * 24 * time.Hour)
 
-	res, err := tx.Exec(`INSERT INTO wards(user_id, attribute_key, expires_at, created_at) VALUES(?, ?, ?, ?)`,
-		userID, attrKey, formatTime(expires), nowStr)
-	if err != nil {
+	var id int64
+	if err := tx.QueryRow(`INSERT INTO wards(user_id, attribute_key, expires_at, created_at) VALUES($1, $2, $3, $4) RETURNING id`,
+		userID, attrKey, expires, now).Scan(&id); err != nil {
 		return models.Ward{}, 0, err
 	}
-	id, _ := res.LastInsertId()
 
-	if _, err := insertGoldEventTx(tx, userID, -cost, "ward", "Maintenance Ward · "+attrName, nil, nowStr); err != nil {
+	if _, err := insertGoldEventTx(tx, userID, -cost, "ward", "Maintenance Ward · "+attrName, nil, now); err != nil {
 		return models.Ward{}, 0, err
 	}
 	if err := tx.Commit(); err != nil {

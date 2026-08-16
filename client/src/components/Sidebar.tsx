@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api, clearToken, hasToken } from "../lib/api";
 import {
   Bot,
   BookHeart,
@@ -7,6 +9,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   LayoutDashboard,
+  LogOut,
   ScrollText,
   Store,
   Wrench,
@@ -181,12 +184,7 @@ export function Sidebar({
         {navBtn(AGENT_ITEM, goldStyle, "nav-agent")}
       </nav>
 
-      {!collapsed && (
-        <div className="rounded-xl border border-edge bg-white/[0.02] p-3">
-          <div className="text-[11px] font-medium text-muted">Single-user mode</div>
-          <div className="mt-0.5 text-[10px] text-faint">Self-hosted · SQLite</div>
-        </div>
-      )}
+      {!collapsed && <SessionCard />}
       <button
         onClick={onToggle}
         data-testid="sidebar-toggle"
@@ -198,5 +196,40 @@ export function Sidebar({
         {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
       </button>
     </aside>
+  );
+}
+
+// SessionCard shows who is signed in on a token-protected server (with a
+// sign-out that forgets the token on THIS device only) and the plain
+// self-hosted note in tokenless dev mode.
+function SessionCard() {
+  const { data: me } = useQuery({ queryKey: ["me"], queryFn: api.me, enabled: hasToken(), retry: false });
+
+  if (!hasToken()) {
+    return (
+      <div className="rounded-xl border border-edge bg-white/[0.02] p-3">
+        <div className="text-[11px] font-medium text-muted">Dev mode</div>
+        <div className="mt-0.5 text-[10px] text-faint">Self-hosted · tokenless</div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center justify-between rounded-xl border border-edge bg-white/[0.02] p-3">
+      <div className="min-w-0">
+        <div className="truncate text-[11px] font-medium text-muted">{me?.name ?? "…"}</div>
+        <div className="mt-0.5 text-[10px] text-faint">{me?.is_admin ? "admin · " : ""}self-hosted</div>
+      </div>
+      <button
+        onClick={() => {
+          clearToken();
+          window.location.reload();
+        }}
+        title="Sign out on this device"
+        aria-label="Sign out"
+        className="shrink-0 text-faint hover:text-ink"
+      >
+        <LogOut size={14} />
+      </button>
+    </div>
   );
 }

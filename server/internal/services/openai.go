@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"edi/internal/db"
@@ -19,7 +20,17 @@ import (
 // are unavailable (mapped to 400 with a clear message).
 var ErrOpenAINotConnected = fmt.Errorf("%w: OpenAI is not connected — connect your ChatGPT account to use AI features", ErrValidation)
 
+// oauthRuntime is the process-wide "Sign in with ChatGPT" connect state,
+// shared by every ForUser copy of the Service (see Service.oauth): one
+// :1455 callback listener, one pending flow at a time.
+type oauthRuntime struct {
+	mu      sync.Mutex
+	pending *oauthPending
+	server  *http.Server
+}
+
 type oauthPending struct {
+	userID    int64 // who initiated the connect — the callback saves THEIR credentials
 	verifier  string
 	state     string
 	expiresAt time.Time
@@ -161,9 +172,9 @@ func (s *Service) StartOpenAIConnect() (string, error) {
 		return "", err
 	}
 
-	s.oauthMu.Lock()
-	s.oauthPending = &oauthPending{verifier: pkce.Verifier, state: state, expiresAt: time.Now().Add(10 * time.Minute)}
-	s.oauthMu.Unlock()
+	s.oauth.mu.Lock()
+	s.oauth.pending = &oauthPending{userID: s.userID, verifier: pkce.Verifier, state: state, expiresAt: time.Now().Add(10 * time.Minute)}
+	s.oauth.mu.Unlock()
 
 	if err := s.startCallbackServer(); err != nil {
 		return "", fmt.Errorf("start callback listener on :1455: %w", err)
@@ -174,23 +185,23 @@ func (s *Service) StartOpenAIConnect() (string, error) {
 // startCallbackServer starts (once) an HTTP server on :1455 to catch the OAuth
 // redirect. It shuts itself down after a successful exchange or a timeout.
 func (s *Service) startCallbackServer() error {
-	s.oauthMu.Lock()
-	if s.oauthServer != nil {
-		s.oauthMu.Unlock()
+	s.oauth.mu.Lock()
+	if s.oauth.server != nil {
+		s.oauth.mu.Unlock()
 		return nil // already listening
 	}
 	mux := http.NewServeMux()
 	srv := &http.Server{Addr: "localhost:1455", Handler: mux}
-	s.oauthServer = srv
-	s.oauthMu.Unlock()
+	s.oauth.server = srv
+	s.oauth.mu.Unlock()
 
 	mux.HandleFunc("/auth/callback", s.handleOAuthCallback)
 
 	go func() {
 		_ = srv.ListenAndServe() // returns on Shutdown
-		s.oauthMu.Lock()
-		s.oauthServer = nil
-		s.oauthMu.Unlock()
+		s.oauth.mu.Lock()
+		s.oauth.server = nil
+		s.oauth.mu.Unlock()
 	}()
 	// Safety net: tear down if the user never completes the flow.
 	go func() {
@@ -201,9 +212,9 @@ func (s *Service) startCallbackServer() error {
 }
 
 func (s *Service) shutdownCallbackServer() {
-	s.oauthMu.Lock()
-	srv := s.oauthServer
-	s.oauthMu.Unlock()
+	s.oauth.mu.Lock()
+	srv := s.oauth.server
+	s.oauth.mu.Unlock()
 	if srv != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
@@ -215,9 +226,9 @@ func (s *Service) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
 	state := r.URL.Query().Get("state")
 
-	s.oauthMu.Lock()
-	pending := s.oauthPending
-	s.oauthMu.Unlock()
+	s.oauth.mu.Lock()
+	pending := s.oauth.pending
+	s.oauth.mu.Unlock()
 
 	fail := func(msg string) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -239,14 +250,16 @@ func (s *Service) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		fail("Token exchange failed: " + err.Error())
 		return
 	}
-	if err := s.saveTokens(tokens); err != nil {
+	// Credentials belong to whoever started the flow — NOT the service's own
+	// bound user (the callback arrives on the shared listener).
+	if err := s.saveTokensFor(pending.userID, tokens); err != nil {
 		fail("Could not save credentials: " + err.Error())
 		return
 	}
 
-	s.oauthMu.Lock()
-	s.oauthPending = nil
-	s.oauthMu.Unlock()
+	s.oauth.mu.Lock()
+	s.oauth.pending = nil
+	s.oauth.mu.Unlock()
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprint(w, callbackHTML("Connected to ChatGPT", "You can close this tab and return to edi.", true))
@@ -254,8 +267,10 @@ func (s *Service) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	go s.shutdownCallbackServer()
 }
 
-func (s *Service) saveTokens(t openai.Tokens) error {
-	return s.store.SaveOpenAICredentials(s.userID, db.OpenAICredentials{
+func (s *Service) saveTokens(t openai.Tokens) error { return s.saveTokensFor(s.userID, t) }
+
+func (s *Service) saveTokensFor(userID int64, t openai.Tokens) error {
+	return s.store.SaveOpenAICredentials(userID, db.OpenAICredentials{
 		AccessToken:  t.AccessToken,
 		RefreshToken: t.RefreshToken,
 		IDToken:      t.IDToken,

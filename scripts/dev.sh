@@ -13,7 +13,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo "▶ backend  → http://localhost:8080"
-( cd "$ROOT/server" && EDI_DB="${EDI_DB:-edi.db}" go run . ) &
+( cd "$ROOT/server" && EDI_DATABASE_URL="${EDI_DATABASE_URL:-postgres://localhost:5432/edi_dev?sslmode=disable}" go run . ) &
 
 echo "▶ frontend → http://localhost:5173"
 ( cd "$ROOT/client" && npm run dev ) &

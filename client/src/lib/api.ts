@@ -1,4 +1,7 @@
 import type {
+  AuthConfig,
+  CreatedUser,
+  User,
   Attribute,
   AgentSuggestion,
   CompletionResult,
@@ -50,6 +53,15 @@ function authHeaders(): Record<string, string> {
 
 export function saveToken(token: string): void {
   localStorage.setItem(TOKEN_KEY, token.trim());
+}
+
+export function hasToken(): boolean {
+  return !!localStorage.getItem(TOKEN_KEY);
+}
+
+// clearToken logs this device out (the token itself stays valid elsewhere).
+export function clearToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
 }
 
 // Installed to the home screen, the app runs in its own storage partition —
@@ -151,6 +163,12 @@ export const api = {
     request<Quest>(`/agent/suggestions/${id}/accept`, { method: "POST" }),
   dismissSuggestion: (id: number) =>
     request<AgentSuggestion>(`/agent/suggestions/${id}/dismiss`, { method: "POST" }),
+
+  // Auth & users (multi-tenant). authConfig and register are pre-auth.
+  authConfig: () => request<AuthConfig>("/auth/config"),
+  register: (body: { name: string; invite_code: string }) =>
+    request<CreatedUser>("/auth/register", { method: "POST", body: JSON.stringify(body) }),
+  me: () => request<User>("/me"),
 
   openaiStatus: () => request<OpenAIStatus>("/openai/status"),
   openaiConnect: () => request<{ auth_url: string }>("/openai/connect", { method: "POST" }),

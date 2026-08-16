@@ -148,6 +148,25 @@ export interface QuestInput {
 
 // What the AI proposes for a half-typed quest. A suggestion only — the user
 // still edits and submits the form.
+export interface User {
+  id: number;
+  name: string;
+  is_admin: boolean;
+  created_at: string;
+}
+
+// Pre-auth server discovery: does it want a token, can you sign up?
+export interface AuthConfig {
+  auth_required: boolean;
+  registration_open: boolean;
+}
+
+// Returned once at signup/rotation — the only time the token is visible.
+export interface CreatedUser {
+  user: User;
+  token: string;
+}
+
 export interface QuestDraft {
   type: QuestType;
   difficulty: Difficulty;

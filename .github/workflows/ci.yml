@@ -1,0 +1,59 @@
+# Full test suite on every push/PR. This is the complete gate: the Docker
+# image build (which Railway runs on deploy) can only run the pure Go tests —
+# DB-backed tests skip there because the builder has no Postgres. Here they
+# run for real against a postgres service container, including the -race
+# concurrency regressions.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: edi
+          POSTGRES_PASSWORD: edi
+          POSTGRES_DB: edi_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U edi"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Explicitly set -> dbtest FAILS (never skips) if the DB is unreachable.
+      EDI_TEST_DATABASE_URL: postgres://edi:edi@localhost:5432/edi_test?sslmode=disable
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+
+      - name: Backend — vet + tests (with race detector)
+        working-directory: server
+        run: |
+          go vet ./...
+          gofmt -l . | tee /dev/stderr | wc -l | grep -q '^ *0$'
+          go test -race ./...
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Frontend — typecheck + build
+        working-directory: client
+        run: |
+          npm ci
+          npm run build

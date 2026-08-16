@@ -2,6 +2,8 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
+	"time"
 
 	"edi/internal/models"
 )
@@ -21,22 +23,19 @@ func goldForXP(xp int64) int64 {
 
 // insertGoldEventTx writes one gold ledger row inside an existing transaction.
 // Positive amounts mint, negative amounts spend.
-func insertGoldEventTx(tx *sql.Tx, userID, amount int64, source, label string, shopItemID *int64, nowStr string) (int64, error) {
-	res, err := tx.Exec(
-		`INSERT INTO gold_events(user_id, amount, source, label, shop_item_id, created_at) VALUES(?, ?, ?, ?, ?, ?)`,
-		userID, amount, source, label, nullInt64(shopItemID), nowStr)
-	if err != nil {
-		return 0, err
-	}
-	id, _ := res.LastInsertId()
-	return id, nil
+func insertGoldEventTx(tx *sql.Tx, userID, amount int64, source, label string, shopItemID *int64, now time.Time) (int64, error) {
+	var id int64
+	err := tx.QueryRow(
+		`INSERT INTO gold_events(user_id, amount, source, label, shop_item_id, created_at) VALUES($1, $2, $3, $4, $5, $6) RETURNING id`,
+		userID, amount, source, label, nullInt64(shopItemID), now).Scan(&id)
+	return id, err
 }
 
 // GoldBalance computes the spendable balance as SUM(gold_events.amount) — the
 // same auditable compute-on-read pattern as attribute XP. Never stored.
 func (s *Store) GoldBalance(userID int64) (int64, error) {
 	var bal int64
-	err := s.db.QueryRow(`SELECT COALESCE(SUM(amount),0) FROM gold_events WHERE user_id = ?`, userID).Scan(&bal)
+	err := s.db.QueryRow(`SELECT COALESCE(SUM(amount),0) FROM gold_events WHERE user_id = $1`, userID).Scan(&bal)
 	return bal, err
 }
 
@@ -50,14 +49,14 @@ func (s *Store) ListGoldEvents(userID int64, limit int, source string) ([]models
 		limit = 30
 	}
 	query := `SELECT id, amount, source, label, shop_item_id, created_at
-		 FROM gold_events WHERE user_id = ?`
+		 FROM gold_events WHERE user_id = $1`
 	args := []any{userID}
 	if source != "" {
-		query += ` AND source = ?`
 		args = append(args, source)
+		query += fmt.Sprintf(` AND source = $%d`, len(args))
 	}
-	query += ` ORDER BY id DESC LIMIT ?`
 	args = append(args, limit)
+	query += fmt.Sprintf(` ORDER BY id DESC LIMIT $%d`, len(args))
 	rows, err := s.db.Query(query, args...)
 	if err != nil {
 		return nil, err
@@ -67,15 +66,13 @@ func (s *Store) ListGoldEvents(userID int64, limit int, source string) ([]models
 	for rows.Next() {
 		var e models.GoldEvent
 		var itemID sql.NullInt64
-		var created string
-		if err := rows.Scan(&e.ID, &e.Amount, &e.Source, &e.Label, &itemID, &created); err != nil {
+		if err := rows.Scan(&e.ID, &e.Amount, &e.Source, &e.Label, &itemID, &e.CreatedAt); err != nil {
 			return nil, err
 		}
 		if itemID.Valid {
 			v := itemID.Int64
 			e.ShopItemID = &v
 		}
-		e.CreatedAt = mustParseTime(created)
 		out = append(out, e)
 	}
 	return out, rows.Err()

@@ -27,8 +27,8 @@ func (h *Handlers) health(w http.ResponseWriter, _ *http.Request) {
 
 // --- dashboard / attributes -------------------------------------------------
 
-func (h *Handlers) getDashboard(w http.ResponseWriter, _ *http.Request) {
-	dash, err := h.svc.GetDashboard()
+func (h *Handlers) getDashboard(w http.ResponseWriter, r *http.Request) {
+	dash, err := h.forUser(r).GetDashboard()
 	if err != nil {
 		writeError(w, err)
 		return
@@ -36,8 +36,8 @@ func (h *Handlers) getDashboard(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, dash)
 }
 
-func (h *Handlers) getAttributes(w http.ResponseWriter, _ *http.Request) {
-	attrs, err := h.svc.ListAttributes()
+func (h *Handlers) getAttributes(w http.ResponseWriter, r *http.Request) {
+	attrs, err := h.forUser(r).ListAttributes()
 	if err != nil {
 		writeError(w, err)
 		return
@@ -49,7 +49,7 @@ func (h *Handlers) getAttributes(w http.ResponseWriter, _ *http.Request) {
 
 func (h *Handlers) listQuests(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	quests, err := h.svc.ListQuests(q.Get("type"), q.Get("status"))
+	quests, err := h.forUser(r).ListQuests(q.Get("type"), q.Get("status"))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -63,7 +63,7 @@ func (h *Handlers) createQuest(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	quest, err := h.svc.CreateQuest(in)
+	quest, err := h.forUser(r).CreateQuest(in)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -79,7 +79,7 @@ func (h *Handlers) draftQuest(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	draft, err := h.svc.DraftQuest(in)
+	draft, err := h.forUser(r).DraftQuest(in)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -98,7 +98,7 @@ func (h *Handlers) updateQuest(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	quest, err := h.svc.UpdateQuest(id, patch)
+	quest, err := h.forUser(r).UpdateQuest(id, patch)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -112,7 +112,7 @@ func (h *Handlers) completeQuest(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	result, err := h.svc.CompleteQuest(id)
+	result, err := h.forUser(r).CompleteQuest(id)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -126,7 +126,7 @@ func (h *Handlers) skipQuest(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	quest, err := h.svc.SkipQuest(id)
+	quest, err := h.forUser(r).SkipQuest(id)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -145,7 +145,7 @@ func (h *Handlers) toggleSubtask(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	st, err := h.svc.ToggleSubtask(questID, subtaskID)
+	st, err := h.forUser(r).ToggleSubtask(questID, subtaskID)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -159,7 +159,7 @@ func (h *Handlers) archiveQuest(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	quest, err := h.svc.ArchiveQuest(id)
+	quest, err := h.forUser(r).ArchiveQuest(id)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -170,7 +170,7 @@ func (h *Handlers) archiveQuest(w http.ResponseWriter, r *http.Request) {
 // --- xp / journal -----------------------------------------------------------
 
 func (h *Handlers) getXPEvents(w http.ResponseWriter, r *http.Request) {
-	events, err := h.svc.ListXPEvents(queryInt(r, "limit", 50))
+	events, err := h.forUser(r).ListXPEvents(queryInt(r, "limit", 50))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -179,7 +179,7 @@ func (h *Handlers) getXPEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) listJournal(w http.ResponseWriter, r *http.Request) {
-	entries, err := h.svc.ListJournalEntries(queryInt(r, "limit", 30), r.URL.Query().Get("q"))
+	entries, err := h.forUser(r).ListJournalEntries(queryInt(r, "limit", 30), r.URL.Query().Get("q"))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -193,7 +193,7 @@ func (h *Handlers) createJournal(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	result, err := h.svc.CreateJournalEntry(in)
+	result, err := h.forUser(r).CreateJournalEntry(in)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -212,7 +212,7 @@ func (h *Handlers) updateJournal(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	entry, err := h.svc.UpdateJournalEntry(id, patch)
+	entry, err := h.forUser(r).UpdateJournalEntry(id, patch)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -226,7 +226,7 @@ func (h *Handlers) deleteJournal(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	if err := h.svc.DeleteJournalEntry(id); err != nil {
+	if err := h.forUser(r).DeleteJournalEntry(id); err != nil {
 		writeError(w, err)
 		return
 	}
@@ -236,7 +236,7 @@ func (h *Handlers) deleteJournal(w http.ResponseWriter, r *http.Request) {
 // --- agent suggestions ------------------------------------------------------
 
 func (h *Handlers) listSuggestions(w http.ResponseWriter, r *http.Request) {
-	suggestions, err := h.svc.ListSuggestions(r.URL.Query().Get("status"))
+	suggestions, err := h.forUser(r).ListSuggestions(r.URL.Query().Get("status"))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -244,8 +244,8 @@ func (h *Handlers) listSuggestions(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, suggestions)
 }
 
-func (h *Handlers) generateSuggestions(w http.ResponseWriter, _ *http.Request) {
-	suggestions, err := h.svc.GenerateSuggestions()
+func (h *Handlers) generateSuggestions(w http.ResponseWriter, r *http.Request) {
+	suggestions, err := h.forUser(r).GenerateSuggestions()
 	if err != nil {
 		writeError(w, err)
 		return
@@ -259,7 +259,7 @@ func (h *Handlers) acceptSuggestion(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	quest, err := h.svc.AcceptSuggestion(id)
+	quest, err := h.forUser(r).AcceptSuggestion(id)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -273,7 +273,7 @@ func (h *Handlers) dismissSuggestion(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	sug, err := h.svc.DismissSuggestion(id)
+	sug, err := h.forUser(r).DismissSuggestion(id)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -283,8 +283,8 @@ func (h *Handlers) dismissSuggestion(w http.ResponseWriter, r *http.Request) {
 
 // --- tools ------------------------------------------------------------------
 
-func (h *Handlers) listGuidedTools(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"tools": h.svc.ListTools()})
+func (h *Handlers) listGuidedTools(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"tools": h.forUser(r).ListTools()})
 }
 
 func (h *Handlers) completeTool(w http.ResponseWriter, r *http.Request) {
@@ -294,7 +294,7 @@ func (h *Handlers) completeTool(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	result, err := h.svc.CompleteTool(key, payload)
+	result, err := h.forUser(r).CompleteTool(key, payload)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -303,7 +303,7 @@ func (h *Handlers) completeTool(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) listToolEntries(w http.ResponseWriter, r *http.Request) {
-	entries, err := h.svc.ListToolEntries(r.PathValue("key"), queryInt(r, "limit", 30))
+	entries, err := h.forUser(r).ListToolEntries(r.PathValue("key"), queryInt(r, "limit", 30))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -317,7 +317,7 @@ func (h *Handlers) toolAssist(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	result, err := h.svc.ToolAssist(r.PathValue("key"), payload)
+	result, err := h.forUser(r).ToolAssist(r.PathValue("key"), payload)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -327,8 +327,8 @@ func (h *Handlers) toolAssist(w http.ResponseWriter, r *http.Request) {
 
 // --- openai connection ------------------------------------------------------
 
-func (h *Handlers) openaiStatus(w http.ResponseWriter, _ *http.Request) {
-	status, err := h.svc.OpenAIStatus()
+func (h *Handlers) openaiStatus(w http.ResponseWriter, r *http.Request) {
+	status, err := h.forUser(r).OpenAIStatus()
 	if err != nil {
 		writeError(w, err)
 		return
@@ -336,8 +336,8 @@ func (h *Handlers) openaiStatus(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, status)
 }
 
-func (h *Handlers) openaiConnect(w http.ResponseWriter, _ *http.Request) {
-	authURL, err := h.svc.StartOpenAIConnect()
+func (h *Handlers) openaiConnect(w http.ResponseWriter, r *http.Request) {
+	authURL, err := h.forUser(r).StartOpenAIConnect()
 	if err != nil {
 		writeError(w, err)
 		return
@@ -345,8 +345,8 @@ func (h *Handlers) openaiConnect(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"auth_url": authURL})
 }
 
-func (h *Handlers) openaiImportCodex(w http.ResponseWriter, _ *http.Request) {
-	status, err := h.svc.ImportCodexCredentials()
+func (h *Handlers) openaiImportCodex(w http.ResponseWriter, r *http.Request) {
+	status, err := h.forUser(r).ImportCodexCredentials()
 	if err != nil {
 		writeError(w, err)
 		return
@@ -354,16 +354,16 @@ func (h *Handlers) openaiImportCodex(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, status)
 }
 
-func (h *Handlers) openaiDisconnect(w http.ResponseWriter, _ *http.Request) {
-	if err := h.svc.DisconnectOpenAI(); err != nil {
+func (h *Handlers) openaiDisconnect(w http.ResponseWriter, r *http.Request) {
+	if err := h.forUser(r).DisconnectOpenAI(); err != nil {
 		writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"connected": false})
 }
 
-func (h *Handlers) openaiModels(w http.ResponseWriter, _ *http.Request) {
-	list, err := h.svc.ListOpenAIModels()
+func (h *Handlers) openaiModels(w http.ResponseWriter, r *http.Request) {
+	list, err := h.forUser(r).ListOpenAIModels()
 	if err != nil {
 		writeError(w, err)
 		return
@@ -380,7 +380,7 @@ func (h *Handlers) openaiConfig(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	status, err := h.svc.SetOpenAIConfig(body.Model, body.Effort)
+	status, err := h.forUser(r).SetOpenAIConfig(body.Model, body.Effort)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -390,8 +390,8 @@ func (h *Handlers) openaiConfig(w http.ResponseWriter, r *http.Request) {
 
 // --- gold economy / reward shop ----------------------------------------------
 
-func (h *Handlers) listShop(w http.ResponseWriter, _ *http.Request) {
-	items, err := h.svc.ListShopItems()
+func (h *Handlers) listShop(w http.ResponseWriter, r *http.Request) {
+	items, err := h.forUser(r).ListShopItems()
 	if err != nil {
 		writeError(w, err)
 		return
@@ -405,7 +405,7 @@ func (h *Handlers) createShopItem(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	item, err := h.svc.CreateShopItem(in)
+	item, err := h.forUser(r).CreateShopItem(in)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -424,7 +424,7 @@ func (h *Handlers) updateShopItem(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	item, err := h.svc.UpdateShopItem(id, patch)
+	item, err := h.forUser(r).UpdateShopItem(id, patch)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -438,7 +438,7 @@ func (h *Handlers) archiveShopItem(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	if err := h.svc.ArchiveShopItem(id); err != nil {
+	if err := h.forUser(r).ArchiveShopItem(id); err != nil {
 		writeError(w, err)
 		return
 	}
@@ -451,7 +451,7 @@ func (h *Handlers) purchaseShopItem(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	result, err := h.svc.PurchaseShopItem(id)
+	result, err := h.forUser(r).PurchaseShopItem(id)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -460,7 +460,7 @@ func (h *Handlers) purchaseShopItem(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) listGoldEvents(w http.ResponseWriter, r *http.Request) {
-	events, err := h.svc.ListGoldEvents(queryInt(r, "limit", 30), r.URL.Query().Get("source"))
+	events, err := h.forUser(r).ListGoldEvents(queryInt(r, "limit", 30), r.URL.Query().Get("source"))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -471,7 +471,7 @@ func (h *Handlers) listGoldEvents(w http.ResponseWriter, r *http.Request) {
 // --- agent tool interface ---------------------------------------------------
 
 // listTools exposes the agent-ready tool catalog (names, descriptions, schemas).
-func (h *Handlers) listTools(w http.ResponseWriter, _ *http.Request) {
+func (h *Handlers) listTools(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"tools": h.registry.Specs()})
 }
 
@@ -488,7 +488,7 @@ func (h *Handlers) invokeTool(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	result, err := h.registry.Invoke(name, input)
+	result, err := h.registry.Invoke(h.forUser(r), name, input)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -499,7 +499,7 @@ func (h *Handlers) invokeTool(w http.ResponseWriter, r *http.Request) {
 // --- decay & stakes -----------------------------------------------------------
 
 func (h *Handlers) wardAttribute(w http.ResponseWriter, r *http.Request) {
-	result, err := h.svc.WardAttribute(r.PathValue("key"))
+	result, err := h.forUser(r).WardAttribute(r.PathValue("key"))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -515,7 +515,7 @@ func (h *Handlers) setRest(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	state, err := h.svc.SetRestMode(body.On)
+	state, err := h.forUser(r).SetRestMode(body.On)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -523,8 +523,8 @@ func (h *Handlers) setRest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, state)
 }
 
-func (h *Handlers) getRest(w http.ResponseWriter, _ *http.Request) {
-	state, err := h.svc.RestState()
+func (h *Handlers) getRest(w http.ResponseWriter, r *http.Request) {
+	state, err := h.forUser(r).RestState()
 	if err != nil {
 		writeError(w, err)
 		return

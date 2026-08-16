@@ -18,24 +18,26 @@ data layer** — it calls the exact same service functions, exposed as discovera
                           ▼
                 services.Service   ← single source of business logic
                           ▼
-                 db.Store (SQLite + migrations, auditable XP events)
+               db.Store (PostgreSQL + migrations, auditable XP events)
 ```
 
 ---
 
 ## Quick start
 
-**Requirements:** Go ≥ 1.22, Node ≥ 18, npm. (Tested on Go 1.24, Node 24.)
+**Requirements:** Go ≥ 1.22, Node ≥ 18, npm, and a local PostgreSQL on :5432
+(Postgres.app or homebrew). (Tested on Go 1.26, Node 24, Postgres 16.)
 
 ```bash
-# 1. install dependencies
+# 1. install dependencies + create the local databases
 make install
+make db-setup
 
 # 2. run backend (:8080) + frontend (:5173) together
 make dev
 ```
 
-Open **http://localhost:5173**. The database (`server/edi.db`) is created and
+Open **http://localhost:5173**. The dev database (`edi_dev`) is migrated and
 seeded with demo data automatically on first run.
 
 ### One self-hosted binary (production-style)
@@ -52,31 +54,46 @@ built SPA — copy `bin/edi` + `client/dist` to a server and run it.
 ```bash
 make backend     # just the API on :8080
 make frontend    # just the Vite dev server on :5173
-make test        # backend Go tests
-make reset       # delete the SQLite DB (re-seeds on next start)
+make test        # backend Go tests (need the edi_test database — make db-setup)
+make reset       # drop + recreate edi_dev (re-seeds on next start)
 ```
 
 Environment variables: `EDI_ADDR` (default `:8080`; falls back to `PORT` if
-set, for PaaS hosts), `EDI_DB` (default `edi.db`), `EDI_CLIENT_DIR` (default
-`../client/dist`), `EDI_TOKEN` (optional — see below; empty means no auth, the
-localhost default).
+set, for PaaS hosts), `EDI_DATABASE_URL`/`DATABASE_URL` (default
+`postgres://localhost:5432/edi_dev?sslmode=disable`), `EDI_CLIENT_DIR`
+(default `../client/dist`), `EDI_TOKEN` and `EDI_INVITE_CODE` (see below;
+both empty = tokenless single-user localhost mode).
 
-### API token auth (for connecting agents / remote clients)
+### Users & tokens (multi-tenant)
 
-Start the server with a shared secret and every `/api` route (except
-`/api/health`) requires `Authorization: Bearer <token>`:
+edi is multi-tenant with **token auth, no passwords**: every user owns one
+bearer token, shown exactly once when the account is created (the server
+stores only its hash). Every client sends it as `Authorization: Bearer <t>`.
 
-```bash
-openssl rand -hex 24 > .edi-token          # generate once (gitignored)
-EDI_TOKEN=$(cat .edi-token) make backend   # 401 without the token, 200 with it
-```
+Server modes:
 
-All clients understand it:
+- **`EDI_TOKEN` unset (localhost dev):** no auth; everything acts as user 1;
+  demo data seeds on a fresh DB. Exactly the old single-user behavior.
+- **`EDI_TOKEN` set (deployed):** on every startup the server adopts it as
+  **user 1's token** (creating a blank admin on an empty database). Recovery
+  is built in: change the env var and restart, and user 1 can always get back
+  in. All other `/api` routes 401 without a valid user token.
 
-- **curl:** `curl -H "Authorization: Bearer $(cat .edi-token)" localhost:8080/api/dashboard`
-- **CLI / MCP:** set `EDI_TOKEN` in the environment (`EDI_TOKEN=$(cat .edi-token) ./bin/edi-cli dashboard`)
-- **Web UI:** open `http://host:8080/#token=<secret>` once — the token is stored
-  in localStorage and sent automatically afterwards.
+More users:
+
+- **Self-serve:** set `EDI_INVITE_CODE` on the server → the sign-in screen
+  gets a "create a character" form (name + invite code → fresh level-1
+  character + a token shown once). Unset = registration closed.
+- **Admin API** (user 1): `GET/POST /api/admin/users`,
+  `POST /api/admin/users/{id}/token` to re-mint a lost token.
+
+All clients understand tokens:
+
+- **curl:** `curl -H "Authorization: Bearer <token>" localhost:8080/api/dashboard`
+- **CLI / MCP / Telegram:** set `EDI_TOKEN` in the client's environment — it
+  now identifies *that user*, not the whole server.
+- **Web UI:** paste the token at the gate, or open `http://host:8080/#token=<t>`
+  once — it is stored in localStorage and sent automatically afterwards.
 
 ### Deploy to Railway (cloud hosting)
 
@@ -86,14 +103,17 @@ is a few clicks:
 
 1. **New Project → Deploy from GitHub repo** and pick this repo. Railway
    detects the `Dockerfile` and builds the client + server automatically.
-2. **Attach a volume** to the service (Command/Ctrl+K → "Create volume"), any
-   mount path. The container finds it via `RAILWAY_VOLUME_MOUNT_PATH` and puts
-   `edi.db` there. **Without a volume the DB is wiped on every deploy.**
-3. **Set variables** on the service:
+   (With the Railway GitHub App installed, every push to `main` deploys.)
+2. **Add a PostgreSQL database** to the project and reference it from the app
+   service: variable `DATABASE_URL = ${{Postgres.DATABASE_URL}}`. **The
+   database is the only copy of your characters** — Railway Postgres persists
+   across deploys.
+3. **Set variables** on the app service:
    - `EDI_TOKEN` — required in practice: the app is on a public URL and this is
-     the only thing keeping your life data private (`openssl rand -hex 24`).
+     user 1's login token (`openssl rand -hex 24`).
    - `TZ` — your IANA timezone (e.g. `Europe/Berlin`) so daily streaks, journal
      XP, and decay bill on *your* local day, not UTC.
+   - `EDI_INVITE_CODE` — optional; set it to open self-serve registration.
 4. **Generate a domain** (Settings → Networking), then open
    `https://<app>.up.railway.app/#token=<your token>` once to store the token.
 
@@ -109,7 +129,7 @@ The same `Dockerfile` works anywhere else that runs containers:
 
 ```bash
 docker build -t edi .
-docker run -p 8080:8080 -v edi-data:/data -e EDI_TOKEN=<secret> -e TZ=Europe/Berlin edi
+docker run -p 8080:8080 -e DATABASE_URL=postgres://... -e EDI_TOKEN=<secret> -e TZ=Europe/Berlin edi
 ```
 
 ---
@@ -166,6 +186,11 @@ Base: `/api`
 
 | Method | Path | Description |
 |---|---|---|
+| GET | `/auth/config` | Pre-auth: does the server require a token, is registration open |
+| POST | `/auth/register` | Create a user from `{name, invite_code}` → token (shown once) |
+| GET | `/me` | The authenticated user |
+| GET/POST | `/admin/users` | Admin: list / create users |
+| POST | `/admin/users/:id/token` | Admin: re-mint a user's token (refused for user 1 — env-owned) |
 | GET | `/dashboard` | Full dashboard payload (character, attributes, today's quests, streak, recent XP, recommended quest, suggestions, gold balance) |
 | GET | `/attributes` | All attributes with derived level/progress |
 | GET | `/quests?type=&status=` | List/filter quests |
@@ -460,11 +485,12 @@ Makefile                install / dev / build / prod / test / reset
 
 ## Tech
 
-- **Backend:** Go, `net/http` (1.22 routing), `database/sql` + `modernc.org/sqlite`
+- **Backend:** Go, `net/http` (1.22 routing), `database/sql` + `jackc/pgx`
   (pure-Go, no CGO). Single binary; migrations embedded.
 - **Frontend:** React 18, Vite 6, TypeScript, Tailwind v4, TanStack Query, Framer
   Motion, lucide-react.
-- **DB:** SQLite (WAL). Easy to swap for Postgres later (all SQL is in `db.Store`).
+- **DB:** PostgreSQL (timestamptz, identity columns, per-user advisory locks
+  for write serialization). All SQL is in `db.Store`.
 
 ## Tests
 
@@ -489,5 +515,6 @@ clean console) rather than unit tests — see the validation report in the commi
   They use OpenAI's undocumented Codex/ChatGPT backend endpoints, which may change.
 - **No automated frontend unit tests** (Vitest) yet; UI is covered by browser e2e.
   The live OpenAI paths are covered by opt-in tests (`EDI_LIVE_TEST=1`).
-- SQLite + single connection is intentional for a self-hosted single user; swap
-  `db.Store` for Postgres + a pool when scaling to many users.
+- Per-user advisory locks serialize each user's writes (the same guarantee the
+  old SQLite single-writer gave), so a handful of users share one small pool
+  comfortably; this is a household-scale app, not a SaaS.

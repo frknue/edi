@@ -89,9 +89,9 @@ func TestRestMode(t *testing.T) {
 // xp_events into the past. Test-only trick; the engine only reads times.
 func backdateAttribute(t *testing.T, svc *Service, key string, daysAgo int) {
 	t.Helper()
-	ts := time.Now().UTC().AddDate(0, 0, -daysAgo).Format("2006-01-02T15:04:05.000000000Z07:00")
+	ts := time.Now().UTC().AddDate(0, 0, -daysAgo)
 	if _, err := svc.store.DB().Exec(
-		`UPDATE xp_events SET created_at = ? WHERE user_id = 1 AND attribute_key = ? AND amount > 0`, ts, key); err != nil {
+		`UPDATE xp_events SET created_at = $1 WHERE user_id = 1 AND attribute_key = $2 AND amount > 0`, ts, key); err != nil {
 		t.Fatalf("backdate: %v", err)
 	}
 }

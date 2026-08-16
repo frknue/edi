@@ -10,18 +10,14 @@ import (
 	"testing"
 
 	"edi/internal/agent"
-	"edi/internal/db"
+	"edi/internal/db/dbtest"
 	"edi/internal/services"
 )
 
 // newTestRouterWithClient serves a stub SPA so the static fallback is live.
 func newTestRouterWithClient(t *testing.T) http.Handler {
 	t.Helper()
-	store, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	t.Cleanup(func() { store.Close() })
+	store := dbtest.Open(t)
 	if err := store.Seed(); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -30,7 +26,7 @@ func newTestRouterWithClient(t *testing.T) http.Handler {
 		t.Fatalf("write index.html: %v", err)
 	}
 	svc := services.New(store, 1)
-	return NewRouter(New(svc, agent.NewRegistry(svc)), clientDir, "")
+	return NewRouter(New(svc, agent.NewRegistry()), clientDir, false)
 }
 
 // An unmatched /api route must be a JSON 404, not the SPA shell — otherwise a

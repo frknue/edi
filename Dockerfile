@@ -15,9 +15,10 @@ WORKDIR /build/server
 COPY server/go.mod server/go.sum ./
 RUN go mod download
 COPY server/ ./
-# Push to main deploys, so the build is the gate: a failing test must never
-# reach the live instance. (The client stage is already gated — `npm run build`
-# runs `tsc --noEmit` first. Live OpenAI tests skip without EDI_LIVE_TEST.)
+# Push to main deploys, so the build is a gate: vet + the pure tests run here.
+# DB-backed tests skip in this stage (no Postgres in the builder — see
+# internal/db/dbtest); the full suite runs locally and in GitHub Actions,
+# which provides a postgres service container.
 RUN go vet ./... && go test ./...
 # The server, plus the Telegram companion so one image can back both Railway
 # services (the bot service just overrides the start command).
@@ -28,13 +29,13 @@ RUN CGO_ENABLED=0 go build -o /build/edi . \
 # ca-certificates: HTTPS to the OpenAI endpoints. tzdata: local-day math
 # (decay, journal daily XP) honors the TZ env var instead of falling back to UTC.
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates tzdata && mkdir -p /data
+RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=server /build/edi ./edi
 COPY --from=server /build/edi-telegram ./edi-telegram
 COPY --from=client /build/client/dist ./client/dist
 ENV EDI_CLIENT_DIR=/app/client/dist
 EXPOSE 8080
-# DB path resolution: explicit EDI_DB wins, else the Railway volume mount if one
-# is attached, else /data (baked into the image; ephemeral without a volume).
-CMD ["/bin/sh", "-c", "EDI_DB=\"${EDI_DB:-${RAILWAY_VOLUME_MOUNT_PATH:-/data}/edi.db}\" exec /app/edi"]
+# Storage is PostgreSQL: set DATABASE_URL (Railway injects it when the
+# Postgres service is referenced) or EDI_DATABASE_URL.
+CMD ["/app/edi"]

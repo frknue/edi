@@ -17,27 +17,25 @@ func (s *Store) CompleteTool(userID int64, toolKey, toolName string, data []byte
 		return models.ToolEntry{}, nil, nil, 0, err
 	}
 
-	tx, err := s.db.Begin()
+	tx, err := s.beginUserTx(userID)
 	if err != nil {
 		return models.ToolEntry{}, nil, nil, 0, err
 	}
 	defer tx.Rollback() //nolint:errcheck
 
 	now := time.Now().UTC()
-	nowStr := formatTime(now)
 
 	var total int64
 	for _, v := range rewards {
 		total += v
 	}
 
-	res, err := tx.Exec(
-		`INSERT INTO tool_entries(user_id, tool_key, data, summary, xp_awarded, created_at) VALUES(?, ?, ?, ?, ?, ?)`,
-		userID, toolKey, string(data), summary, total, nowStr)
-	if err != nil {
+	var entryID int64
+	if err := tx.QueryRow(
+		`INSERT INTO tool_entries(user_id, tool_key, data, summary, xp_awarded, created_at) VALUES($1, $2, $3, $4, $5, $6) RETURNING id`,
+		userID, toolKey, string(data), summary, total, now).Scan(&entryID); err != nil {
 		return models.ToolEntry{}, nil, nil, 0, err
 	}
-	entryID, _ := res.LastInsertId()
 
 	var events []models.XPEvent
 	var levelUps []models.LevelUp
@@ -48,25 +46,24 @@ func (s *Store) CompleteTool(userID int64, toolKey, toolName string, data []byte
 			continue
 		}
 		var oldXP int64
-		if err := tx.QueryRow(`SELECT total_xp FROM attributes WHERE user_id = ? AND key = ?`, userID, key).Scan(&oldXP); err != nil {
+		if err := tx.QueryRow(`SELECT total_xp FROM attributes WHERE user_id = $1 AND key = $2`, userID, key).Scan(&oldXP); err != nil {
 			continue // unknown attribute key — skip
 		}
-		ev, err := tx.Exec(
-			`INSERT INTO xp_events(user_id, attribute_key, amount, source, source_id, note, created_at) VALUES(?, ?, ?, 'tool', ?, ?, ?)`,
-			userID, key, amount, entryID, toolName, nowStr)
-		if err != nil {
+		var evID int64
+		if err := tx.QueryRow(
+			`INSERT INTO xp_events(user_id, attribute_key, amount, source, source_id, note, created_at) VALUES($1, $2, $3, 'tool', $4, $5, $6) RETURNING id`,
+			userID, key, amount, entryID, toolName, now).Scan(&evID); err != nil {
 			return models.ToolEntry{}, nil, nil, 0, err
 		}
-		if _, err := tx.Exec(`UPDATE attributes SET total_xp = total_xp + ?, peak_xp = MAX(peak_xp, total_xp + ?) WHERE user_id = ? AND key = ?`, amount, amount, userID, key); err != nil {
+		if _, err := tx.Exec(`UPDATE attributes SET total_xp = total_xp + $1, peak_xp = GREATEST(peak_xp, total_xp + $1) WHERE user_id = $2 AND key = $3`, amount, userID, key); err != nil {
 			return models.ToolEntry{}, nil, nil, 0, err
 		}
 		if g := goldForXP(amount); g > 0 {
-			if _, err := insertGoldEventTx(tx, userID, g, "tool", toolName, nil, nowStr); err != nil {
+			if _, err := insertGoldEventTx(tx, userID, g, "tool", toolName, nil, now); err != nil {
 				return models.ToolEntry{}, nil, nil, 0, err
 			}
 			goldTotal += g
 		}
-		evID, _ := ev.LastInsertId()
 		sid := entryID
 		events = append(events, models.XPEvent{
 			ID: evID, AttributeKey: key, AttributeName: names[key], Amount: amount,
@@ -99,7 +96,7 @@ func (s *Store) ListToolEntries(userID int64, toolKey string, limit int) ([]mode
 	}
 	rows, err := s.db.Query(
 		`SELECT id, tool_key, data, summary, xp_awarded, created_at
-		 FROM tool_entries WHERE user_id = ? AND tool_key = ? ORDER BY id DESC LIMIT ?`,
+		 FROM tool_entries WHERE user_id = $1 AND tool_key = $2 ORDER BY id DESC LIMIT $3`,
 		userID, toolKey, limit)
 	if err != nil {
 		return nil, err
@@ -108,12 +105,11 @@ func (s *Store) ListToolEntries(userID int64, toolKey string, limit int) ([]mode
 	var out []models.ToolEntry
 	for rows.Next() {
 		var e models.ToolEntry
-		var data, created string
-		if err := rows.Scan(&e.ID, &e.ToolKey, &data, &e.Summary, &e.XPAwarded, &created); err != nil {
+		var data string
+		if err := rows.Scan(&e.ID, &e.ToolKey, &data, &e.Summary, &e.XPAwarded, &e.CreatedAt); err != nil {
 			return nil, err
 		}
 		e.Data = json.RawMessage(data)
-		e.CreatedAt = mustParseTime(created)
 		out = append(out, e)
 	}
 	return out, rows.Err()

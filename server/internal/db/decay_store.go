@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -24,18 +25,17 @@ func localDaysBetween(a, b time.Time) int {
 // (source='decay', note 'decay · YYYY-MM-DD') plus the matching total_xp
 // decrement — all in one transaction, idempotent per attribute per local day
 // (the billed dates encoded in the notes are re-read inside the tx; the
-// single-writer connection serializes racing callers). peak_xp is never
+// per-user advisory lock serializes racing callers). peak_xp is never
 // touched. Days covered by a ward window are excluded; restEndedAt (nullable)
 // resets the idle anchor; the caller skips the call entirely while rest mode
 // is on. Returns the total XP removed.
 func (s *Store) ApplyDecay(userID int64, restEndedAt *time.Time, now time.Time) (int64, error) {
-	tx, err := s.db.Begin()
+	tx, err := s.beginUserTx(userID)
 	if err != nil {
 		return 0, err
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	nowStr := formatTime(now)
 	today := localDate(now)
 
 	type attrRow struct {
@@ -43,7 +43,7 @@ func (s *Store) ApplyDecay(userID int64, restEndedAt *time.Time, now time.Time) 
 		total int64
 		peak  int64
 	}
-	rows, err := tx.Query(`SELECT key, total_xp, peak_xp FROM attributes WHERE user_id = ?`, userID)
+	rows, err := tx.Query(`SELECT key, total_xp, peak_xp FROM attributes WHERE user_id = $1`, userID)
 	if err != nil {
 		return 0, err
 	}
@@ -64,14 +64,13 @@ func (s *Store) ApplyDecay(userID int64, restEndedAt *time.Time, now time.Time) 
 	var totalRemoved int64
 	for _, a := range attrs {
 		// Idle anchor: last positive activity, or rest end, whichever is later.
-		var lastAct string
-		err := tx.QueryRow(
-			`SELECT MAX(created_at) FROM xp_events WHERE user_id = ? AND attribute_key = ? AND amount > 0`,
-			userID, a.key).Scan(&lastAct)
-		if err != nil || lastAct == "" {
+		var lastAct sql.NullTime
+		if err := tx.QueryRow(
+			`SELECT MAX(created_at) FROM xp_events WHERE user_id = $1 AND attribute_key = $2 AND amount > 0`,
+			userID, a.key).Scan(&lastAct); err != nil || !lastAct.Valid {
 			continue // never trained: nothing to decay from
 		}
-		anchor := mustParseTime(lastAct)
+		anchor := lastAct.Time
 		if restEndedAt != nil && restEndedAt.After(anchor) {
 			anchor = *restEndedAt
 		}
@@ -84,7 +83,7 @@ func (s *Store) ApplyDecay(userID int64, restEndedAt *time.Time, now time.Time) 
 		// Dates already billed (from decay-event notes), inside the tx.
 		billed := map[string]bool{}
 		brows, err := tx.Query(
-			`SELECT note FROM xp_events WHERE user_id = ? AND attribute_key = ? AND source = 'decay'`,
+			`SELECT note FROM xp_events WHERE user_id = $1 AND attribute_key = $2 AND source = 'decay'`,
 			userID, a.key)
 		if err != nil {
 			return 0, err
@@ -108,17 +107,17 @@ func (s *Store) ApplyDecay(userID int64, restEndedAt *time.Time, now time.Time) 
 		type window struct{ from, to time.Time }
 		var wards []window
 		wrows, err := tx.Query(
-			`SELECT created_at, expires_at FROM wards WHERE user_id = ? AND attribute_key = ?`, userID, a.key)
+			`SELECT created_at, expires_at FROM wards WHERE user_id = $1 AND attribute_key = $2`, userID, a.key)
 		if err != nil {
 			return 0, err
 		}
 		for wrows.Next() {
-			var created, expires string
+			var created, expires time.Time
 			if err := wrows.Scan(&created, &expires); err != nil {
 				wrows.Close()
 				return 0, err
 			}
-			wards = append(wards, window{localDate(mustParseTime(created)), localDate(mustParseTime(expires))})
+			wards = append(wards, window{localDate(created), localDate(expires)})
 		}
 		wrows.Close()
 		if err := wrows.Err(); err != nil {
@@ -156,12 +155,12 @@ func (s *Store) ApplyDecay(userID int64, restEndedAt *time.Time, now time.Time) 
 				break
 			}
 			if _, err := tx.Exec(
-				`INSERT INTO xp_events(user_id, attribute_key, amount, source, source_id, note, created_at) VALUES(?, ?, ?, 'decay', NULL, ?, ?)`,
-				userID, a.key, -amt, fmt.Sprintf("decay · %s", dayStr), nowStr); err != nil {
+				`INSERT INTO xp_events(user_id, attribute_key, amount, source, source_id, note, created_at) VALUES($1, $2, $3, 'decay', NULL, $4, $5)`,
+				userID, a.key, -amt, fmt.Sprintf("decay · %s", dayStr), now); err != nil {
 				return 0, err
 			}
 			if _, err := tx.Exec(
-				`UPDATE attributes SET total_xp = total_xp - ? WHERE user_id = ? AND key = ?`,
+				`UPDATE attributes SET total_xp = total_xp - $1 WHERE user_id = $2 AND key = $3`,
 				amt, userID, a.key); err != nil {
 				return 0, err
 			}
@@ -188,17 +187,18 @@ func (s *Store) DecayInputs(userID int64, now time.Time) (map[string]DecayInput,
 
 	rows, err := s.db.Query(
 		`SELECT attribute_key, MAX(created_at) FROM xp_events
-		 WHERE user_id = ? AND amount > 0 GROUP BY attribute_key`, userID)
+		 WHERE user_id = $1 AND amount > 0 GROUP BY attribute_key`, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var key, created string
+		var key string
+		var created time.Time
 		if err := rows.Scan(&key, &created); err != nil {
 			return nil, err
 		}
-		t := mustParseTime(created)
+		t := created
 		out[key] = DecayInput{LastActivity: &t}
 	}
 	if err := rows.Err(); err != nil {
@@ -207,17 +207,18 @@ func (s *Store) DecayInputs(userID int64, now time.Time) (map[string]DecayInput,
 
 	wrows, err := s.db.Query(
 		`SELECT attribute_key, MAX(expires_at) FROM wards
-		 WHERE user_id = ? AND expires_at > ? GROUP BY attribute_key`, userID, formatTime(now))
+		 WHERE user_id = $1 AND expires_at > $2 GROUP BY attribute_key`, userID, now)
 	if err != nil {
 		return nil, err
 	}
 	defer wrows.Close()
 	for wrows.Next() {
-		var key, expires string
+		var key string
+		var expires time.Time
 		if err := wrows.Scan(&key, &expires); err != nil {
 			return nil, err
 		}
-		t := mustParseTime(expires)
+		t := expires
 		in := out[key]
 		in.WardExpiry = &t
 		out[key] = in
