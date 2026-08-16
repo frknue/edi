@@ -22,7 +22,9 @@ const helpText = `<b>edi</b> — your Life RPG, in your pocket
 /done &lt;id&gt; — complete a quest
 /ward &lt;attribute&gt; — 7-day decay shield (30g)
 /rest on|off — pause/resume decay
-/briefing HH:MM — set your morning briefing time
+/briefing — get your briefing right now
+/briefing HH:MM — set your daily briefing time
+/nudge — check the nudge right now
 /nudge HH:MM — set your evening nudge time
 /unpair — disconnect this chat
 /help — this message`

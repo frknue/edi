@@ -188,3 +188,36 @@ func TestPresencePushTimeCommands(t *testing.T) {
 }
 
 func itoa(v int64) string { return strconv.FormatInt(v, 10) }
+
+// /briefing and /nudge with no argument fire on demand instead of waiting for
+// the scheduled time.
+func TestPresenceOnDemandPushes(t *testing.T) {
+	r, svc, _ := newTestRunner(t)
+	const chat = int64(8008)
+	code, _ := svc.CreateTelegramPairCode()
+	r.handleMessage(chat, "/pair "+code.Code)
+
+	// Briefing now: full dashboard briefing (seeded user has quests).
+	if got := r.handleMessage(chat, "/briefing"); !strings.Contains(got, "edi briefing") || !strings.Contains(got, "/done") {
+		t.Fatalf("/briefing now = %q, want the briefing", got)
+	}
+
+	// Nudge now: nothing completed today -> names the easiest quest.
+	if got := r.handleMessage(chat, "/nudge"); !strings.Contains(got, "Nothing logged today") {
+		t.Fatalf("/nudge now = %q, want the nudge", got)
+	}
+
+	// After completing something today, the nudge stands down.
+	quests, _ := svc.ListQuests("", "active")
+	if _, err := svc.CompleteQuest(quests[0].ID); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	if got := r.handleMessage(chat, "/nudge"); !strings.Contains(got, "Nothing to nudge about") {
+		t.Fatalf("/nudge after progress = %q, want stand-down message", got)
+	}
+
+	// Setting times still works with an argument.
+	if got := r.handleMessage(chat, "/briefing 06:45"); !strings.Contains(got, "06:45") {
+		t.Fatalf("/briefing HH:MM = %q", got)
+	}
+}

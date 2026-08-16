@@ -182,8 +182,20 @@ func (r *Runner) handleCommand(svc *services.Service, chatID int64, cmd, arg str
 		}
 
 	case "briefing", "nudge":
+		// No argument = send it right now; an HH:MM argument sets the daily time.
 		if arg == "" {
-			return fmt.Sprintf("Usage: /%s <i>HH:MM</i> (e.g. /%s 07:30)", cmd, cmd)
+			d, err := svc.GetDashboard()
+			if err != nil {
+				return "⚠ " + html.EscapeString(userMessage(err))
+			}
+			if cmd == "briefing" {
+				return formatBriefing(d)
+			}
+			q, ok := nudgeQuest(d)
+			if !ok {
+				return "Nothing to nudge about — you've logged progress today (or rest mode is on). 🔥"
+			}
+			return fmt.Sprintf("🌙 Nothing logged today. Smallest step:\n%s\n\n/done %d and the streak lives.", questLine(*q), q.ID)
 		}
 		if err := svc.SetTelegramPushTime(cmd, arg); err != nil {
 			return "⚠ " + html.EscapeString(userMessage(err))

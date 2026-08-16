@@ -337,7 +337,9 @@ Commands once paired:
 /done <id> — complete a quest
 /ward <attribute> — 7-day decay shield (30g)
 /rest on|off — pause/resume decay
+/briefing — get your briefing right now
 /briefing HH:MM — your personal briefing time
+/nudge — check the nudge right now
 /nudge HH:MM — your personal nudge time
 /unpair — disconnect this chat
 /help — this message
