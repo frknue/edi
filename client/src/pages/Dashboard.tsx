@@ -9,6 +9,7 @@ import {
   useSetRestMode,
 } from "../lib/queries";
 import { useReward } from "../lib/reward";
+import { getAttr } from "../lib/theme";
 import { CharacterHeader } from "../components/CharacterHeader";
 import { TrophyCase } from "../components/TrophyCase";
 import { AttributeCard } from "../components/AttributeCard";
@@ -62,6 +63,8 @@ export function DashboardPage({
       <CharacterHeader character={data.character} streak={data.streak} daily={data.daily_progress} gold={data.gold_balance} />
 
       <TrophyCase />
+
+      <NearGoal attributes={data.attributes} />
 
       {/* Running loot buffs — a reason to complete MORE today */}
       {data.active_buffs.length > 0 && (
@@ -245,6 +248,33 @@ export function DashboardPage({
           </section>
         </div>
       </div>
+    </div>
+  );
+}
+
+
+// NearGoal names the attribute closest to leveling — something is always
+// almost done, and the brain wants to close it.
+function NearGoal({ attributes }: { attributes: import("../lib/types").Attribute[] }) {
+  const candidates = attributes
+    .map((a) => ({ a, left: a.xp_for_next_level - a.xp_into_level }))
+    .filter((c) => c.left > 0)
+    .sort((x, y) => x.left - y.left);
+  const best = candidates[0];
+  if (!best || best.left > 100) return null; // only when it's genuinely close
+  const meta = getAttr(best.a.key);
+  const Icon = meta.Icon;
+  return (
+    <div
+      className="flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm"
+      style={{ borderColor: `${meta.color}55`, background: `${meta.color}0f` }}
+      data-testid="near-goal"
+    >
+      <Icon size={15} style={{ color: meta.color }} />
+      <span className="text-muted">
+        <span className="font-semibold" style={{ color: meta.color }}>{meta.label}</span> is only{" "}
+        <span className="tabnum font-semibold text-ink">{best.left} XP</span> from Lv {best.a.level + 1} — one quest away.
+      </span>
     </div>
   );
 }

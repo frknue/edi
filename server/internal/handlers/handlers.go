@@ -301,6 +301,26 @@ func (h *Handlers) listAchievements(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+// --- story mode ---------------------------------------------------------------
+
+func (h *Handlers) storyNarration(w http.ResponseWriter, r *http.Request) {
+	story, err := h.forUser(r).StoryNarration()
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"story": story})
+}
+
+func (h *Handlers) forgeBoss(w http.ResponseWriter, r *http.Request) {
+	quest, err := h.forUser(r).ForgeBoss()
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, quest)
+}
+
 // --- tools ------------------------------------------------------------------
 
 func (h *Handlers) listGuidedTools(w http.ResponseWriter, r *http.Request) {

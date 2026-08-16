@@ -215,6 +215,21 @@ func (r *Runner) handleCommand(svc *services.Service, chatID int64, cmd, arg str
 		r.resetFire(chatOwner(svc), cmd)
 		return fmt.Sprintf("✓ %s time set to %s (your local server time)", cmd, html.EscapeString(arg))
 
+	case "story":
+		story, err := r.narrate(svc)
+		if err != nil {
+			return "⚠ " + html.EscapeString(userMessage(err))
+		}
+		return "📜 <i>" + html.EscapeString(story) + "</i>"
+
+	case "boss":
+		q, err := svc.ForgeBoss()
+		if err != nil {
+			return "⚠ " + html.EscapeString(userMessage(err))
+		}
+		return fmt.Sprintf("⚔️ <b>A boss has been forged:</b>\n%s\n<i>%s</i>\n\n/done %d when you bring it down.",
+			questLine(q), html.EscapeString(q.Description), q.ID)
+
 	case "unpair":
 		if err := svc.UnlinkTelegramChat(chatID); err != nil {
 			return "⚠ " + html.EscapeString(userMessage(err))
@@ -226,6 +241,30 @@ func (r *Runner) handleCommand(svc *services.Service, chatID int64, cmd, arg str
 
 	default:
 		return helpText
+	}
+}
+
+// narrationTimeout bounds every LLM narration call — a hung model must never
+// stall a chat reply or the push loop.
+const narrationTimeout = 15 * time.Second
+
+// narrate runs StoryNarration with a hard deadline (the stray goroutine of a
+// timed-out call finishes in the background and is discarded).
+func (r *Runner) narrate(svc *services.Service) (string, error) {
+	type res struct {
+		s   string
+		err error
+	}
+	ch := make(chan res, 1)
+	go func() {
+		s, err := svc.StoryNarration()
+		ch <- res{s, err}
+	}()
+	select {
+	case out := <-ch:
+		return out.s, out.err
+	case <-time.After(narrationTimeout):
+		return "", fmt.Errorf("the narrator took too long — try again")
 	}
 }
 
@@ -268,15 +307,15 @@ func (r *Runner) pushLoop(ctx context.Context) {
 		}
 		now := time.Now()
 		for _, l := range links {
-			r.tick(now, l.UserID, l.ChatID, "briefing", r.defaultBriefing, r.sendBriefing)
-			r.tick(now, l.UserID, l.ChatID, "nudge", r.defaultNudge, r.sendNudge)
+			r.tick(now, l.UserID, l.ChatID, "briefing", r.defaultBriefing, r.buildBriefing)
+			r.tick(now, l.UserID, l.ChatID, "nudge", r.defaultNudge, r.buildNudge)
 		}
 	}
 }
 
 // tick advances one (user, kind) schedule: initializes the next fire on first
 // sight, fires when due (retrying 3× at 30s spacing), and skips stale fires.
-func (r *Runner) tick(now time.Time, userID, chatID int64, kind, defaultHHMM string, send func(*services.Service, int64) error) {
+func (r *Runner) tick(now time.Time, userID, chatID int64, kind, defaultHHMM string, build func(*services.Service) (string, error)) {
 	svc := r.svc.ForUser(userID)
 	hhmm, err := svc.TelegramPushTime(kind)
 	if err != nil || hhmm == "" {
@@ -302,10 +341,13 @@ func (r *Runner) tick(now time.Time, userID, chatID int64, kind, defaultHHMM str
 	}
 	if stale {
 		log.Printf("telegram %s for user %d skipped: woke %s past fire time", kind, userID, now.Sub(fire).Round(time.Second))
-	} else {
-		var err error
+	} else if msg, err := build(svc); err != nil {
+		log.Printf("telegram %s for user %d failed to build: %v", kind, userID, err)
+	} else if msg != "" { // "" = nothing to push (e.g. nudge stands down)
+		// The message is built ONCE (an LLM narration must not re-bill);
+		// only the Telegram send retries.
 		for attempt := 0; attempt < 3; attempt++ {
-			if err = send(svc, chatID); err == nil {
+			if err = r.tg.SendMessage(chatID, msg); err == nil {
 				break
 			}
 			if attempt < 2 {
@@ -329,25 +371,30 @@ func (r *Runner) resetFire(userID int64, kind string) {
 	r.mu.Unlock()
 }
 
-// sendBriefing pushes the morning briefing.
-func (r *Runner) sendBriefing(svc *services.Service, chatID int64) error {
+// buildBriefing renders the morning briefing, opening with a narrated
+// episode when the user has AI connected (fail-soft: any narration problem
+// falls back to the plain briefing).
+func (r *Runner) buildBriefing(svc *services.Service) (string, error) {
 	d, err := svc.GetDashboard()
 	if err != nil {
-		return err
+		return "", err
 	}
-	return r.tg.SendMessage(chatID, formatBriefing(d))
+	msg := formatBriefing(d)
+	if story, err := r.narrate(svc); err == nil && story != "" {
+		msg = "📜 <i>" + html.EscapeString(story) + "</i>\n\n" + msg
+	}
+	return msg, nil
 }
 
-// sendNudge pushes the evening nudge — only when nudgeQuest says so.
-func (r *Runner) sendNudge(svc *services.Service, chatID int64) error {
+// buildNudge renders the evening nudge — "" when it stands down.
+func (r *Runner) buildNudge(svc *services.Service) (string, error) {
 	d, err := svc.GetDashboard()
 	if err != nil {
-		return err
+		return "", err
 	}
 	q, ok := nudgeQuest(d)
 	if !ok {
-		return nil
+		return "", nil
 	}
-	msg := fmt.Sprintf("🌙 Nothing logged today. Smallest step:\n%s\n\n/done %d and the streak lives.", questLine(*q), q.ID)
-	return r.tg.SendMessage(chatID, msg)
+	return fmt.Sprintf("🌙 Nothing logged today. Smallest step:\n%s\n\n/done %d and the streak lives.", questLine(*q), q.ID), nil
 }

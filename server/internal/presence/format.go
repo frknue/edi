@@ -22,6 +22,8 @@ const helpText = `<b>edi</b> — your Life RPG, in your pocket
 /done &lt;id&gt; — complete a quest
 /ward &lt;attribute&gt; — 7-day decay shield (30g)
 /rest on|off — pause/resume decay
+/story — a narrated episode of your saga (AI)
+/boss — forge this week's boss quest (AI)
 /briefing — get your briefing right now
 /briefing HH:MM — set your daily briefing time
 /nudge — check the nudge right now

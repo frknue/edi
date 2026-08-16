@@ -180,6 +180,9 @@ func NewRegistry() *Registry {
 	add("get_weakest_attribute", "Return the attribute with the least total XP (useful for choosing what to train next).",
 		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) { return svc.GetWeakestAttribute() })
 
+	add("forge_boss", "AI-forge a boss quest from the user's weakest attributes and create it (type boss, difficulty boss). Requires a connected ChatGPT account.",
+		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) { return svc.ForgeBoss() })
+
 	add("generate_suggestions", "Run the rule-based engine and return pending suggestions.",
 		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) { return svc.GenerateSuggestions() })
 
