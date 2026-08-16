@@ -73,6 +73,14 @@ export function useCreateQuest() {
   });
 }
 
+// Drafting only proposes form values — nothing changes server-side, so there is
+// nothing to invalidate. Failures surface through the global mutation toast.
+export function useDraftQuest() {
+  return useMutation({
+    mutationFn: (body: { title: string; description: string }) => api.draftQuest(body),
+  });
+}
+
 export function useUpdateQuest() {
   const invalidate = useInvalidateAll();
   return useMutation({

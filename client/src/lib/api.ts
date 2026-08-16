@@ -12,6 +12,7 @@ import type {
   OpenAIStatus,
   PurchaseResult,
   Quest,
+  QuestDraft,
   QuestInput,
   RestState,
   ShopItem,
@@ -87,6 +88,8 @@ export const api = {
   },
   createQuest: (input: QuestInput) =>
     request<Quest>("/quests", { method: "POST", body: JSON.stringify(input) }),
+  draftQuest: (body: { title: string; description: string }) =>
+    request<QuestDraft>("/quests/draft", { method: "POST", body: JSON.stringify(body) }),
   updateQuest: (id: number, patch: Partial<QuestInput> & { status?: string }) =>
     request<Quest>(`/quests/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   completeQuest: (id: number) =>

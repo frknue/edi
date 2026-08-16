@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, ChevronUp, Minus, Plus, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, Minus, Plus, Sparkles, Trash2, X } from "lucide-react";
 import type { Difficulty, Quest, QuestInput, QuestType, SubtaskInput } from "../lib/types";
 import { attributeMeta, difficultyMeta, getType, typeMeta } from "../lib/theme";
+import { useDraftQuest, useOpenAIStatus } from "../lib/queries";
+import { pushToast } from "../lib/toast";
 import { Btn, RewardChips } from "./ui";
 
 const TYPES = Object.keys(typeMeta) as QuestType[];
@@ -25,10 +27,43 @@ export function QuestFormModal({ open, initial, busy, error, onClose, onSubmit }
   const [rewards, setRewards] = useState<Record<string, number>>({});
   const [subtasks, setSubtasks] = useState<SubtaskInput[]>([]);
   const [expandedSub, setExpandedSub] = useState<number | null>(null);
+  const [draftReason, setDraftReason] = useState<string | null>(null);
+  const formGeneration = useRef(0);
+
+  // The AI can propose the mechanical fields (type/difficulty/XP) from the
+  // title + description. It suggests only — everything stays editable.
+  const draft = useDraftQuest();
+  const { data: openai } = useOpenAIStatus();
+  const aiEnabled = !!openai?.connected;
+
+  const runDraft = () => {
+    if (title.trim() === "") {
+      pushToast("Write a title first", "info");
+      return;
+    }
+    // A draft takes a few seconds; if the form was reopened meanwhile (a
+    // different quest), drop the stale answer instead of applying it.
+    const generation = formGeneration.current;
+    draft.mutate(
+      { title: title.trim(), description: description.trim() },
+      {
+        onSuccess: (d) => {
+          if (formGeneration.current !== generation) return;
+          setType(d.type);
+          setDifficulty(d.difficulty);
+          setRewards({ ...d.attribute_rewards });
+          setDraftReason(d.reason || null);
+        },
+      },
+    );
+  };
 
   // Reset form whenever the modal opens (for create or edit).
   useEffect(() => {
     if (!open) return;
+    formGeneration.current += 1;
+    setDraftReason(null);
+    draft.reset();
     setTitle(initial?.title ?? "");
     setDescription(initial?.description ?? "");
     setType(initial?.type ?? "daily");
@@ -140,6 +175,31 @@ export function QuestFormModal({ open, initial, busy, error, onClose, onSubmit }
                   className="w-full resize-none rounded-lg border border-edge bg-white/[0.03] px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-[var(--color-gold)] focus:outline-none"
                 />
               </div>
+
+              {aiEnabled && (
+                <div className="space-y-1.5">
+                  <button
+                    onClick={runDraft}
+                    disabled={draft.isPending}
+                    data-testid="draft-quest"
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-60"
+                    style={{
+                      borderColor: "color-mix(in srgb, var(--color-spirituality) 35%, transparent)",
+                      background: "color-mix(in srgb, var(--color-spirituality) 8%, transparent)",
+                      color: "var(--color-spirituality)",
+                    }}
+                  >
+                    {draft.isPending ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                    {draft.isPending ? "Thinking…" : "Suggest type, difficulty & XP"}
+                  </button>
+                  {draftReason && (
+                    <p className="text-[11px] leading-snug text-faint" data-testid="draft-reason">
+                      <span style={{ color: "var(--color-spirituality)" }}>AI</span> — {draftReason} Everything below
+                      stays editable.
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-muted">Type</label>

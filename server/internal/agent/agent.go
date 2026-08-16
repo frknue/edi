@@ -70,6 +70,16 @@ func NewRegistry(svc *services.Service) *Registry {
 			return svc.CreateQuest(p)
 		})
 
+	add("draft_quest", "Ask the connected AI to propose a quest's type, difficulty and attribute XP from a title (and optional description). Suggests only — nothing is created; pass the result to create_quest to act on it.",
+		`{"type":"object","required":["title"],"properties":{"title":{"type":"string"},"description":{"type":"string"}}}`,
+		func(in json.RawMessage) (any, error) {
+			var p models.QuestDraftRequest
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			return svc.DraftQuest(p)
+		})
+
 	add("toggle_subtask", "Toggle a quest subtask (bonus objective) done/undone. Checked subtasks add their bonus rewards when the quest is completed.",
 		`{"type":"object","required":["quest_id","subtask_id"],"properties":{"quest_id":{"type":"integer"},"subtask_id":{"type":"integer"}}}`,
 		func(in json.RawMessage) (any, error) {

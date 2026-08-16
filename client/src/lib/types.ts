@@ -146,6 +146,15 @@ export interface QuestInput {
   due_date?: string | null;
 }
 
+// What the AI proposes for a half-typed quest. A suggestion only — the user
+// still edits and submits the form.
+export interface QuestDraft {
+  type: QuestType;
+  difficulty: Difficulty;
+  attribute_rewards: Record<string, number>;
+  reason: string;
+}
+
 export interface AgentSuggestion {
   id: number;
   type: string;

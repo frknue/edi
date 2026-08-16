@@ -170,6 +170,7 @@ Base: `/api`
 | GET | `/attributes` | All attributes with derived level/progress |
 | GET | `/quests?type=&status=` | List/filter quests |
 | POST | `/quests` | Create a quest |
+| POST | `/quests/draft` | AI-propose a quest's type/difficulty/XP from a title (+ description); suggests only, persists nothing |
 | PATCH | `/quests/:id` | Update a quest (partial) |
 | POST | `/quests/:id/complete` | Complete → awards XP, writes events, updates streak, returns refreshed dashboard |
 | POST | `/quests/:id/skip` | Skip (increments skip counter) |
@@ -256,7 +257,7 @@ Point an MCP-capable client (Claude Desktop / Claude Code) at it — start the A
 ```
 
 (Build the binary with `make build`.) Tools available to the agent: `get_dashboard`,
-`list_quests`, `create_quest`, `update_quest`, `toggle_subtask`, `complete_quest`,
+`list_quests`, `create_quest`, `draft_quest`, `update_quest`, `toggle_subtask`, `complete_quest`,
 `skip_quest`, `archive_quest`, `create_journal_entry`, `list_journal_entries`,
 `get_weakest_attribute`, `generate_suggestions`, `accept_suggestion`,
 `dismiss_suggestion`, `list_shop_items`, `create_shop_item`, `update_shop_item`,
@@ -383,6 +384,14 @@ as strict JSON, and stores them as pending. Accepting one creates a real quest.
 Under the hood it calls the ChatGPT backend `responses` endpoint — the same
 subscription-billed surface Codex uses. These OpenAI endpoints are undocumented
 and may change.
+
+**✨ Suggest type, difficulty & XP** — in the quest form (New/Edit quest), type a
+title (and optionally a description) and the button asks the model to classify
+it: quest type, difficulty, and 1–3 attribute rewards, plus a one-line reason.
+`POST /quests/draft` proposes only — nothing is persisted, the values land in the
+form and stay fully editable. XP snaps to the ±5 steppers, unknown attributes are
+dropped, and totals follow the same difficulty scale as suggestions (trivial ~15
+… boss ~150+). The button appears only while a ChatGPT account is connected.
 
 **Model and reasoning effort** are both selectable in the connected bar and
 persist per user (`POST /api/openai/config`). The available models come straight

@@ -146,6 +146,22 @@ type QuestInput struct {
 	DueDate          *time.Time       `json:"due_date,omitempty"`
 }
 
+// QuestDraftRequest asks the AI to propose the mechanical parts of a quest
+// (type, difficulty, XP rewards) from what the user has typed so far.
+type QuestDraftRequest struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
+// QuestDraft is the AI's proposal. It is a suggestion only — the user still
+// edits and submits the form themselves.
+type QuestDraft struct {
+	Type             string           `json:"type"`
+	Difficulty       string           `json:"difficulty"`
+	AttributeRewards map[string]int64 `json:"attribute_rewards"`
+	Reason           string           `json:"reason"`
+}
+
 // QuestPatch is a partial update; nil fields are left untouched.
 type QuestPatch struct {
 	Title            *string           `json:"title,omitempty"`

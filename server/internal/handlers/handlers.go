@@ -71,6 +71,22 @@ func (h *Handlers) createQuest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, quest)
 }
 
+// draftQuest asks the AI for a quest's type/difficulty/XP. It only proposes —
+// nothing is persisted; the client applies the draft to the open form.
+func (h *Handlers) draftQuest(w http.ResponseWriter, r *http.Request) {
+	var in models.QuestDraftRequest
+	if err := decodeBody(r, &in); err != nil {
+		writeError(w, err)
+		return
+	}
+	draft, err := h.svc.DraftQuest(in)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, draft)
+}
+
 func (h *Handlers) updateQuest(w http.ResponseWriter, r *http.Request) {
 	id, err := pathID(r, "id")
 	if err != nil {
