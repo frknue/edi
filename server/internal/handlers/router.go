@@ -127,6 +127,13 @@ func spaFileServer(dir string) http.Handler {
 	fs := http.FileServer(http.Dir(dir))
 	index := filepath.Join(dir, "index.html")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// An /api path that matched no route is a 404, never the app shell:
+		// serving index.html here would hand JSON clients HTML ("Unexpected
+		// token '<'") instead of a readable error.
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			writeJSON(w, http.StatusNotFound, errorBody{Error: "unknown API endpoint " + r.URL.Path})
+			return
+		}
 		clean := filepath.Clean(r.URL.Path)
 		if clean == "/" {
 			http.ServeFile(w, r, index)
