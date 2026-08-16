@@ -1,7 +1,7 @@
 # edi — Life RPG. Self-hosted dev/build commands.
 DB ?= edi.db
 
-.PHONY: install dev backend frontend build prod test reset cli mcp help
+.PHONY: install dev backend frontend build prod test reset cli mcp help backup-prod deploy
 
 help:
 	@echo "edi — Life RPG"
@@ -16,6 +16,10 @@ help:
 	@echo "  make mcp        Run the MCP server  (stdio; for AI agent clients)"
 	@echo "  make test       Run backend Go tests"
 	@echo "  make reset      Delete the SQLite database (re-seeds on next start)"
+	@echo ""
+	@echo "  Live (Railway — push to main deploys):"
+	@echo "  make backup-prod  Download the live DB into backups/ (do this before migrations)"
+	@echo "  make deploy       Deploy the working tree out of band"
 
 install:
 	cd server && go mod download
@@ -55,3 +59,19 @@ test:
 reset:
 	rm -f server/$(DB) server/$(DB)-shm server/$(DB)-wal $(DB) $(DB)-shm $(DB)-wal
 	@echo "database reset — demo data re-seeds on next start"
+
+# --- live deployment (Railway) ----------------------------------------------
+# Push to main deploys; these are for looking after the live data.
+
+VOLUME ?= edi-server-volume
+
+# Download the live database. The volume is the ONLY copy of the real
+# character — take one before any migration or storage change.
+backup-prod:
+	@mkdir -p backups
+	railway volume files --volume $(VOLUME) download /edi.db backups/edi-$$(date +%Y%m%d-%H%M%S).db
+	@ls -lh backups | tail -1
+
+# Deploy the working tree out of band (normally: just push to main).
+deploy:
+	railway up --ci

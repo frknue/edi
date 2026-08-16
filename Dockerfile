@@ -15,6 +15,10 @@ WORKDIR /build/server
 COPY server/go.mod server/go.sum ./
 RUN go mod download
 COPY server/ ./
+# Push to main deploys, so the build is the gate: a failing test must never
+# reach the live instance. (The client stage is already gated — `npm run build`
+# runs `tsc --noEmit` first. Live OpenAI tests skip without EDI_LIVE_TEST.)
+RUN go vet ./... && go test ./...
 # The server, plus the Telegram companion so one image can back both Railway
 # services (the bot service just overrides the start command).
 RUN CGO_ENABLED=0 go build -o /build/edi . \
