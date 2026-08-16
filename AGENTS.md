@@ -84,10 +84,12 @@ alternative; don't silently skip the check.
   written and the audit invariant still holds). Check status codes too —
   client-caused errors must be 400/404, not 500 (and unauthenticated must be 401).
 - **Frontend:** `cd client && npm run build` (runs `tsc --noEmit` + Vite build).
-- **UI behavior:** drive a real browser (the `agent-browser` skill / Playwright) —
-  load the page, perform the action, confirm the DOM/XP updates, and check the
-  **browser console is clean** (no errors/warnings). Watch out for backend failures
-  being hidden by the UI; they must surface as a toast/error state.
+- **UI behavior:** drive a real browser via the **`aside` MCP server**
+  (configured in `.mcp.json`; the Aside Browser) — load the page, perform the
+  action, confirm the DOM/XP updates, and check the **browser console is
+  clean** (no errors/warnings). Don't reach for agent-browser/Playwright
+  unless aside is unavailable. Watch out for backend failures being hidden by
+  the UI; they must surface as a toast/error state.
 
 This loop is exactly how the critical concurrency bug and the nil-slice crash were
 caught and fixed — keep using it.
