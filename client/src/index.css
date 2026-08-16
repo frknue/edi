@@ -107,6 +107,16 @@ body::after {
   letter-spacing: -0.02em;
 }
 
+/* Bottom-sheet modals sit flush with the screen edge on phones. Installed to
+   the home screen there is no browser chrome below them, so pad the overlay to
+   keep the footer buttons clear of the home indicator. Only below `sm`, where
+   the sheet is edge-to-edge; env() is 0 everywhere without a notch anyway. */
+@media (max-width: 639px) {
+  .sheet-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
 /* display type = big CRT glyphs with phosphor glow */
 .font-display {
   font-family: var(--font-display);

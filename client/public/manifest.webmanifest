@@ -1,0 +1,16 @@
+{
+  "name": "edi — Life RPG",
+  "short_name": "edi",
+  "description": "Self-hosted Life RPG: real-life quests, XP, and nine attributes that level up.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#060d08",
+  "theme_color": "#050a06",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -52,8 +52,13 @@ export default function App() {
     <div className="mx-auto flex min-h-screen w-full max-w-[1240px] flex-col lg:flex-row">
       <Sidebar view={view} setView={setView} collapsed={collapsed} onToggle={toggleSidebar} />
 
-      {/* Mobile top bar */}
-      <header className="flex items-center justify-between border-b border-edge px-4 py-3 lg:hidden">
+      {/* Mobile top bar. Installed to the home screen the app runs standalone
+          under a translucent status bar, so both bars pad for the safe area
+          (env() is 0 everywhere else, including desktop). */}
+      <header
+        className="flex items-center justify-between border-b border-edge px-4 py-3 lg:hidden"
+        style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top))" }}
+      >
         <Logo />
       </header>
 
@@ -70,7 +75,10 @@ export default function App() {
       </main>
 
       {/* Mobile bottom nav: flat, so the tool children are direct tabs */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-edge bg-[var(--color-abyss)]/95 px-2 py-2 backdrop-blur lg:hidden">
+      <nav
+        className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-edge bg-[var(--color-abyss)]/95 px-2 py-2 backdrop-blur lg:hidden"
+        style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))" }}
+      >
         {(
           [
             { id: "dashboard", label: "Dashboard", Icon: LayoutDashboard },

@@ -88,7 +88,7 @@ function ShopItemModal({
 
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6"
+      className="sheet-safe fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}

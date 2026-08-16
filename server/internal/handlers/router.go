@@ -3,6 +3,7 @@ package handlers
 import (
 	"crypto/subtle"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -121,6 +122,10 @@ func bearerToken(r *http.Request) string {
 	}
 	return r.Header.Get("X-API-Key")
 }
+
+// Go's built-in table has no entry for .webmanifest, and browsers want the
+// PWA manifest served as JSON, not text/plain.
+func init() { _ = mime.AddExtensionType(".webmanifest", "application/manifest+json") }
 
 // spaFileServer serves static assets and falls back to index.html for client-side routes.
 func spaFileServer(dir string) http.Handler {
