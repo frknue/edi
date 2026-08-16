@@ -266,3 +266,85 @@ input[type="range"]::-webkit-slider-thumb {
   0% { opacity: 0; transform: scale(0.9) translateY(8px); }
   100% { opacity: 1; transform: scale(1) translateY(0); }
 }
+
+/* --- pixel hero + game-layer juice ------------------------------------- */
+
+/* idle: gentle bob; the whole sprite breathes */
+.hero-idle {
+  animation: hero-bob 2.6s ease-in-out infinite;
+}
+@keyframes hero-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+/* blink: eye pixels vanish for a beat every few seconds */
+.hero-eye {
+  animation: hero-blink 4.2s step-end infinite;
+}
+@keyframes hero-blink {
+  0%, 91%, 97%, 100% { opacity: 1; }
+  92%, 96% { opacity: 0; }
+}
+
+/* celebrate: victory hops */
+.hero-celebrate {
+  animation: hero-jump 0.9s ease-in-out 3;
+}
+@keyframes hero-jump {
+  0%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-10px) rotate(-4deg); }
+  55% { transform: translateY(0); }
+  75% { transform: translateY(-5px) rotate(3deg); }
+}
+
+/* crit: violent shake */
+.hero-crit {
+  animation: hero-shake 0.45s ease-in-out 3;
+}
+@keyframes hero-shake {
+  0%, 100% { transform: translate(0, 0) rotate(0); }
+  20% { transform: translate(-2px, 1px) rotate(-5deg); }
+  40% { transform: translate(2px, -1px) rotate(4deg); }
+  60% { transform: translate(-2px, 0) rotate(-3deg); }
+  80% { transform: translate(1px, 1px) rotate(2deg); }
+}
+
+/* the title aura pulses slowly */
+.hero-aura {
+  animation: aura-pulse 3s ease-in-out infinite;
+}
+@keyframes aura-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
+/* crit screen shake for the reward panel */
+.shake-crit {
+  animation: panel-shake 0.5s ease-in-out 1;
+}
+@keyframes panel-shake {
+  0%, 100% { transform: translate(0, 0); }
+  15% { transform: translate(-8px, 3px); }
+  30% { transform: translate(7px, -4px); }
+  45% { transform: translate(-5px, 2px); }
+  60% { transform: translate(4px, -2px); }
+  75% { transform: translate(-2px, 1px); }
+}
+
+/* streak flame flicker */
+.flame-flicker {
+  animation: flame 1.6s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+@keyframes flame {
+  0%, 100% { transform: scale(1) rotate(0); opacity: 1; }
+  30% { transform: scale(1.12) rotate(-3deg); opacity: 0.9; }
+  60% { transform: scale(0.95) rotate(2deg); opacity: 1; }
+  80% { transform: scale(1.06) rotate(-1deg); opacity: 0.95; }
+}
+
+/* progress bars ease toward their new fill instead of snapping */
+.xp-fill, .xp-track > div {
+  transition: width 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}

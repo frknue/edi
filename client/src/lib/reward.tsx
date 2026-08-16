@@ -8,7 +8,8 @@ import {
   type ReactNode,
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUpRight, Coins, Sparkles, X } from "lucide-react";
+import { PixelHero } from "../components/PixelHero";
+import { ArrowUpRight, Coins, X } from "lucide-react";
 import type { Achievement, ItemDrop, LevelUp, XPEvent } from "./types";
 import { getAttr, rarityColor } from "./theme";
 
@@ -24,6 +25,7 @@ export interface RewardPayload {
   combo?: number; // combo multiplier this completion paid at (1.0 = none)
   drop?: ItemDrop; // loot, if the dice smiled
   achievements?: Achievement[]; // badges unlocked by this action
+  level?: number; // character level, for the hero cameo
 }
 
 interface RewardContextValue {
@@ -64,6 +66,7 @@ function RewardOverlay({
   onClose: () => void;
 }) {
   const totalXP = result?.xp_events.reduce((sum, e) => sum + e.amount, 0) ?? 0;
+  const shownXP = useCountUp(totalXP);
   return (
     <AnimatePresence>
       {result && (
@@ -92,8 +95,9 @@ function RewardOverlay({
                 : "radial-gradient(circle, rgba(255,176,0,0.55), rgba(255,176,0,0) 65%)",
             }}
           />
+          <SparkBurst crit={result.crit} />
           <motion.div
-            className="hud-panel relative w-full max-w-sm overflow-hidden p-7 text-center"
+            className={`hud-panel relative w-full max-w-sm p-7 text-center ${result.crit ? "shake-crit" : ""}`}
             initial={{ scale: 0.85, y: 24, opacity: 0 }}
             animate={{ scale: 1, y: 0, opacity: 1 }}
             exit={{ scale: 0.9, y: 10, opacity: 0 }}
@@ -108,9 +112,13 @@ function RewardOverlay({
               <X size={18} />
             </button>
 
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-sm border"
-              style={{ borderColor: "var(--color-gold)", color: "var(--color-gold)", boxShadow: "0 0 16px -4px rgba(255,176,0,0.8)" }}>
-              <Sparkles size={22} />
+            <div className="mx-auto mb-3 flex justify-center">
+              <PixelHero
+                level={result.level ?? 1}
+                titled={result.crit === true}
+                mood={result.crit ? "crit" : "celebrate"}
+                size={60}
+              />
             </div>
 
             {result.crit && (
@@ -144,7 +152,7 @@ function RewardOverlay({
               animate={{ scale: 1 }}
               transition={{ type: "spring", stiffness: 360, damping: 14, delay: 0.05 }}
             >
-              +{totalXP} XP
+              +{shownXP} XP
             </motion.div>
 
             {typeof result.combo === "number" && result.combo > 1 && (
@@ -269,5 +277,53 @@ function RewardOverlay({
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+
+// useCountUp animates a number from 0 to target (ease-out) — the XP total
+// ticks up like an arcade score instead of appearing fully formed.
+function useCountUp(target: number, ms = 700): number {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const start = performance.now();
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - start) / ms);
+      setValue(Math.round(target * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, ms]);
+  return value;
+}
+
+// Particles: a burst of phosphor sparks flying out of the panel.
+function SparkBurst({ crit }: { crit?: boolean }) {
+  const sparks = Array.from({ length: crit ? 22 : 14 }, (_, i) => {
+    const angle = (i / (crit ? 22 : 14)) * Math.PI * 2 + Math.random() * 0.5;
+    const dist = 90 + Math.random() * (crit ? 130 : 70);
+    return {
+      x: Math.cos(angle) * dist,
+      y: Math.sin(angle) * dist,
+      size: 3 + Math.random() * (crit ? 5 : 3),
+      delay: Math.random() * 0.15,
+      color: crit && i % 3 === 0 ? "#ff4747" : i % 2 === 0 ? "var(--color-gold)" : "var(--color-phos)",
+    };
+  });
+  return (
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+      {sparks.map((s, i) => (
+        <motion.span
+          key={i}
+          className="absolute rounded-full"
+          style={{ width: s.size, height: s.size, background: s.color, boxShadow: `0 0 6px ${s.color}` }}
+          initial={{ x: 0, y: 0, opacity: 1, scale: 1 }}
+          animate={{ x: s.x, y: s.y, opacity: 0, scale: 0.3 }}
+          transition={{ duration: 0.9 + Math.random() * 0.4, delay: s.delay, ease: "easeOut" }}
+        />
+      ))}
+    </div>
   );
 }

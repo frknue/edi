@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { PixelHero } from "./PixelHero";
 import { Coins, Flame } from "lucide-react";
 import type { CharacterSummary, DailyProgress, Streak } from "../lib/types";
 import { ProgressBar } from "./ui";
@@ -60,8 +61,9 @@ export function CharacterHeader({
         style={{ background: "radial-gradient(circle, rgba(255,176,0,0.18), transparent 70%)" }}
       />
       <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center">
-        {/* identity: CRT level readout */}
+        {/* identity: the hero + CRT level readout */}
         <div className="flex items-center gap-4">
+          <PixelHero level={character.level} titled={!!character.title} size={64} />
           <div
             className="relative grid h-[72px] w-[76px] place-items-center rounded-sm border"
             style={{
@@ -127,7 +129,9 @@ export function CharacterHeader({
           </div>
           <div className="text-center">
             <div className="flex items-center justify-center gap-1.5">
-              <Flame size={20} style={{ color: streak.current > 0 ? "#ffa23e" : "var(--color-faint)" }} />
+              <span className={streak.current > 0 ? "flame-flicker inline-flex" : "inline-flex"}>
+                <Flame size={20} style={{ color: streak.current > 0 ? "#ffa23e" : "var(--color-faint)" }} />
+              </span>
               <span className="tabnum text-2xl font-bold text-ink">{streak.current}</span>
             </div>
             <div className="mt-0.5 font-display text-[10px] uppercase tracking-wider text-faint">
