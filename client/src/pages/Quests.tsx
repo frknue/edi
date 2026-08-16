@@ -9,6 +9,7 @@ import {
   useArchiveQuest,
 } from "../lib/queries";
 import { useReward } from "../lib/reward";
+import { pushToast } from "../lib/toast";
 import { QuestCard } from "../components/QuestCard";
 import { QuestFormModal } from "../components/QuestFormModal";
 import { Btn, EmptyState, SectionTitle, Spinner } from "../components/ui";
@@ -128,6 +129,12 @@ export function QuestsPage() {
                 onEdit={openEdit}
                 onSkip={q.status === "active" ? (id) => skip.mutate(id) : undefined}
                 onArchive={q.status !== "archived" ? (id) => archive.mutate(id) : undefined}
+                onRestore={(id) =>
+                  update.mutate(
+                    { id, patch: { status: "active" } },
+                    { onSuccess: (r) => pushToast(`Quest restored: ${r.title}`, "success") },
+                  )
+                }
               />
             ))}
           </div>

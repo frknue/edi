@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Archive, Check, CheckCircle2, Pencil, SkipForward, Square, SquareCheckBig } from "lucide-react";
+import { Archive, Check, CheckCircle2, Pencil, RotateCcw, SkipForward, Square, SquareCheckBig } from "lucide-react";
 import type { Quest } from "../lib/types";
 import { getType } from "../lib/theme";
 import { useToggleSubtask } from "../lib/queries";
@@ -11,6 +11,7 @@ interface QuestCardProps {
   onComplete?: (id: number) => void;
   onSkip?: (id: number) => void;
   onArchive?: (id: number) => void;
+  onRestore?: (id: number) => void;
   onEdit?: (quest: Quest) => void;
   busy?: boolean;
 }
@@ -21,6 +22,7 @@ export function QuestCard({
   onComplete,
   onSkip,
   onArchive,
+  onRestore,
   onEdit,
   busy,
 }: QuestCardProps) {
@@ -115,6 +117,22 @@ export function QuestCard({
                 <Archive size={15} />
               </Btn>
             )}
+          </div>
+        )}
+
+        {/* Skipped/archived quests aren't gone — bring them back to active. */}
+        {onRestore && (quest.status === "skipped" || quest.status === "archived") && (
+          <div className="mt-4">
+            <Btn
+              variant="ghost"
+              className="w-full"
+              disabled={busy}
+              onClick={() => onRestore(quest.id)}
+              data-testid={`restore-${quest.id}`}
+            >
+              <RotateCcw size={15} />
+              Restore quest
+            </Btn>
           </div>
         )}
       </div>
