@@ -72,13 +72,14 @@ db-setup:
 # --- live deployment (Railway) ----------------------------------------------
 # Push to main deploys; these are for looking after the live data.
 
-# Dump the live database. Postgres on Railway is the ONLY copy of the real
+# Dump the live database (pg_dump inside the Postgres container, over the
+# Railway SSH tunnel). Postgres on Railway is the ONLY copy of the real
 # characters — take one before any migration or storage change.
+# Restore with: railway connect Postgres < backups/<file>.sql
 backup-prod:
 	@mkdir -p backups
-	railway run --service edi-db -- true 2>/dev/null || true
-	railway connect edi-db --help >/dev/null 2>&1 || true
-	@echo "use: pg_dump \"$$RAILWAY_PG_URL\" > backups/edi-$$(date +%Y%m%d-%H%M%S).sql (see AGENTS.md)"
+	railway ssh --service Postgres -- sh -c 'pg_dump -U "$$PGUSER" "$$PGDATABASE"' > backups/edi-$$(date +%Y%m%d-%H%M%S).sql
+	@ls -lh backups | tail -1
 
 # Deploy the working tree out of band (normally: just push to main).
 deploy:
