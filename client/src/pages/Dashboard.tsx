@@ -60,6 +60,22 @@ export function DashboardPage({
     <div className="space-y-7">
       <CharacterHeader character={data.character} streak={data.streak} daily={data.daily_progress} gold={data.gold_balance} />
 
+      {/* Running loot buffs — a reason to complete MORE today */}
+      {data.active_buffs.length > 0 && (
+        <div className="flex flex-wrap gap-2" data-testid="active-buffs">
+          {data.active_buffs.map((b, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium"
+              style={{ borderColor: "#b98aff66", background: "#b98aff14", color: "#cbaaff" }}
+              title={`until ${new Date(b.expires_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
+            >
+              ✨ +{b.percent}% {b.attribute === "" ? "ALL" : b.attribute} XP until midnight
+            </span>
+          ))}
+        </div>
+      )}
+
       {data.rest_mode && (
         <div
           className="flex items-center justify-between rounded-lg border px-4 py-3"

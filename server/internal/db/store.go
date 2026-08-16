@@ -359,6 +359,7 @@ func (s *Store) QuestsSkippedRepeatedly(userID int64, threshold int) ([]models.Q
 type CompletionOutcome struct {
 	Crit            bool
 	ComboMultiplier float64
+	Drop            *models.ItemDrop
 }
 
 func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPEvent, []models.LevelUp, int64, CompletionOutcome, error) {
@@ -475,6 +476,27 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 			}
 		}
 	}
+	// Active loot buffs: +N% on an attribute ("" = all), until local midnight.
+	buffs, err := activeBuffsTx(tx, userID, now)
+	if err != nil {
+		return fail(err)
+	}
+	if len(buffs) > 0 {
+		for _, a := range base {
+			pct := 0
+			for _, b := range buffs {
+				if b.Attribute == "" || b.Attribute == a.key {
+					pct += b.Percent
+				}
+			}
+			if pct == 0 {
+				continue
+			}
+			if bonus := int64(float64(a.amount) * float64(pct) / 100.0); bonus > 0 {
+				awards = append(awards, award{a.key, bonus, fmt.Sprintf("loot buff +%d%% · %s", pct, title), "buff", "buff"})
+			}
+		}
+	}
 
 	total := int64(0)
 	for _, a := range awards {
@@ -535,6 +557,14 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 	if err := updateStreakTx(tx, userID, now); err != nil {
 		return fail(err)
 	}
+
+	// Loot roll — inside the tx, so a drop can never outlive a rolled-back
+	// completion (or vice versa).
+	drop, err := s.rollLootTx(tx, userID, questID, now)
+	if err != nil {
+		return fail(err)
+	}
+	outcome.Drop = drop
 
 	if err := tx.Commit(); err != nil {
 		return fail(err)

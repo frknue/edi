@@ -293,6 +293,7 @@ func (s *Service) CompleteQuest(id int64) (models.CompletionResult, error) {
 		Gold:            gold,
 		Crit:            outcome.Crit,
 		ComboMultiplier: outcome.ComboMultiplier,
+		Drop:            outcome.Drop,
 		Dashboard:       dash,
 	}, nil
 }
@@ -441,6 +442,10 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 	if err != nil {
 		return models.Dashboard{}, err
 	}
+	buffs, err := s.store.ActiveBuffs(s.userID, time.Now().UTC())
+	if err != nil {
+		return models.Dashboard{}, err
+	}
 	goldBalance, err := s.store.GoldBalance(s.userID)
 	if err != nil {
 		return models.Dashboard{}, err
@@ -481,6 +486,7 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 		RecommendedQuest: recommended,
 		DailyProgress:    models.DailyProgress{CompletedToday: completedToday, Goal: goal, Ratio: dailyRatio, NextComboMultiplier: ComboMultiplier(completedToday + 1)},
 		Suggestions:      orEmpty(suggestions),
+		ActiveBuffs:      orEmpty(buffs),
 		DecayedToday:     decayed,
 	}, nil
 }

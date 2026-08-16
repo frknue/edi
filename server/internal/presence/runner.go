@@ -156,6 +156,9 @@ func (r *Runner) handleCommand(svc *services.Service, chatID int64, cmd, arg str
 		if result.ComboMultiplier > 1 {
 			reply += fmt.Sprintf("\n🔗 combo ×%.2g — keep the chain going", result.ComboMultiplier)
 		}
+		if d := result.Drop; d != nil {
+			reply += fmt.Sprintf("\n%s <b>%s DROP!</b> %s — %s", d.Icon, strings.ToUpper(d.Rarity), html.EscapeString(d.Name), html.EscapeString(d.Flavor))
+		}
 		for _, lu := range result.LevelUps {
 			reply += fmt.Sprintf("\n⬆ %s reached Lv %d!", html.EscapeString(lu.AttributeName), lu.ToLevel)
 		}

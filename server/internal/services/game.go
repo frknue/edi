@@ -1,5 +1,11 @@
 package services
 
+import (
+	"time"
+
+	"edi/internal/models"
+)
+
 // Game-layer display math — mirrors db/game_math.go (keep in sync; the store
 // owns the awarding, this feeds dashboards and previews).
 
@@ -18,4 +24,16 @@ func ComboMultiplier(nth int) float64 {
 	default:
 		return 1.5
 	}
+}
+
+// ListItems returns the user's loot inventory (newest first).
+func (s *Service) ListItems() ([]models.ItemDrop, error) {
+	out, err := s.store.ListItems(s.userID, 200)
+	return orEmpty(out), err
+}
+
+// ActiveBuffs returns the user's running loot buffs.
+func (s *Service) ActiveBuffs() ([]models.ActiveBuff, error) {
+	out, err := s.store.ActiveBuffs(s.userID, time.Now().UTC())
+	return orEmpty(out), err
 }

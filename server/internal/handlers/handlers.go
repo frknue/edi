@@ -281,6 +281,17 @@ func (h *Handlers) dismissSuggestion(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, sug)
 }
 
+// --- loot ---------------------------------------------------------------------
+
+func (h *Handlers) listItems(w http.ResponseWriter, r *http.Request) {
+	items, err := h.forUser(r).ListItems()
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, items)
+}
+
 // --- tools ------------------------------------------------------------------
 
 func (h *Handlers) listGuidedTools(w http.ResponseWriter, r *http.Request) {

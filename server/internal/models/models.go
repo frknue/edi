@@ -161,6 +161,32 @@ type QuestInput struct {
 	DueDate          *time.Time       `json:"due_date,omitempty"`
 }
 
+// ItemDrop is one piece of loot: a completion may drop a trophy, a temporal
+// XP buff (auto-active until local midnight), or an instant gold cache.
+type ItemDrop struct {
+	ID        int64      `json:"id"`
+	Key       string     `json:"key"`
+	Name      string     `json:"name"`
+	Icon      string     `json:"icon"`
+	Rarity    string     `json:"rarity"` // common | uncommon | rare | epic | legendary
+	Kind      string     `json:"kind"`   // trophy | buff | gold
+	Flavor    string     `json:"flavor"`
+	Percent   int        `json:"percent,omitempty"`   // buff strength
+	Attribute string     `json:"attribute,omitempty"` // buff target ("" = all)
+	Gold      int64      `json:"gold,omitempty"`      // gold-cache size
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	DroppedAt time.Time  `json:"dropped_at,omitzero"`
+}
+
+// ActiveBuff is a running loot buff shown on the dashboard and applied (as
+// auditable 'buff' xp_events) to completions until it expires.
+type ActiveBuff struct {
+	ItemKey   string    `json:"item_key"`
+	Attribute string    `json:"attribute"` // "" = all attributes
+	Percent   int       `json:"percent"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
 // TelegramStatus is a user's view of the Telegram presence channel.
 type TelegramStatus struct {
 	Configured  bool   `json:"configured"`   // bot token set + bot reachable
@@ -264,6 +290,7 @@ type Dashboard struct {
 	RecommendedQuest *Quest            `json:"recommended_quest"`
 	DailyProgress    DailyProgress     `json:"daily_progress"`
 	Suggestions      []AgentSuggestion `json:"pending_suggestions"`
+	ActiveBuffs      []ActiveBuff      `json:"active_buffs"` // running loot buffs
 }
 
 // LevelUp reports an attribute crossing a level boundary during a completion.
@@ -277,15 +304,16 @@ type LevelUp struct {
 // CompletionResult is returned after completing a quest so clients can render
 // rewarding feedback and refresh state in one round-trip.
 type CompletionResult struct {
-	Quest     Quest     `json:"completed_quest"`
-	XPEvents  []XPEvent `json:"xp_events"`
-	LevelUps  []LevelUp `json:"level_ups"`
-	Gold      int64     `json:"gold"` // gold minted by this completion
+	Quest    Quest     `json:"completed_quest"`
+	XPEvents []XPEvent `json:"xp_events"`
+	LevelUps []LevelUp `json:"level_ups"`
+	Gold     int64     `json:"gold"` // gold minted by this completion
 	// Game-layer outcomes: Crit doubles the payout (bonus xp_events with
 	// source 'crit'); ComboMultiplier is the chain multiplier this completion
 	// paid at (1.0 = no combo; bonus rows use source 'combo').
 	Crit            bool      `json:"crit"`
 	ComboMultiplier float64   `json:"combo_multiplier"`
+	Drop            *ItemDrop `json:"drop,omitempty"` // loot, if the dice smiled
 	Dashboard       Dashboard `json:"dashboard"`
 }
 

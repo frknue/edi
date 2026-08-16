@@ -71,3 +71,12 @@ export const difficultyMeta: Record<Difficulty, { label: string; pips: number; c
 };
 
 export const ATTRIBUTE_KEYS = Object.keys(attributeMeta);
+
+// Loot rarity palette (the classic RPG ramp — instantly legible).
+export const rarityColor: Record<string, string> = {
+  common: "#9aa4a6",
+  uncommon: "#4bff7e",
+  rare: "#34d0ff",
+  epic: "#b98aff",
+  legendary: "#ffb000",
+};

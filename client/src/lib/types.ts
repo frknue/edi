@@ -229,6 +229,7 @@ export interface Dashboard {
   recommended_quest: Quest | null;
   daily_progress: DailyProgress;
   pending_suggestions: AgentSuggestion[];
+  active_buffs: ActiveBuff[];
 }
 
 export interface LevelUp {
@@ -238,6 +239,29 @@ export interface LevelUp {
   to_level: number;
 }
 
+// Loot: a completion may drop a trophy, a temporal XP buff, or a gold cache.
+export interface ItemDrop {
+  id: number;
+  key: string;
+  name: string;
+  icon: string;
+  rarity: "common" | "uncommon" | "rare" | "epic" | "legendary";
+  kind: "trophy" | "buff" | "gold";
+  flavor: string;
+  percent?: number;
+  attribute?: string;
+  gold?: number;
+  expires_at?: string;
+  dropped_at?: string;
+}
+
+export interface ActiveBuff {
+  item_key: string;
+  attribute: string; // "" = all
+  percent: number;
+  expires_at: string;
+}
+
 export interface CompletionResult {
   completed_quest: Quest;
   xp_events: XPEvent[];
@@ -245,6 +269,7 @@ export interface CompletionResult {
   gold: number;
   crit: boolean;
   combo_multiplier: number;
+  drop?: ItemDrop;
   dashboard: Dashboard;
 }
 

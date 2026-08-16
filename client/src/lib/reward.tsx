@@ -9,8 +9,8 @@ import {
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUpRight, Coins, Sparkles, X } from "lucide-react";
-import type { LevelUp, XPEvent } from "./types";
-import { getAttr } from "./theme";
+import type { ItemDrop, LevelUp, XPEvent } from "./types";
+import { getAttr, rarityColor } from "./theme";
 
 // A generic reward payload so any XP-awarding action (quest, tool, …) can
 // trigger the celebration overlay.
@@ -22,6 +22,7 @@ export interface RewardPayload {
   gold?: number; // gold minted alongside the XP
   crit?: boolean; // critical hit — the payout was doubled
   combo?: number; // combo multiplier this completion paid at (1.0 = none)
+  drop?: ItemDrop; // loot, if the dice smiled
 }
 
 interface RewardContextValue {
@@ -41,7 +42,7 @@ export function RewardProvider({ children }: { children: ReactNode }) {
   const celebrate = useCallback((payload: RewardPayload) => {
     window.clearTimeout(timer.current);
     setActive(payload);
-    timer.current = window.setTimeout(() => setActive(null), payload.crit ? 4200 : 3200);
+    timer.current = window.setTimeout(() => setActive(null), payload.drop ? 5200 : payload.crit ? 4200 : 3200);
   }, []);
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
@@ -191,6 +192,34 @@ function RewardOverlay({
                 );
               })}
             </div>
+
+            {result.drop && (
+              <motion.div
+                className="mt-5 rounded-xl border-2 p-3 text-left"
+                style={{
+                  borderColor: rarityColor[result.drop.rarity],
+                  background: `${rarityColor[result.drop.rarity]}14`,
+                  boxShadow: `0 0 24px -6px ${rarityColor[result.drop.rarity]}`,
+                }}
+                initial={{ opacity: 0, scale: 0.7, rotate: -3 }}
+                animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 16, delay: 0.5 }}
+                data-testid="loot-drop"
+              >
+                <div className="font-display text-[10px] uppercase tracking-[0.25em]" style={{ color: rarityColor[result.drop.rarity] }}>
+                  {result.drop.rarity} drop!
+                </div>
+                <div className="mt-1 flex items-center gap-2">
+                  <span className="text-2xl">{result.drop.icon}</span>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold" style={{ color: rarityColor[result.drop.rarity] }}>
+                      {result.drop.name}
+                    </div>
+                    <div className="text-[11px] leading-snug text-muted">{result.drop.flavor}</div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
 
             {result.level_ups.length > 0 && (
               <motion.div

@@ -171,6 +171,9 @@ func NewRegistry() *Registry {
 			return svc.ListJournalEntries(p.Limit, "")
 		})
 
+	add("list_items", "List the user's loot inventory (items dropped by quest completions).",
+		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) { return svc.ListItems() })
+
 	add("get_weakest_attribute", "Return the attribute with the least total XP (useful for choosing what to train next).",
 		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) { return svc.GetWeakestAttribute() })
 

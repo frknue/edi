@@ -131,3 +131,127 @@ func TestCompleteQuestComboChain(t *testing.T) {
 		t.Error("XP audit invariant violated after combo chain")
 	}
 }
+
+// seqRoll returns a roll func that replays a fixed dice sequence.
+// CompleteQuest consumes dice in order: crit, drop, rarity, item-index.
+func seqRoll(rolls ...float64) func() float64 {
+	i := 0
+	return func() float64 {
+		v := rolls[i%len(rolls)]
+		i++
+		return v
+	}
+}
+
+// A forced drop lands in the inventory inside the same completion, buff drops
+// auto-activate until midnight, and the buff pays on the NEXT completion as
+// auditable 'buff' rows.
+func TestLootDropAndBuff(t *testing.T) {
+	svc := newTestService(t)
+
+	mk := func(title string) models.Quest {
+		q, err := svc.CreateQuest(models.QuestInput{Title: title, AttributeRewards: map[string]int64{"focus": 40}})
+		if err != nil {
+			t.Fatalf("create: %v", err)
+		}
+		return q
+	}
+	q1, q2 := mk("dropper"), mk("buffed")
+
+	// no crit (0.99) → drop (0.0) → epic rarity (0.96) → first item (0.0)
+	// = Prism of Momentum: +25% ALL XP until midnight.
+	svc.store.SetRollForTest(seqRoll(0.99, 0.0, 0.96, 0.0))
+	r1, err := svc.CompleteQuest(q1.ID)
+	if err != nil {
+		t.Fatalf("q1: %v", err)
+	}
+	if r1.Drop == nil || r1.Drop.Key != "prism_of_momentum" || r1.Drop.Rarity != "epic" {
+		t.Fatalf("drop = %+v, want the epic prism", r1.Drop)
+	}
+	if r1.Drop.ExpiresAt == nil {
+		t.Fatal("buff drop must carry its expiry")
+	}
+	if buffs := r1.Dashboard.ActiveBuffs; len(buffs) != 1 || buffs[0].Percent != 25 {
+		t.Fatalf("dashboard buffs = %+v, want the +25%% prism", buffs)
+	}
+
+	// Inventory has it.
+	items, err := svc.ListItems()
+	if err != nil || len(items) != 1 || items[0].Key != "prism_of_momentum" {
+		t.Fatalf("inventory = %+v (%v), want the prism", items, err)
+	}
+
+	// Next completion: no crit, no drop — but the buff pays +25% on base 40
+	// (=10), PLUS the combo ×1.1 (2nd of the day, +4).
+	svc.store.SetRollForTest(func() float64 { return 0.99 })
+	r2, err := svc.CompleteQuest(q2.ID)
+	if err != nil {
+		t.Fatalf("q2: %v", err)
+	}
+	var buffXP, comboXP int64
+	for _, e := range r2.XPEvents {
+		switch e.Source {
+		case "buff":
+			buffXP += e.Amount
+		case "combo":
+			comboXP += e.Amount
+		}
+	}
+	if buffXP != 10 {
+		t.Errorf("buff bonus = %d, want 10 (+25%% of 40)", buffXP)
+	}
+	if comboXP != 4 {
+		t.Errorf("combo bonus = %d, want 4", comboXP)
+	}
+	if auditDrift(t, svc) != 0 {
+		t.Error("XP audit invariant violated after loot + buff")
+	}
+}
+
+// Gold-cache drops write an auditable gold_events row of source 'loot'.
+func TestLootGoldCache(t *testing.T) {
+	svc := newTestService(t)
+	q, _ := svc.CreateQuest(models.QuestInput{Title: "cache", AttributeRewards: map[string]int64{"wealth": 10}})
+	before, _ := svc.GoldBalance()
+
+	// no crit → drop → common (0.1) → item index 1 = Copper Cache (5g).
+	svc.store.SetRollForTest(seqRoll(0.99, 0.0, 0.1, 0.34))
+	r, err := svc.CompleteQuest(q.ID)
+	if err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	if r.Drop == nil || r.Drop.Kind != "gold" {
+		t.Fatalf("drop = %+v, want a gold cache", r.Drop)
+	}
+	after, _ := svc.GoldBalance()
+	wantMint := int64(1) // 10 XP -> 1g
+	if after-before != wantMint+r.Drop.Gold {
+		t.Errorf("gold delta = %d, want %d (mint) + %d (cache)", after-before, wantMint, r.Drop.Gold)
+	}
+}
+
+// After pityAfter dropless completions, the next one is guaranteed loot.
+func TestLootPity(t *testing.T) {
+	svc := newTestService(t)
+	svc.store.SetRollForTest(func() float64 { return 0.5 }) // never crit (0.5>0.15? no wait)
+
+	// 0.5 > 0.15 -> no crit; 0.5 > 0.25 -> no natural drop. Rarity on the pity
+	// drop rolls 0.5 -> common.
+	var drops int
+	for i := 1; i <= 8; i++ {
+		q, _ := svc.CreateQuest(models.QuestInput{Title: "grind", AttributeRewards: map[string]int64{"discipline": 10}})
+		r, err := svc.CompleteQuest(q.ID)
+		if err != nil {
+			t.Fatalf("complete %d: %v", i, err)
+		}
+		if r.Drop != nil {
+			drops++
+			if i <= 6 {
+				t.Errorf("unexpected natural drop on completion %d with a 0.5 roll", i)
+			}
+		}
+	}
+	if drops != 1 {
+		t.Errorf("drops in 8 pity-grind completions = %d, want exactly 1 (the pity drop on #7)", drops)
+	}
+}

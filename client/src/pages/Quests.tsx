@@ -71,6 +71,7 @@ export function QuestsPage() {
           gold: res.gold,
           crit: res.crit,
           combo: res.combo_multiplier,
+          drop: res.drop,
         }),
     });
 
