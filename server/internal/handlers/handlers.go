@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
 
 	"edi/internal/agent"
 	"edi/internal/models"
@@ -22,7 +23,12 @@ func New(svc *services.Service, registry *agent.Registry) *Handlers {
 }
 
 func (h *Handlers) health(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	// Commit comes from the platform env (Railway injects RAILWAY_GIT_COMMIT_SHA
+	// on GitHub-triggered deploys) — the honest way to verify what's live.
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status": "ok",
+		"commit": os.Getenv("RAILWAY_GIT_COMMIT_SHA"),
+	})
 }
 
 // --- dashboard / attributes -------------------------------------------------
