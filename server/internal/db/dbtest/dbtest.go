@@ -59,6 +59,9 @@ func Open(t *testing.T) *db.Store {
 	if err != nil {
 		t.Fatalf("open store in schema %s: %v", schema, err)
 	}
+	// Deterministic dice by default: tests assert exact XP/gold, so nothing
+	// random (crits, loot) fires unless a test overrides the roll itself.
+	store.SetRollForTest(func() float64 { return 1.0 })
 
 	t.Cleanup(func() {
 		store.Close()

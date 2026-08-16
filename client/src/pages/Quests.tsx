@@ -69,6 +69,8 @@ export function QuestsPage() {
           level_ups: res.level_ups,
           label: "Quest Complete",
           gold: res.gold,
+          crit: res.crit,
+          combo: res.combo_multiplier,
         }),
     });
 

@@ -270,7 +270,7 @@ func (s *Service) CompleteQuest(id int64) (models.CompletionResult, error) {
 	if _, err := s.ApplyDecay(); err != nil {
 		return models.CompletionResult{}, err
 	}
-	quest, events, levelUps, gold, err := s.store.CompleteQuest(s.userID, id)
+	quest, events, levelUps, gold, outcome, err := s.store.CompleteQuest(s.userID, id)
 	if err != nil {
 		switch {
 		case errors.Is(err, db.ErrNotFound):
@@ -287,11 +287,13 @@ func (s *Service) CompleteQuest(id int64) (models.CompletionResult, error) {
 		return models.CompletionResult{}, err
 	}
 	return models.CompletionResult{
-		Quest:     quest,
-		XPEvents:  orEmpty(events),
-		LevelUps:  orEmpty(levelUps),
-		Gold:      gold,
-		Dashboard: dash,
+		Quest:           quest,
+		XPEvents:        orEmpty(events),
+		LevelUps:        orEmpty(levelUps),
+		Gold:            gold,
+		Crit:            outcome.Crit,
+		ComboMultiplier: outcome.ComboMultiplier,
+		Dashboard:       dash,
 	}, nil
 }
 
@@ -477,7 +479,7 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 		RestSince:        rest.Since,
 		RecentXPEvents:   orEmpty(events),
 		RecommendedQuest: recommended,
-		DailyProgress:    models.DailyProgress{CompletedToday: completedToday, Goal: goal, Ratio: dailyRatio},
+		DailyProgress:    models.DailyProgress{CompletedToday: completedToday, Goal: goal, Ratio: dailyRatio, NextComboMultiplier: ComboMultiplier(completedToday + 1)},
 		Suggestions:      orEmpty(suggestions),
 		DecayedToday:     decayed,
 	}, nil

@@ -150,6 +150,12 @@ func (r *Runner) handleCommand(svc *services.Service, chatID int64, cmd, arg str
 		}
 		reply := fmt.Sprintf("✓ <b>%s</b> complete!\n+%d XP · +%dg · streak %d🔥",
 			html.EscapeString(result.Quest.Title), xp, result.Gold, result.Dashboard.Streak.Current)
+		if result.Crit {
+			reply = "💥 <b>CRITICAL HIT!</b>\n" + reply
+		}
+		if result.ComboMultiplier > 1 {
+			reply += fmt.Sprintf("\n🔗 combo ×%.2g — keep the chain going", result.ComboMultiplier)
+		}
 		for _, lu := range result.LevelUps {
 			reply += fmt.Sprintf("\n⬆ %s reached Lv %d!", html.EscapeString(lu.AttributeName), lu.ToLevel)
 		}

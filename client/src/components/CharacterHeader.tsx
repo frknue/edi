@@ -131,6 +131,16 @@ export function CharacterHeader({
             <div className="mt-0.5 font-display text-[10px] uppercase tracking-wider text-faint">
               Today
             </div>
+            {daily.next_combo_multiplier > 1 && (
+              <div
+                className="tabnum text-[10px] font-semibold"
+                style={{ color: "var(--color-spirituality)" }}
+                title="Combo chain: back-to-back completions today multiply XP"
+                data-testid="combo-chip"
+              >
+                🔗 next ×{daily.next_combo_multiplier}
+              </div>
+            )}
           </div>
         </div>
       </div>

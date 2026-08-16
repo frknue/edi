@@ -212,6 +212,7 @@ export interface DailyProgress {
   completed_today: number;
   goal: number;
   ratio: number;
+  next_combo_multiplier: number;
 }
 
 export interface Dashboard {
@@ -242,6 +243,8 @@ export interface CompletionResult {
   xp_events: XPEvent[];
   level_ups: LevelUp[];
   gold: number;
+  crit: boolean;
+  combo_multiplier: number;
   dashboard: Dashboard;
 }
 

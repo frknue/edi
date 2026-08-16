@@ -355,10 +355,20 @@ func (s *Store) QuestsSkippedRepeatedly(userID int64, threshold int) ([]models.Q
 // xp_event per rewarded attribute, bumps attribute totals, and updates the
 // streak — all atomically. It returns the completed quest, the created events,
 // and any attribute level-ups.
-func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPEvent, []models.LevelUp, int64, error) {
+// CompletionOutcome carries the game-layer results of a completion.
+type CompletionOutcome struct {
+	Crit            bool
+	ComboMultiplier float64
+}
+
+func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPEvent, []models.LevelUp, int64, CompletionOutcome, error) {
+	fail := func(err error) (models.Quest, []models.XPEvent, []models.LevelUp, int64, CompletionOutcome, error) {
+		return models.Quest{}, nil, nil, 0, CompletionOutcome{}, err
+	}
+
 	names, err := s.AttributeNames(userID)
 	if err != nil {
-		return models.Quest{}, nil, nil, 0, err
+		return fail(err)
 	}
 
 	// The per-user advisory lock (beginUserTx) serializes concurrent completes
@@ -367,7 +377,7 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 	// gets RowsAffected()==1 — no double XP, no duplicate completion row.
 	tx, err := s.beginUserTx(userID)
 	if err != nil {
-		return models.Quest{}, nil, nil, 0, err
+		return fail(err)
 	}
 	defer tx.Rollback() //nolint:errcheck — no-op after a successful Commit
 
@@ -378,22 +388,22 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 		 WHERE id = $2 AND user_id = $3 AND status NOT IN ('completed','archived')`,
 		now, questID, userID)
 	if err != nil {
-		return models.Quest{}, nil, nil, 0, err
+		return fail(err)
 	}
 	affected, err := res.RowsAffected()
 	if err != nil {
-		return models.Quest{}, nil, nil, 0, err
+		return fail(err)
 	}
 	if affected == 0 {
 		// Distinguish "doesn't exist" from "not completable right now".
 		var status string
 		switch e := tx.QueryRow(`SELECT status FROM quests WHERE id = $1 AND user_id = $2`, questID, userID).Scan(&status); e {
 		case sql.ErrNoRows:
-			return models.Quest{}, nil, nil, 0, ErrNotFound
+			return fail(ErrNotFound)
 		case nil:
-			return models.Quest{}, nil, nil, 0, ErrQuestNotCompletable
+			return fail(ErrQuestNotCompletable)
 		default:
-			return models.Quest{}, nil, nil, 0, e
+			return fail(e)
 		}
 	}
 
@@ -401,36 +411,67 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 	var rewardsJSON, title string
 	if err := tx.QueryRow(`SELECT title, attribute_rewards FROM quests WHERE id = $1 AND user_id = $2`, questID, userID).
 		Scan(&title, &rewardsJSON); err != nil {
-		return models.Quest{}, nil, nil, 0, err
+		return fail(err)
 	}
 	rewards := unmarshalRewards(rewardsJSON)
 
 	// Checked subtasks add their own rewards as separately-labeled bonus awards.
 	doneSubs, err := doneSubtasksTx(tx, userID, questID)
 	if err != nil {
-		return models.Quest{}, nil, nil, 0, err
+		return fail(err)
 	}
 
 	// Build the award list: base quest rewards first, then one entry per checked
-	// subtask. Each becomes its own xp_event (clean audit trail); level-ups are
-	// computed cumulatively per attribute so base+bonus on the same attribute
-	// count once from the original XP to the final total.
+	// subtask, then the game-layer bonuses (crit / combo) as their own rows.
+	// Each becomes its own xp_event (clean audit trail); level-ups are computed
+	// cumulatively per attribute so everything counts once from the original XP
+	// to the final total.
 	type award struct {
 		key    string
 		amount int64
 		note   string
-		src    string // gold_events source: "quest" or "subtask"
+		source string // xp_events source: quest | crit | combo
+		gsrc   string // gold_events source label
 	}
 	var awards []award
 	for _, key := range orderedKeys(rewards) {
 		if rewards[key] != 0 {
-			awards = append(awards, award{key, rewards[key], title, "quest"})
+			awards = append(awards, award{key, rewards[key], title, "quest", "quest"})
 		}
 	}
 	for _, st := range doneSubs {
 		for _, key := range orderedKeys(st.AttributeRewards) {
 			if st.AttributeRewards[key] != 0 {
-				awards = append(awards, award{key, st.AttributeRewards[key], title + " · " + st.Title, "subtask"})
+				awards = append(awards, award{key, st.AttributeRewards[key], title + " · " + st.Title, "quest", "subtask"})
+			}
+		}
+	}
+
+	// --- game layer: combo chain + critical hit ------------------------------
+	// Combo position = completions already logged this local day, read INSIDE
+	// the tx (under the advisory lock) BEFORE this completion's row exists.
+	dayStart, dayEnd := localDayBounds(now)
+	var doneToday int
+	if err := tx.QueryRow(
+		`SELECT COUNT(1) FROM quest_completions WHERE user_id = $1 AND completed_at >= $2 AND completed_at < $3`,
+		userID, dayStart, dayEnd).Scan(&doneToday); err != nil {
+		return fail(err)
+	}
+	outcome := CompletionOutcome{ComboMultiplier: comboMultiplier(doneToday + 1)}
+	outcome.Crit = s.dice.Float64() < critChance
+
+	base := awards // bonuses derive from the base payout only
+	if outcome.Crit {
+		for _, a := range base {
+			// A crit doubles the entire payout: +100% per base award.
+			awards = append(awards, award{a.key, a.amount, "CRITICAL HIT! · " + title, "crit", "crit"})
+		}
+	}
+	if m := outcome.ComboMultiplier; m > 1.0 {
+		note := fmt.Sprintf("combo ×%.2g · %s", m, title)
+		for _, a := range base {
+			if bonus := int64(float64(a.amount) * (m - 1.0)); bonus > 0 { // never write +0 rows
+				awards = append(awards, award{a.key, bonus, note, "combo", "combo"})
 			}
 		}
 	}
@@ -441,7 +482,7 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 	}
 	if _, err := tx.Exec(`INSERT INTO quest_completions(user_id, quest_id, xp_awarded, completed_at) VALUES($1, $2, $3, $4)`,
 		userID, questID, total, now); err != nil {
-		return models.Quest{}, nil, nil, 0, err
+		return fail(err)
 	}
 
 	var events []models.XPEvent
@@ -456,22 +497,22 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 				if err == sql.ErrNoRows {
 					continue // unknown attribute key — skip silently
 				}
-				return models.Quest{}, nil, nil, 0, err
+				return fail(err)
 			}
 			baseXP[a.key] = old
 		}
 		var evID int64
 		if err := tx.QueryRow(
-			`INSERT INTO xp_events(user_id, attribute_key, amount, source, source_id, note, created_at) VALUES($1, $2, $3, 'quest', $4, $5, $6) RETURNING id`,
-			userID, a.key, a.amount, questID, a.note, now).Scan(&evID); err != nil {
-			return models.Quest{}, nil, nil, 0, err
+			`INSERT INTO xp_events(user_id, attribute_key, amount, source, source_id, note, created_at) VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+			userID, a.key, a.amount, a.source, questID, a.note, now).Scan(&evID); err != nil {
+			return fail(err)
 		}
 		if _, err := tx.Exec(`UPDATE attributes SET total_xp = total_xp + $1, peak_xp = GREATEST(peak_xp, total_xp + $1) WHERE user_id = $2 AND key = $3`, a.amount, userID, a.key); err != nil {
-			return models.Quest{}, nil, nil, 0, err
+			return fail(err)
 		}
 		if g := goldForXP(a.amount); g > 0 {
-			if _, err := insertGoldEventTx(tx, userID, g, a.src, a.note, nil, now); err != nil {
-				return models.Quest{}, nil, nil, 0, err
+			if _, err := insertGoldEventTx(tx, userID, g, a.gsrc, a.note, nil, now); err != nil {
+				return fail(err)
 			}
 			goldTotal += g
 		}
@@ -479,7 +520,7 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 		sid := questID
 		events = append(events, models.XPEvent{
 			ID: evID, AttributeKey: a.key, AttributeName: names[a.key], Amount: a.amount,
-			Source: "quest", SourceID: &sid, Note: a.note, CreatedAt: now,
+			Source: a.source, SourceID: &sid, Note: a.note, CreatedAt: now,
 		})
 	}
 	// Level-ups: from the pre-completion XP to the final total, once per attribute.
@@ -492,18 +533,18 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 	}
 
 	if err := updateStreakTx(tx, userID, now); err != nil {
-		return models.Quest{}, nil, nil, 0, err
+		return fail(err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return models.Quest{}, nil, nil, 0, err
+		return fail(err)
 	}
 
 	updated, err := s.GetQuest(userID, questID)
 	if err != nil {
-		return models.Quest{}, nil, nil, 0, err
+		return fail(err)
 	}
-	return updated, events, levelUps, goldTotal, nil
+	return updated, events, levelUps, goldTotal, outcome, nil
 }
 
 // updateStreakTx advances the streak for "today" (local day).

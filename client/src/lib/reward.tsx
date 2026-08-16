@@ -20,6 +20,8 @@ export interface RewardPayload {
   level_ups: LevelUp[];
   label?: string; // small overline, e.g. "Quest Complete" / "Tool Complete"
   gold?: number; // gold minted alongside the XP
+  crit?: boolean; // critical hit — the payout was doubled
+  combo?: number; // combo multiplier this completion paid at (1.0 = none)
 }
 
 interface RewardContextValue {
@@ -39,7 +41,7 @@ export function RewardProvider({ children }: { children: ReactNode }) {
   const celebrate = useCallback((payload: RewardPayload) => {
     window.clearTimeout(timer.current);
     setActive(payload);
-    timer.current = window.setTimeout(() => setActive(null), 3200);
+    timer.current = window.setTimeout(() => setActive(null), payload.crit ? 4200 : 3200);
   }, []);
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
@@ -73,18 +75,19 @@ function RewardOverlay({
           style={{ background: "rgba(4,5,9,0.72)", backdropFilter: "blur(6px)" }}
           data-testid="reward-overlay"
         >
-          {/* radial burst */}
+          {/* radial burst — gold normally, red-hot on a crit */}
           <motion.div
             className="pointer-events-none absolute"
             initial={{ scale: 0.2, opacity: 0.8 }}
-            animate={{ scale: 2.4, opacity: 0 }}
-            transition={{ duration: 1.1, ease: "easeOut" }}
+            animate={{ scale: result.crit ? 3.2 : 2.4, opacity: 0 }}
+            transition={{ duration: result.crit ? 1.4 : 1.1, ease: "easeOut" }}
             style={{
               width: 360,
               height: 360,
               borderRadius: "50%",
-              background:
-                "radial-gradient(circle, rgba(255,176,0,0.55), rgba(255,176,0,0) 65%)",
+              background: result.crit
+                ? "radial-gradient(circle, rgba(255,71,71,0.6), rgba(255,71,71,0) 65%)"
+                : "radial-gradient(circle, rgba(255,176,0,0.55), rgba(255,176,0,0) 65%)",
             }}
           />
           <motion.div
@@ -108,6 +111,23 @@ function RewardOverlay({
               <Sparkles size={22} />
             </div>
 
+            {result.crit && (
+              <motion.div
+                initial={{ scale: 2.2, opacity: 0, rotate: -6 }}
+                animate={{ scale: 1, opacity: 1, rotate: -3 }}
+                transition={{ type: "spring", stiffness: 400, damping: 12 }}
+                className="mx-auto mb-2 inline-block rounded px-3 py-1 font-display text-xl font-bold tracking-widest"
+                style={{
+                  color: "#ff4747",
+                  border: "2px solid #ff4747",
+                  boxShadow: "0 0 24px -4px rgba(255,71,71,0.9)",
+                  textShadow: "0 0 12px rgba(255,71,71,0.8)",
+                }}
+                data-testid="crit-banner"
+              >
+                CRITICAL HIT!
+              </motion.div>
+            )}
             <div className="font-display text-sm uppercase tracking-[0.3em] text-muted">
               *** {result.label ?? "Quest Complete"} ***
             </div>
@@ -124,6 +144,19 @@ function RewardOverlay({
             >
               +{totalXP} XP
             </motion.div>
+
+            {typeof result.combo === "number" && result.combo > 1 && (
+              <motion.div
+                className="mt-1 font-display text-sm tracking-widest"
+                style={{ color: "var(--color-spirituality)" }}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.15 }}
+                data-testid="combo-line"
+              >
+                🔗 COMBO ×{result.combo}
+              </motion.div>
+            )}
 
             {typeof result.gold === "number" && result.gold > 0 && (
               <motion.div

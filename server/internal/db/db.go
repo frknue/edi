@@ -30,7 +30,8 @@ var (
 
 // Store wraps the database handle and provides domain persistence methods.
 type Store struct {
-	db *sql.DB
+	db   *sql.DB
+	dice *rng // game-layer randomness (crits, loot); see game_math.go
 }
 
 // Open connects to the PostgreSQL database at url (a postgres:// DSN), then
@@ -49,7 +50,7 @@ func Open(url string) (*Store, error) {
 	if err := sqlDB.Ping(); err != nil {
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
-	s := &Store{db: sqlDB}
+	s := &Store{db: sqlDB, dice: newRNG()}
 	if err := s.migrate(); err != nil {
 		return nil, err
 	}
@@ -58,6 +59,11 @@ func Open(url string) (*Store, error) {
 
 // DB exposes the underlying handle (used by tests and graceful shutdown).
 func (s *Store) DB() *sql.DB { return s.db }
+
+// SetRollForTest fixes the store's dice to a deterministic roll function —
+// a TEST hook (cross-package, so it must be exported); never call it from
+// production code paths.
+func (s *Store) SetRollForTest(roll func() float64) { s.dice.roll = roll }
 
 // Close closes the connection pool.
 func (s *Store) Close() error { return s.db.Close() }

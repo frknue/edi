@@ -244,6 +244,9 @@ type DailyProgress struct {
 	CompletedToday int     `json:"completed_today"`
 	Goal           int     `json:"goal"`
 	Ratio          float64 `json:"ratio"`
+	// NextComboMultiplier is what the NEXT completion today will pay (combo
+	// chain: back-to-back completions the same local day multiply XP).
+	NextComboMultiplier float64 `json:"next_combo_multiplier"`
 }
 
 // Dashboard is the single payload that powers the main screen.
@@ -278,7 +281,12 @@ type CompletionResult struct {
 	XPEvents  []XPEvent `json:"xp_events"`
 	LevelUps  []LevelUp `json:"level_ups"`
 	Gold      int64     `json:"gold"` // gold minted by this completion
-	Dashboard Dashboard `json:"dashboard"`
+	// Game-layer outcomes: Crit doubles the payout (bonus xp_events with
+	// source 'crit'); ComboMultiplier is the chain multiplier this completion
+	// paid at (1.0 = no combo; bonus rows use source 'combo').
+	Crit            bool      `json:"crit"`
+	ComboMultiplier float64   `json:"combo_multiplier"`
+	Dashboard       Dashboard `json:"dashboard"`
 }
 
 // ToolDefinition describes a guided instrument that awards XP when completed.
