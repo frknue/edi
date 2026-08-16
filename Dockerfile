@@ -10,7 +10,7 @@ COPY client/ ./
 RUN npm run build
 
 # --- Stage 2: build the Go server (pure Go, no CGO) ---
-FROM golang:1.24-alpine AS server
+FROM golang:1.25-alpine AS server
 WORKDIR /build/server
 COPY server/go.mod server/go.sum ./
 RUN go mod download
