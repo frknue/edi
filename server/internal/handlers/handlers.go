@@ -292,6 +292,15 @@ func (h *Handlers) listItems(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, items)
 }
 
+func (h *Handlers) listAchievements(w http.ResponseWriter, r *http.Request) {
+	out, err := h.forUser(r).ListAchievements()
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 // --- tools ------------------------------------------------------------------
 
 func (h *Handlers) listGuidedTools(w http.ResponseWriter, r *http.Request) {

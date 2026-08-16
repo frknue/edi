@@ -162,6 +162,9 @@ func (r *Runner) handleCommand(svc *services.Service, chatID int64, cmd, arg str
 		for _, lu := range result.LevelUps {
 			reply += fmt.Sprintf("\n⬆ %s reached Lv %d!", html.EscapeString(lu.AttributeName), lu.ToLevel)
 		}
+		for _, a := range result.AchievementsUnlocked {
+			reply += fmt.Sprintf("\n🏆 <b>Achievement unlocked:</b> %s %s", a.Icon, html.EscapeString(a.Name))
+		}
 		return reply
 
 	case "ward":

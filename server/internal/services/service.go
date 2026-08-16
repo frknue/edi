@@ -282,19 +282,23 @@ func (s *Service) CompleteQuest(id int64) (models.CompletionResult, error) {
 			return models.CompletionResult{}, err
 		}
 	}
+	// Post-commit, best-effort: badges must never fail a completion.
+	unlocked := s.evaluateAchievements()
+
 	dash, err := s.GetDashboard()
 	if err != nil {
 		return models.CompletionResult{}, err
 	}
 	return models.CompletionResult{
-		Quest:           quest,
-		XPEvents:        orEmpty(events),
-		LevelUps:        orEmpty(levelUps),
-		Gold:            gold,
-		Crit:            outcome.Crit,
-		ComboMultiplier: outcome.ComboMultiplier,
-		Drop:            outcome.Drop,
-		Dashboard:       dash,
+		Quest:                quest,
+		XPEvents:             orEmpty(events),
+		LevelUps:             orEmpty(levelUps),
+		Gold:                 gold,
+		Crit:                 outcome.Crit,
+		ComboMultiplier:      outcome.ComboMultiplier,
+		Drop:                 outcome.Drop,
+		AchievementsUnlocked: orEmpty(unlocked),
+		Dashboard:            dash,
 	}, nil
 }
 
@@ -461,7 +465,7 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 	}
 	charLevel, into, forNext, ratio := ProgressForXP(totalXP)
 	character := models.CharacterSummary{
-		Name: user.Name, Level: charLevel, TotalXP: totalXP,
+		Name: user.Name, Title: s.characterTitle(), Level: charLevel, TotalXP: totalXP,
 		XPIntoLevel: into, XPForNextLevel: forNext, Progress: ratio,
 	}
 

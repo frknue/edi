@@ -1,5 +1,7 @@
 import type {
+  Achievement,
   AuthConfig,
+  ItemDrop,
   TelegramPairCode,
   TelegramStatus,
   CreatedUser,
@@ -171,6 +173,9 @@ export const api = {
   register: (body: { name: string; invite_code: string }) =>
     request<CreatedUser>("/auth/register", { method: "POST", body: JSON.stringify(body) }),
   me: () => request<User>("/me"),
+
+  listAchievements: () => request<Achievement[]>("/achievements"),
+  listItems: () => request<ItemDrop[]>("/items"),
 
   telegramStatus: () => request<TelegramStatus>("/telegram/status"),
   telegramPairCode: () => request<TelegramPairCode>("/telegram/pair-code", { method: "POST" }),

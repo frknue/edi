@@ -72,6 +72,7 @@ export function QuestsPage() {
           crit: res.crit,
           combo: res.combo_multiplier,
           drop: res.drop,
+          achievements: res.achievements_unlocked,
         }),
     });
 

@@ -200,6 +200,7 @@ export interface AgentSuggestion {
 }
 
 export interface CharacterSummary {
+  title: string;
   name: string;
   level: number;
   total_xp: number;
@@ -240,6 +241,16 @@ export interface LevelUp {
 }
 
 // Loot: a completion may drop a trophy, a temporal XP buff, or a gold cache.
+export interface Achievement {
+  key: string;
+  name: string;
+  desc: string;
+  icon: string;
+  title?: string;
+  earned: boolean;
+  awarded_at?: string;
+}
+
 export interface ItemDrop {
   id: number;
   key: string;
@@ -270,6 +281,7 @@ export interface CompletionResult {
   crit: boolean;
   combo_multiplier: number;
   drop?: ItemDrop;
+  achievements_unlocked: Achievement[];
   dashboard: Dashboard;
 }
 

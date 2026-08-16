@@ -85,6 +85,15 @@ export function CharacterHeader({
             <h1 className="cursor-blink font-display text-3xl leading-tight text-ink">
               {character.name}
             </h1>
+            {character.title && (
+              <div
+                className="font-display text-xs uppercase tracking-[0.2em]"
+                style={{ color: "var(--color-goldhi)" }}
+                data-testid="character-title"
+              >
+                {character.title}
+              </div>
+            )}
             <div className="tabnum mt-0.5 text-xs text-faint">
               {character.total_xp.toLocaleString()} total XP
             </div>

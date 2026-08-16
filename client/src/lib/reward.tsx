@@ -9,7 +9,7 @@ import {
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUpRight, Coins, Sparkles, X } from "lucide-react";
-import type { ItemDrop, LevelUp, XPEvent } from "./types";
+import type { Achievement, ItemDrop, LevelUp, XPEvent } from "./types";
 import { getAttr, rarityColor } from "./theme";
 
 // A generic reward payload so any XP-awarding action (quest, tool, …) can
@@ -23,6 +23,7 @@ export interface RewardPayload {
   crit?: boolean; // critical hit — the payout was doubled
   combo?: number; // combo multiplier this completion paid at (1.0 = none)
   drop?: ItemDrop; // loot, if the dice smiled
+  achievements?: Achievement[]; // badges unlocked by this action
 }
 
 interface RewardContextValue {
@@ -42,7 +43,7 @@ export function RewardProvider({ children }: { children: ReactNode }) {
   const celebrate = useCallback((payload: RewardPayload) => {
     window.clearTimeout(timer.current);
     setActive(payload);
-    timer.current = window.setTimeout(() => setActive(null), payload.drop ? 5200 : payload.crit ? 4200 : 3200);
+    timer.current = window.setTimeout(() => setActive(null), payload.achievements?.length || payload.drop ? 5200 : payload.crit ? 4200 : 3200);
   }, []);
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
@@ -218,6 +219,27 @@ function RewardOverlay({
                     <div className="text-[11px] leading-snug text-muted">{result.drop.flavor}</div>
                   </div>
                 </div>
+              </motion.div>
+            )}
+
+            {(result.achievements?.length ?? 0) > 0 && (
+              <motion.div
+                className="mt-4 space-y-1.5"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 }}
+                data-testid="achievement-unlocks"
+              >
+                {result.achievements!.map((a) => (
+                  <div
+                    key={a.key}
+                    className="flex items-center justify-center gap-2 rounded-lg border py-1.5 text-sm font-semibold"
+                    style={{ borderColor: "var(--color-gold)", background: "rgba(255,176,0,0.1)", color: "var(--color-goldhi)" }}
+                  >
+                    🏆 {a.icon} {a.name}
+                    {a.title && <span className="text-[11px] font-normal opacity-80">· title: {a.title}</span>}
+                  </div>
+                ))}
               </motion.div>
             )}
 

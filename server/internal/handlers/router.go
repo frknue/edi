@@ -45,8 +45,9 @@ func NewRouter(h *Handlers, clientDir string, tokenMode bool) http.Handler {
 
 	mux.HandleFunc("GET /api/xp-events", h.getXPEvents)
 
-	// Loot inventory (drops land via quest completion).
+	// Loot inventory (drops land via quest completion) + trophy hall.
 	mux.HandleFunc("GET /api/items", h.listItems)
+	mux.HandleFunc("GET /api/achievements", h.listAchievements)
 
 	// Tools — guided instruments that award XP (e.g. the Daily Mood Log).
 	mux.HandleFunc("GET /api/tools", h.listGuidedTools)

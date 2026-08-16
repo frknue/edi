@@ -10,6 +10,7 @@ import {
 } from "../lib/queries";
 import { useReward } from "../lib/reward";
 import { CharacterHeader } from "../components/CharacterHeader";
+import { TrophyCase } from "../components/TrophyCase";
 import { AttributeCard } from "../components/AttributeCard";
 import { QuestCard } from "../components/QuestCard";
 import { XPFeed } from "../components/XPFeed";
@@ -59,6 +60,8 @@ export function DashboardPage({
   return (
     <div className="space-y-7">
       <CharacterHeader character={data.character} streak={data.streak} daily={data.daily_progress} gold={data.gold_balance} />
+
+      <TrophyCase />
 
       {/* Running loot buffs — a reason to complete MORE today */}
       {data.active_buffs.length > 0 && (

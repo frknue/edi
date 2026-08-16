@@ -54,6 +54,8 @@ function useInvalidateAll() {
     qc.invalidateQueries({ queryKey: ["suggestions"] });
     qc.invalidateQueries({ queryKey: ["xp-events"] });
     qc.invalidateQueries({ queryKey: ["gold-events"] });
+    qc.invalidateQueries({ queryKey: ["achievements"] });
+    qc.invalidateQueries({ queryKey: ["items"] });
   };
 }
 
@@ -195,6 +197,14 @@ export function useDisconnectOpenAI() {
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
+}
+
+export function useAchievements() {
+  return useQuery({ queryKey: ["achievements"], queryFn: api.listAchievements });
+}
+
+export function useItems() {
+  return useQuery({ queryKey: ["items"], queryFn: api.listItems });
 }
 
 // --- telegram presence --------------------------------------------------------

@@ -161,6 +161,17 @@ type QuestInput struct {
 	DueDate          *time.Time       `json:"due_date,omitempty"`
 }
 
+// Achievement is one badge from the catalog (earned or still open).
+type Achievement struct {
+	Key       string     `json:"key"`
+	Name      string     `json:"name"`
+	Desc      string     `json:"desc"`
+	Icon      string     `json:"icon"`
+	Title     string     `json:"title,omitempty"` // character title it grants
+	Earned    bool       `json:"earned"`
+	AwardedAt *time.Time `json:"awarded_at,omitempty"`
+}
+
 // ItemDrop is one piece of loot: a completion may drop a trophy, a temporal
 // XP buff (auto-active until local midnight), or an instant gold cache.
 type ItemDrop struct {
@@ -258,6 +269,7 @@ type JournalCreateResult struct {
 // CharacterSummary is the aggregate level across all attributes.
 type CharacterSummary struct {
 	Name           string  `json:"name"`
+	Title          string  `json:"title"` // earned via achievements ("" = none yet)
 	Level          int     `json:"level"`
 	TotalXP        int64   `json:"total_xp"`
 	XPIntoLevel    int64   `json:"xp_into_level"`
@@ -314,7 +326,9 @@ type CompletionResult struct {
 	Crit            bool      `json:"crit"`
 	ComboMultiplier float64   `json:"combo_multiplier"`
 	Drop            *ItemDrop `json:"drop,omitempty"` // loot, if the dice smiled
-	Dashboard       Dashboard `json:"dashboard"`
+	// Achievements newly unlocked by this completion (evaluated post-commit).
+	AchievementsUnlocked []Achievement `json:"achievements_unlocked"`
+	Dashboard            Dashboard     `json:"dashboard"`
 }
 
 // ToolDefinition describes a guided instrument that awards XP when completed.

@@ -255,3 +255,72 @@ func TestLootPity(t *testing.T) {
 		t.Errorf("drops in 8 pity-grind completions = %d, want exactly 1 (the pity drop on #7)", drops)
 	}
 }
+
+// Achievements: earned once, idempotent, hidden until earned, titles resolve.
+func TestAchievements(t *testing.T) {
+	svc := newTestService(t)
+	svc.store.SetRollForTest(func() float64 { return 0.5 }) // no crit/drop noise
+
+	// The hall starts with the visible catalog, nothing earned, hidden ones absent.
+	hall, err := svc.ListAchievements()
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	for _, a := range hall {
+		if a.Earned {
+			t.Errorf("fresh user already earned %s", a.Key)
+		}
+		if a.Key == "jackpot" || a.Key == "early_bird" || a.Key == "night_owl" {
+			t.Errorf("hidden achievement %s visible before earning", a.Key)
+		}
+	}
+
+	// First completion -> First Blood (and streak seeds "On Fire": longest=7
+	// from the demo seed, so habitual/on_fire fire too — assert first_blood
+	// specifically plus that re-evaluation doesn't re-award).
+	q := findQuestByTitle(t, svc, "Read 15 pages")
+	res, err := svc.CompleteQuest(q.ID)
+	if err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	got := map[string]bool{}
+	for _, a := range res.AchievementsUnlocked {
+		got[a.Key] = true
+	}
+	if !got["first_blood"] {
+		t.Errorf("first completion unlocked %v, want first_blood among them", got)
+	}
+
+	// Second completion: nothing re-awards.
+	q2, _ := svc.CreateQuest(models.QuestInput{Title: "again", AttributeRewards: map[string]int64{"focus": 5}})
+	res2, err := svc.CompleteQuest(q2.ID)
+	if err != nil {
+		t.Fatalf("complete 2: %v", err)
+	}
+	for _, a := range res2.AchievementsUnlocked {
+		if a.Key == "first_blood" {
+			t.Error("first_blood re-awarded")
+		}
+	}
+
+	// The seed's 7-day longest streak earns "Habitual" -> title "the Consistent".
+	dash, _ := svc.GetDashboard()
+	if dash.Character.Title == "" {
+		t.Error("expected a character title after habitual unlocked")
+	}
+
+	// Hall now shows earned entries with timestamps.
+	hall, _ = svc.ListAchievements()
+	earned := 0
+	for _, a := range hall {
+		if a.Earned {
+			earned++
+			if a.AwardedAt == nil {
+				t.Errorf("%s earned without a timestamp", a.Key)
+			}
+		}
+	}
+	if earned < 2 {
+		t.Errorf("earned = %d, want at least first_blood + streak badges", earned)
+	}
+}
