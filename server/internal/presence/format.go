@@ -1,14 +1,17 @@
-package main
+// Package presence is the Telegram channel of the edi server: a transport,
+// exactly like the HTTP handlers — it parses messages, calls services.Service
+// methods on the linked user, and formats replies. No business logic lives
+// here, and it runs in-process (multi-tenant: each paired chat acts as its
+// own user, no impersonation credentials needed).
+package presence
 
 import (
 	"fmt"
 	"html"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
-	"edi/internal/apiclient"
 	"edi/internal/models"
 )
 
@@ -19,7 +22,15 @@ const helpText = `<b>edi</b> — your Life RPG, in your pocket
 /done &lt;id&gt; — complete a quest
 /ward &lt;attribute&gt; — 7-day decay shield (30g)
 /rest on|off — pause/resume decay
+/briefing HH:MM — set your morning briefing time
+/nudge HH:MM — set your evening nudge time
+/unpair — disconnect this chat
 /help — this message`
+
+const notLinkedText = `This chat isn't linked to an edi account yet.
+
+Open edi → AI Coach → <b>Link Telegram</b>, then send the code here:
+/pair <i>code</i>`
 
 // questLine renders one quest as "#id Title (N XP)".
 func questLine(q models.Quest) string {
@@ -129,13 +140,12 @@ func nextFire(now time.Time, hhmm string) time.Time {
 
 // fireStaleAfter is how far past a scheduled fire time a wake-up may still
 // send the push. Beyond this the push is skipped, never replayed — this is
-// what keeps a suspended/slept host from firing hours-late notifications.
+// what keeps a suspended/slept host (or a redeploy landing mid-window) from
+// firing hours-late notifications.
 const fireStaleAfter = 10 * time.Minute
 
 // fireDue reports whether the scheduled fire time has arrived (due) and, if
-// so, whether the wake-up came in too late to still send it (stale). due is
-// true at/after fire; stale is true once now is more than fireStaleAfter
-// past fire.
+// so, whether the wake-up came in too late to still send it (stale).
 func fireDue(now, fire time.Time) (due bool, stale bool) {
 	if now.Before(fire) {
 		return false, false
@@ -157,78 +167,4 @@ func parseCommand(text string) (string, string) {
 	}
 	arg := strings.Join(parts[1:], " ")
 	return strings.ToLower(cmd), arg
-}
-
-// handleCommand executes one incoming message and returns the HTML reply.
-// API errors come back as friendly one-liners — apiclient already unwraps
-// the server's {error} body into a clean message.
-func handleCommand(api *apiclient.Client, text string) string {
-	cmd, arg := parseCommand(text)
-	switch cmd {
-	case "status":
-		d, err := api.Dashboard()
-		if err != nil {
-			return "⚠ " + html.EscapeString(err.Error())
-		}
-		return formatStatus(d)
-
-	case "quests":
-		quests, err := api.ListQuests("", "active")
-		if err != nil {
-			return "⚠ " + html.EscapeString(err.Error())
-		}
-		return formatQuests(quests)
-
-	case "done":
-		id, err := strconv.ParseInt(arg, 10, 64)
-		if err != nil {
-			return "Usage: /done <i>id</i> — get ids from /quests"
-		}
-		result, err := api.CompleteQuest(id)
-		if err != nil {
-			return "⚠ " + html.EscapeString(err.Error())
-		}
-		var xp int64
-		for _, e := range result.XPEvents {
-			xp += e.Amount
-		}
-		reply := fmt.Sprintf("✓ <b>%s</b> complete!\n+%d XP · +%dg · streak %d🔥",
-			html.EscapeString(result.Quest.Title), xp, result.Gold, result.Dashboard.Streak.Current)
-		for _, lu := range result.LevelUps {
-			reply += fmt.Sprintf("\n⬆ %s reached Lv %d!", html.EscapeString(lu.AttributeName), lu.ToLevel)
-		}
-		return reply
-
-	case "ward":
-		if arg == "" {
-			return "Usage: /ward <i>attribute</i> (e.g. /ward focus)"
-		}
-		res, err := api.WardAttribute(strings.ToLower(arg))
-		if err != nil {
-			return "⚠ " + html.EscapeString(err.Error())
-		}
-		return fmt.Sprintf("🛡 %s warded until %s. Balance: %dg",
-			html.EscapeString(res.Ward.AttributeKey), res.Ward.ExpiresAt.Local().Format("Jan 2 15:04"), res.Balance)
-
-	case "rest":
-		switch arg {
-		case "on", "off":
-			state, err := api.SetRestMode(arg == "on")
-			if err != nil {
-				return "⚠ " + html.EscapeString(err.Error())
-			}
-			if state.On {
-				return "☾ Rest mode ON — decay paused. Recover well."
-			}
-			return "☀ Rest mode OFF — idle clocks restarted."
-		default:
-			return "Usage: /rest on|off"
-		}
-
-	case "help", "start":
-		return helpText
-
-	default:
-		return helpText
-	}
 }

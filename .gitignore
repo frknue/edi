@@ -24,3 +24,4 @@ client/node_modules/
 .edi-token
 .superpowers/
 .edi-remote.env
+backups/

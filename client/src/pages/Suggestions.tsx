@@ -1,16 +1,20 @@
 import { useEffect, useState } from "react";
-import { Bot, Check, Download, RefreshCw, Sparkles, Unplug } from "lucide-react";
+import { Bot, Check, Download, RefreshCw, Send, Sparkles, Unplug } from "lucide-react";
 import {
   useSuggestions,
   useGenerateSuggestions,
   useAcceptSuggestion,
   useDismissSuggestion,
   useOpenAIStatus,
+  useCompleteOpenAIConnect,
   useConnectOpenAI,
   useImportCodex,
   useDisconnectOpenAI,
   useSetOpenAIConfig,
   useOpenAIModels,
+  useTelegramPairCode,
+  useTelegramStatus,
+  useTelegramUnlink,
 } from "../lib/queries";
 import { SuggestionCard } from "../components/SuggestionCard";
 import { Btn, EmptyState, SectionTitle, Spinner } from "../components/ui";
@@ -126,6 +130,8 @@ export function SuggestionsPage() {
           )}
         </>
       )}
+
+      <TelegramCard />
     </div>
   );
 }
@@ -138,7 +144,9 @@ function ConnectCard({
   setConnecting: (v: boolean) => void;
 }) {
   const connect = useConnectOpenAI();
+  const complete = useCompleteOpenAIConnect();
   const importCodex = useImportCodex();
+  const [pasted, setPasted] = useState("");
 
   const startConnect = () =>
     connect.mutate(undefined, {
@@ -146,6 +154,11 @@ function ConnectCard({
         setConnecting(true);
         window.open(res.auth_url, "_blank", "noopener,noreferrer");
       },
+    });
+
+  const finishConnect = () =>
+    complete.mutate(pasted, {
+      onSuccess: () => setPasted(""),
     });
 
   return (
@@ -187,9 +200,39 @@ function ConnectCard({
           <Download size={15} /> Import from Codex CLI
         </Btn>
       </div>
+      {connecting && (
+        <div className="relative mx-auto mt-5 max-w-md space-y-2 text-left">
+          <p className="text-[11px] leading-relaxed text-faint">
+            After signing in, your browser lands on a <code className="text-muted">localhost:1455</code> page. If edi
+            runs on this machine it connects by itself — otherwise that page shows an error (expected):{" "}
+            <span className="text-muted">copy the full URL from the address bar</span> and paste it here.
+          </p>
+          <div className="flex gap-2">
+            <input
+              value={pasted}
+              onChange={(e) => setPasted(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && pasted.trim() !== "" && finishConnect()}
+              placeholder="http://localhost:1455/auth/callback?code=…"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              data-testid="oauth-paste"
+              className="min-w-0 flex-1 rounded-lg border border-edge bg-white/[0.03] px-3 py-2 text-xs text-ink placeholder:text-faint focus:border-[var(--color-gold)] focus:outline-none"
+            />
+            <Btn
+              variant="primary"
+              disabled={pasted.trim() === "" || complete.isPending}
+              onClick={finishConnect}
+              data-testid="oauth-paste-submit"
+            >
+              Finish
+            </Btn>
+          </div>
+        </div>
+      )}
       <p className="relative mt-3 text-[11px] text-faint">
-        A browser tab opens at auth.openai.com; after signing in it returns automatically. Already use the
-        Codex CLI? Import its session instantly.
+        A browser tab opens at auth.openai.com. Already use the Codex CLI on this machine? Import its
+        session instantly.
       </p>
     </div>
   );
@@ -281,6 +324,82 @@ function ConnectedBar({ status }: { status: OpenAIStatus }) {
           <Unplug size={14} /> Disconnect
         </Btn>
       </div>
+    </div>
+  );
+}
+
+// TelegramCard pairs this account with the Telegram bot: pushes (briefing,
+// nudge) and chat commands (/status, /done). Hidden when the server has no
+// bot configured. The pair code is shown once and burns on use.
+function TelegramCard() {
+  const { data: tg, refetch } = useTelegramStatus();
+  const pair = useTelegramPairCode();
+  const unlink = useTelegramUnlink();
+  const [code, setCode] = useState<{ code: string; bot: string } | null>(null);
+
+  // The status flips to linked once the user sends the code in Telegram —
+  // poll briefly while a code is showing.
+  useEffect(() => {
+    if (!code) return;
+    const t = setInterval(() => refetch(), 3000);
+    return () => clearInterval(t);
+  }, [code, refetch]);
+  useEffect(() => {
+    if (tg?.linked && code) {
+      setCode(null);
+      pushToast("Telegram linked", "success");
+    }
+  }, [tg?.linked, code]);
+
+  if (!tg?.configured) return null;
+
+  return (
+    <div className="hud-panel flex flex-wrap items-center justify-between gap-3 p-4">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 text-sm font-medium text-ink">
+          <Send size={15} style={{ color: "#34d0ff" }} /> Telegram
+          {tg.linked && (
+            <span className="rounded px-1.5 py-0.5 text-[10px] uppercase" style={{ background: "rgba(75,255,126,0.14)", color: "var(--color-phos)" }}>
+              linked
+            </span>
+          )}
+        </div>
+        <p className="mt-0.5 text-xs text-faint">
+          {tg.linked
+            ? "Morning briefing, evening nudge, and /done from your pocket."
+            : "Get briefings + complete quests from chat. Link your account to the bot."}
+        </p>
+        {code && (
+          <div className="mt-2 space-y-1">
+            <p className="text-xs text-muted">
+              Send this to the bot (expires in 10 min): <code className="tabnum text-ink" data-testid="tg-code">/pair {code.code}</code>
+            </p>
+            <a
+              href={`https://t.me/${code.bot}?start=${code.code}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block text-xs underline"
+              style={{ color: "#34d0ff" }}
+            >
+              …or tap to open @{code.bot} and press Start
+            </a>
+          </div>
+        )}
+      </div>
+      {tg.linked ? (
+        <Btn variant="ghost" disabled={unlink.isPending} onClick={() => unlink.mutate()} data-testid="tg-unlink">
+          <Unplug size={14} /> Unlink
+        </Btn>
+      ) : (
+        <Btn
+          variant="primary"
+          disabled={pair.isPending}
+          onClick={() => pair.mutate(undefined, { onSuccess: (r) => setCode({ code: r.code, bot: r.bot_username }) })}
+          data-testid="tg-pair"
+        >
+          <Send size={14} /> Link Telegram
+        </Btn>
+      )}
     </div>
   );
 }

@@ -25,13 +25,18 @@ There is no hidden data layer.** Concretely:
 handler **and** (if it's an action an agent should take) an `agent` tool. Then mirror
 the JSON shape in `client/src/lib/types.ts`.
 
-Three non-web clients already prove this and should keep working: `cmd/edi-cli`
-(terminal), `cmd/edi-mcp` (MCP stdio server for AI agents), and `cmd/edi-telegram`
-(Telegram presence bot). All are thin HTTP clients via `internal/apiclient` — they
-never touch the DB. If you add an endpoint the CLI should surface or an agent tool,
-extend `internal/apiclient` (typed methods) and the CLI rather than adding a second
-data path. The MCP server is a pure proxy to `/api/agent/tools`, so new agent tools
-appear there automatically.
+Two non-web clients prove this and should keep working: `cmd/edi-cli` (terminal)
+and `cmd/edi-mcp` (MCP stdio server for AI agents). Both are thin HTTP clients via
+`internal/apiclient` — they never touch the DB. If you add an endpoint the CLI
+should surface or an agent tool, extend `internal/apiclient` (typed methods) and
+the CLI rather than adding a second data path. The MCP server is a pure proxy to
+`/api/agent/tools`, so new agent tools appear there automatically.
+
+Telegram is NOT an external client — it is an in-process **transport**, exactly
+like the HTTP handlers: `internal/presence` parses messages, calls
+`services.Service` methods on the linked user, and formats replies (multi-tenant
+needs per-user action without impersonation credentials, which only works
+in-process). No business logic in presence, ever.
 
 ## Commands
 
@@ -39,7 +44,7 @@ appear there automatically.
 make dev      # backend :8080 + frontend :5173 (Vite proxies /api -> :8080)
 make backend  # API only
 make frontend # Vite only
-make build    # client dist + all Go binaries -> bin/ (edi, edi-cli, edi-mcp, edi-telegram)
+make build    # client dist + all Go binaries -> bin/ (edi, edi-cli, edi-mcp)
 make prod     # build + run the self-hosted binary on :8080
 make test     # go test ./... (needs local Postgres — see make db-setup)
 make db-setup # one-time: create the local edi_dev + edi_test Postgres databases
@@ -155,6 +160,12 @@ caught and fixed — keep using it.
   arbitrary/`*-codex` ids 400 at generate). `s.openAIModel()`/`s.openAIEffort()`
   resolve setting → env (`EDI_OPENAI_MODEL`/`EDI_OPENAI_EFFORT`) → default
   (`gpt-5.6-sol`/`medium`); both are passed into `openai.Complete`.
+- **Connecting works remotely, per user**: the OAuth redirect URI is fixed to
+  `localhost:1455`, so on a deployed server the browser lands on a dead page —
+  the user copies that URL and pastes it into the UI, which calls
+  `POST /api/openai/connect/complete` (code+state exchange happens
+  server-side). Pending flows are per-user (`oauthRuntime.pending`), burn on
+  every attempt, and expire after 10 min.
 - These are OpenAI's **undocumented** endpoints (`chatgpt.com/backend-api/codex/
   responses`, `auth.openai.com`). Verify changes with the opt-in live tests:
   `EDI_LIVE_TEST=1 go test ./internal/openai ./internal/services -run Live`.
@@ -194,16 +205,23 @@ Deleting an entry never claws back XP. The UI shows per-day mood/energy
 sparklines and a 10-week consistency heatmap (single-hue phosphor ramp),
 computed client-side from entries.
 
-## Presence: Telegram bot + shell status
+## Presence: Telegram channel + shell status
 
-`cmd/edi-telegram` is a two-way Telegram companion (commands + scheduled
-briefing/nudge pushes) built on a stdlib-only Bot API client in
-`internal/telegram`. It talks to the backend only via `internal/apiclient`
-(`EDI_API`/`EDI_TOKEN`; push times via `EDI_BRIEFING_TIME`/`EDI_NUDGE_TIME`,
-HH:MM local). **Not yet live-tested with a real bot token** — see README
-"Presence" for setup and the pending verification pass. `edi-cli status` prints
-a fail-silent stats block for shell startup (never break a shell prompt on
-server errors).
+Telegram runs **in-process** (`internal/presence`, enabled by
+`TELEGRAM_BOT_TOKEN` on the server) on the stdlib-only Bot API client in
+`internal/telegram`. Multi-tenant by pairing: each user mints a single-use pair
+code (web UI → `POST /api/telegram/pair-code`) and sends `/pair <code>` (or the
+`t.me/<bot>?start=<code>` deep link) to the bot; `telegram_links` maps chat ↔
+user, and every command runs on `svc.ForUser(linked)`. Commands: /status
+/quests /done /ward /rest /briefing /nudge /unpair. Pushes: per-user briefing +
+conditional nudge at per-user times (app_settings) falling back to
+`EDI_BRIEFING_TIME`/`EDI_NUDGE_TIME`; the scheduler re-checks the wall clock
+(suspend/DST-safe), skips pushes >10 min late, never replays. **Only ONE
+environment may set TELEGRAM_BOT_TOKEN per bot** — concurrent getUpdates
+pollers 409; local live-testing needs a second throwaway bot. Isolation
+regression: `TestPresenceMultiUserIsolation`. **Not yet live-tested with a
+real bot token.** `edi-cli status` prints a fail-silent stats block for shell
+startup (never break a shell prompt on server errors).
 
 ## Conventions
 

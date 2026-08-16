@@ -20,10 +20,7 @@ COPY server/ ./
 # internal/db/dbtest); the full suite runs locally and in GitHub Actions,
 # which provides a postgres service container.
 RUN go vet ./... && go test ./...
-# The server, plus the Telegram companion so one image can back both Railway
-# services (the bot service just overrides the start command).
-RUN CGO_ENABLED=0 go build -o /build/edi . \
-	&& CGO_ENABLED=0 go build -o /build/edi-telegram ./cmd/edi-telegram
+RUN CGO_ENABLED=0 go build -o /build/edi .
 
 # --- Stage 3: runtime ---
 # ca-certificates: HTTPS to the OpenAI endpoints. tzdata: local-day math
@@ -32,10 +29,10 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=server /build/edi ./edi
-COPY --from=server /build/edi-telegram ./edi-telegram
 COPY --from=client /build/client/dist ./client/dist
 ENV EDI_CLIENT_DIR=/app/client/dist
 EXPOSE 8080
 # Storage is PostgreSQL: set DATABASE_URL (Railway injects it when the
-# Postgres service is referenced) or EDI_DATABASE_URL.
+# Postgres service is referenced) or EDI_DATABASE_URL. The Telegram presence
+# channel runs in-process when TELEGRAM_BOT_TOKEN is set.
 CMD ["/app/edi"]

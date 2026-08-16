@@ -167,6 +167,18 @@ export interface CreatedUser {
   token: string;
 }
 
+export interface TelegramStatus {
+  configured: boolean;
+  linked: boolean;
+  bot_username: string;
+}
+
+export interface TelegramPairCode {
+  code: string;
+  bot_username: string;
+  expires_at: string;
+}
+
 export interface QuestDraft {
   type: QuestType;
   difficulty: Difficulty;

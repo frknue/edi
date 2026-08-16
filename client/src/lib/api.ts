@@ -1,5 +1,7 @@
 import type {
   AuthConfig,
+  TelegramPairCode,
+  TelegramStatus,
   CreatedUser,
   User,
   Attribute,
@@ -170,8 +172,17 @@ export const api = {
     request<CreatedUser>("/auth/register", { method: "POST", body: JSON.stringify(body) }),
   me: () => request<User>("/me"),
 
+  telegramStatus: () => request<TelegramStatus>("/telegram/status"),
+  telegramPairCode: () => request<TelegramPairCode>("/telegram/pair-code", { method: "POST" }),
+  telegramUnlink: () => request<{ linked: boolean }>("/telegram/link", { method: "DELETE" }),
+
   openaiStatus: () => request<OpenAIStatus>("/openai/status"),
   openaiConnect: () => request<{ auth_url: string }>("/openai/connect", { method: "POST" }),
+  openaiConnectComplete: (callbackUrl: string) =>
+    request<OpenAIStatus>("/openai/connect/complete", {
+      method: "POST",
+      body: JSON.stringify({ callback_url: callbackUrl }),
+    }),
   openaiImportCodex: () => request<OpenAIStatus>("/openai/import-codex", { method: "POST" }),
   openaiDisconnect: () => request<{ connected: boolean }>("/openai/disconnect", { method: "POST" }),
   openaiConfig: (cfg: { model?: string; effort?: string }) =>

@@ -74,6 +74,19 @@ func (c *Client) call(method string, params url.Values, out any) error {
 	return nil
 }
 
+// BotInfo is the bot's own identity (from getMe).
+type BotInfo struct {
+	Username string `json:"username"`
+}
+
+// GetMe returns the bot's identity — used for the t.me pairing deep link and
+// as a startup token check.
+func (c *Client) GetMe() (BotInfo, error) {
+	var me BotInfo
+	err := c.call("getMe", url.Values{}, &me)
+	return me, err
+}
+
 // GetUpdates long-polls for updates with update_id >= offset.
 func (c *Client) GetUpdates(offset int64, timeoutSec int) ([]Update, error) {
 	params := url.Values{

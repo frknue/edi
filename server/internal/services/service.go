@@ -42,17 +42,21 @@ type Service struct {
 	userID int64
 	tools  *tools.Registry
 
-	// OpenAI "Sign in with ChatGPT" connect state (see openai.go). A pointer
-	// shared by every ForUser copy: the process has ONE :1455 callback
-	// listener, and the pending flow records which user initiated it.
-	oauth *oauthRuntime
+	// Process-wide runtimes shared by every ForUser copy (pointers, so the
+	// per-request shallow copy stays vet-clean): the OpenAI "Sign in with
+	// ChatGPT" connect state (openai.go) and Telegram pairing (telegram.go).
+	oauth    *oauthRuntime
+	telegram *telegramRuntime
 }
 
 // New builds a Service bound to the given user (the dev-fallback user 1 for
 // the base service; per-request services come from ForUser).
 func New(store *db.Store, userID int64) *Service {
-	return &Service{store: store, userID: userID, tools: tools.NewRegistry(), oauth: &oauthRuntime{}}
+	return &Service{store: store, userID: userID, tools: tools.NewRegistry(), oauth: &oauthRuntime{}, telegram: &telegramRuntime{}}
 }
+
+// UserID returns the user this service copy is bound to.
+func (s *Service) UserID() int64 { return s.userID }
 
 // ForUser returns a shallow copy of the service bound to another user. Cheap
 // (per-request) by design: the store pool, tool registry, and OAuth runtime

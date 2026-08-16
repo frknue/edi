@@ -167,6 +167,16 @@ export function useConnectOpenAI() {
   return useMutation({ mutationFn: () => api.openaiConnect() });
 }
 
+// Remote servers can't receive the localhost OAuth redirect — the user pastes
+// the URL they landed on and this finishes the exchange server-side.
+export function useCompleteOpenAIConnect() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (callbackUrl: string) => api.openaiConnectComplete(callbackUrl),
+    onSuccess: (status) => qc.setQueryData(keys.openaiStatus, status),
+  });
+}
+
 export function useImportCodex() {
   const qc = useQueryClient();
   return useMutation({
@@ -184,6 +194,24 @@ export function useDisconnectOpenAI() {
       qc.invalidateQueries({ queryKey: ["suggestions"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
+  });
+}
+
+// --- telegram presence --------------------------------------------------------
+
+export function useTelegramStatus() {
+  return useQuery({ queryKey: ["telegram-status"], queryFn: api.telegramStatus });
+}
+
+export function useTelegramPairCode() {
+  return useMutation({ mutationFn: () => api.telegramPairCode() });
+}
+
+export function useTelegramUnlink() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.telegramUnlink(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["telegram-status"] }),
   });
 }
 

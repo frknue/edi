@@ -345,6 +345,24 @@ func (h *Handlers) openaiConnect(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"auth_url": authURL})
 }
 
+// openaiConnectComplete is the remote-server path: the user pastes the
+// localhost:1455 URL their browser landed on after signing in.
+func (h *Handlers) openaiConnectComplete(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		CallbackURL string `json:"callback_url"`
+	}
+	if err := decodeBody(r, &in); err != nil {
+		writeError(w, err)
+		return
+	}
+	status, err := h.forUser(r).CompleteOpenAIConnect(in.CallbackURL)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, status)
+}
+
 func (h *Handlers) openaiImportCodex(w http.ResponseWriter, r *http.Request) {
 	status, err := h.forUser(r).ImportCodexCredentials()
 	if err != nil {

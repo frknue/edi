@@ -17,7 +17,9 @@ import (
 	"edi/internal/agent"
 	"edi/internal/db"
 	"edi/internal/handlers"
+	"edi/internal/presence"
 	"edi/internal/services"
+	"edi/internal/telegram"
 )
 
 // devUserID is who anonymous requests act as in tokenless dev mode.
@@ -57,6 +59,22 @@ func main() {
 
 	registry := agent.NewRegistry()
 	router := handlers.NewRouter(handlers.New(svc, registry), clientDir, apiToken != "")
+
+	// Telegram presence (optional): the in-process bot channel. Exactly ONE
+	// environment may set TELEGRAM_BOT_TOKEN per bot — concurrent getUpdates
+	// pollers fight over the queue (Telegram 409s).
+	presenceCtx, stopPresence := context.WithCancel(context.Background())
+	defer stopPresence()
+	if botToken := os.Getenv("TELEGRAM_BOT_TOKEN"); botToken != "" {
+		briefing := envOr("EDI_BRIEFING_TIME", "08:00")
+		nudge := envOr("EDI_NUDGE_TIME", "20:00")
+		for _, hhmm := range []string{briefing, nudge} {
+			if _, err := time.Parse("15:04", hhmm); err != nil {
+				log.Fatalf("EDI_BRIEFING_TIME/EDI_NUDGE_TIME %q is not HH:MM", hhmm)
+			}
+		}
+		go presence.New(svc, telegram.New(botToken), briefing, nudge).Run(presenceCtx)
+	}
 
 	srv := &http.Server{
 		Addr:              addr,

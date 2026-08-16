@@ -90,8 +90,8 @@ More users:
 All clients understand tokens:
 
 - **curl:** `curl -H "Authorization: Bearer <token>" localhost:8080/api/dashboard`
-- **CLI / MCP / Telegram:** set `EDI_TOKEN` in the client's environment — it
-  now identifies *that user*, not the whole server.
+- **CLI / MCP:** set `EDI_TOKEN` in the client's environment — it now
+  identifies *that user*, not the whole server.
 - **Web UI:** paste the token at the gate, or open `http://host:8080/#token=<t>`
   once — it is stored in localStorage and sent automatically afterwards.
 
@@ -172,10 +172,10 @@ docker run -p 8080:8080 -e DATABASE_URL=postgres://... -e EDI_TOKEN=<secret> -e 
   computed on read — no background job), and is paused by **wards** (30 gold buys
   7 decay-free days for one attribute, stacking on top of an active ward) or
   **rest mode** (pauses decay for every attribute at once, for planned downtime).
-- **Presence:** a Telegram bot (`edi-telegram`, *not yet live-tested — see
-  below*) pushes a morning briefing and an evening nudge and answers
-  `/status /quests /done /ward /rest`, and `edi-cli status` prints a
-  fail-silent stats block for your shell prompt — both are thin clients over
+- **Presence:** the in-server Telegram channel (*not yet live-tested — see
+  below*) pushes each linked user a morning briefing and an evening nudge and
+  answers `/status /quests /done /ward /rest`, and `edi-cli status` prints a
+  fail-silent stats block for your shell prompt — the CLI is a thin client over
   the same REST API as everything else.
 
 ---
@@ -305,44 +305,34 @@ agent (Claude Desktop/Code, OpenClaw-style bots, …).
 
 ---
 
-## Presence: Telegram bot + shell status
+## Presence: Telegram + shell status
 
-Two lightweight "ambient" clients — a Telegram bot and a shell prompt block —
-surface the same dashboard without opening the app. Both are thin clients over
-the REST API, same as the CLI and MCP server.
+Two "ambient" surfaces show your dashboard without opening the app: the
+Telegram channel (runs inside the server) and a shell prompt block.
 
-### Telegram bot (`edi-telegram`)
+### Telegram
 
-> **Status: not yet validated against a live bot.** The code is complete and
-> covered by tests (unit + an offline integration test driving the real API
-> with a stub Telegram), and the server-side behavior was verified live, but
-> nobody has run it end to end with a real @BotFather token — no briefing has
-> been received on a phone, no `/done` sent from Telegram. Do that pass before
-> relying on it. Everything below is the setup path to use when you get to it.
+> **Status: not yet validated against a live bot.** Covered by tests (unit +
+> a multi-user integration test driving real services with a stub Telegram),
+> but no one has run it with a real @BotFather token yet — do that pass before
+> relying on the pushes.
 
-`edi-telegram` is a two-way Telegram companion: it answers commands and pushes
-a morning briefing + a conditional evening nudge. Set it up:
+Telegram runs **in-process**: set `TELEGRAM_BOT_TOKEN` on the server (create a
+bot with @BotFather) and every user can link their own chat:
 
-1. Message **@BotFather** on Telegram → `/newbot` → follow the prompts → copy
-   the bot token it gives you.
-2. Run it in **pairing mode** (no chat id yet):
-   ```bash
-   TELEGRAM_BOT_TOKEN=<token> bin/edi-telegram
-   ```
-3. Send `/start` to your bot in Telegram — it replies with your chat id.
-4. Restart with the chat id pinned, so the bot only serves that one chat:
-   ```bash
-   TELEGRAM_BOT_TOKEN=<token> TELEGRAM_CHAT_ID=<id> bin/edi-telegram
-   ```
+1. In the app: **AI Coach → Link Telegram** → you get a single-use code
+   (expires in 10 min) and a `t.me/<bot>` deep link.
+2. Tap the link and press **Start** (or send `/pair <code>` to the bot).
+3. Done — this chat now acts as *your* account.
 
-| Variable | Required | Default | Notes |
+| Variable (server) | Required | Default | Notes |
 |---|---|---|---|
-| `TELEGRAM_BOT_TOKEN` | yes | — | from @BotFather |
-| `TELEGRAM_CHAT_ID` | no | — | unset = pairing mode (replies to `/start` with the chat id, nothing else) |
-| `EDI_API` | no | `http://localhost:8080` | backend base URL |
-| `EDI_TOKEN` | no | — | bearer token, if the server runs with `EDI_TOKEN` set |
-| `EDI_BRIEFING_TIME` | no | `08:00` | local `HH:MM` for the morning briefing |
-| `EDI_NUDGE_TIME` | no | `20:00` | local `HH:MM` for the evening nudge |
+| `TELEGRAM_BOT_TOKEN` | for Telegram | — | from @BotFather; unset = feature off |
+| `EDI_BRIEFING_TIME` | no | `08:00` | default local HH:MM for the morning briefing |
+| `EDI_NUDGE_TIME` | no | `20:00` | default local HH:MM for the evening nudge |
+
+⚠ Only **one** environment may set `TELEGRAM_BOT_TOKEN` per bot — two pollers
+fight over Telegram's update queue. Use a second throwaway bot for local dev.
 
 Commands once paired:
 
@@ -352,25 +342,20 @@ Commands once paired:
 /done <id> — complete a quest
 /ward <attribute> — 7-day decay shield (30g)
 /rest on|off — pause/resume decay
+/briefing HH:MM — your personal briefing time
+/nudge HH:MM — your personal nudge time
+/unpair — disconnect this chat
 /help — this message
 ```
 
-The morning briefing pushes at `EDI_BRIEFING_TIME` daily; the evening nudge at
-`EDI_NUDGE_TIME` fires only if nothing was completed yet today, at least one
-quest is open, and rest mode is off — it names the easiest open quest so
-`/done <id>` is one tap away. A failed push (server down) retries 3× at 30s
-spacing, then is skipped, never replayed later — the scheduler wakes at least
-every 5 minutes and re-checks the wall clock, so it stays correct across host
-suspend and DST shifts, but a wake-up landing more than 10 minutes past the
-scheduled time is also skipped rather than sent late. Build it with
-`make build` (binary: `bin/edi-telegram`).
-
-Telegram delivers updates at-least-once, and the bot keeps its `getUpdates`
-read offset only in memory (no DB access, per the one-architectural-rule
-above) — so if the bot crashes mid-batch, a command may re-execute on
-restart. That's harmless for `/done` (the API rejects re-completing an
-already-completed quest), but `/ward` could buy a second ward. This
-trade-off is accepted to keep the bot fully stateless.
+The morning briefing pushes daily at your `/briefing` time (server default
+otherwise); the evening nudge fires only if nothing was completed yet today,
+at least one quest is open, and rest mode is off — it names the easiest open
+quest so `/done <id>` is one tap away. A failed push retries 3× at 30s
+spacing, then is skipped, never replayed later — the scheduler re-checks the
+wall clock every minute, so it stays correct across host suspend and DST
+shifts, but a wake-up landing more than 10 minutes past the scheduled time is
+skipped rather than sent late.
 
 ### Shell status (`edi-cli status`)
 
@@ -469,10 +454,10 @@ server/
   migrations/           *.sql (embedded) + schema_migrations runner
   cmd/edi-cli/      terminal client (HTTP, over the REST API)
   cmd/edi-mcp/      MCP stdio server (AI agent bridge, over the tool registry)
-  cmd/edi-telegram/ Telegram bot: briefing/nudge pushes + /status /quests /done /ward /rest
   internal/db/          Store: connection, migrations, seed, all SQL
   internal/models/      domain entities + API response shapes
   internal/services/    tool-like business logic (the core; fully unit-tested)
+  internal/presence/    Telegram channel (in-process transport: pairing, commands, pushes)
   internal/handlers/    thin HTTP layer (routing, JSON, CORS, middleware)
   internal/agent/        service layer exposed as a discoverable tool registry
   internal/apiclient/    typed Go HTTP client shared by the CLI and MCP server

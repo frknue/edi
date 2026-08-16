@@ -161,6 +161,21 @@ type QuestInput struct {
 	DueDate          *time.Time       `json:"due_date,omitempty"`
 }
 
+// TelegramStatus is a user's view of the Telegram presence channel.
+type TelegramStatus struct {
+	Configured  bool   `json:"configured"`   // bot token set + bot reachable
+	Linked      bool   `json:"linked"`       // this user has a paired chat
+	BotUsername string `json:"bot_username"` // for the t.me deep link
+}
+
+// TelegramPairCode is a short-lived, single-use code that links a Telegram
+// chat to this account (shown once, like tokens).
+type TelegramPairCode struct {
+	Code        string    `json:"code"`
+	BotUsername string    `json:"bot_username"`
+	ExpiresAt   time.Time `json:"expires_at"`
+}
+
 // QuestDraftRequest asks the AI to propose the mechanical parts of a quest
 // (type, difficulty, XP rewards) from what the user has typed so far.
 type QuestDraftRequest struct {

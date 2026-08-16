@@ -77,10 +77,16 @@ func NewRouter(h *Handlers, clientDir string, tokenMode bool) http.Handler {
 	// OpenAI (ChatGPT subscription) connection powering AI features.
 	mux.HandleFunc("GET /api/openai/status", h.openaiStatus)
 	mux.HandleFunc("POST /api/openai/connect", h.openaiConnect)
+	mux.HandleFunc("POST /api/openai/connect/complete", h.openaiConnectComplete)
 	mux.HandleFunc("POST /api/openai/import-codex", h.openaiImportCodex)
 	mux.HandleFunc("POST /api/openai/disconnect", h.openaiDisconnect)
 	mux.HandleFunc("GET /api/openai/models", h.openaiModels)
 	mux.HandleFunc("POST /api/openai/config", h.openaiConfig)
+
+	// Telegram presence pairing.
+	mux.HandleFunc("GET /api/telegram/status", h.telegramStatus)
+	mux.HandleFunc("POST /api/telegram/pair-code", h.telegramPairCode)
+	mux.HandleFunc("DELETE /api/telegram/link", h.telegramUnlink)
 
 	// Agent-ready tool interface (discovery + invocation).
 	mux.HandleFunc("GET /api/agent/tools", h.listTools)

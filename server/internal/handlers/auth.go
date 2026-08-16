@@ -136,6 +136,34 @@ func (h *Handlers) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// --- telegram pairing ----------------------------------------------------------
+
+func (h *Handlers) telegramStatus(w http.ResponseWriter, r *http.Request) {
+	st, err := h.forUser(r).TelegramStatus()
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, st)
+}
+
+func (h *Handlers) telegramPairCode(w http.ResponseWriter, r *http.Request) {
+	code, err := h.forUser(r).CreateTelegramPairCode()
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, code)
+}
+
+func (h *Handlers) telegramUnlink(w http.ResponseWriter, r *http.Request) {
+	if err := h.forUser(r).UnlinkTelegram(); err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"linked": false})
+}
+
 func (h *Handlers) listUsers(w http.ResponseWriter, r *http.Request) {
 	users, err := h.forUser(r).ListUsers()
 	if err != nil {

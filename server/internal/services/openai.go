@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,18 +24,64 @@ var ErrOpenAINotConnected = fmt.Errorf("%w: OpenAI is not connected — connect 
 
 // oauthRuntime is the process-wide "Sign in with ChatGPT" connect state,
 // shared by every ForUser copy of the Service (see Service.oauth): one
-// :1455 callback listener, one pending flow at a time.
+// :1455 callback listener, one pending flow per user.
 type oauthRuntime struct {
 	mu      sync.Mutex
-	pending *oauthPending
+	pending map[int64]*oauthPending // by initiating user; starting again replaces
 	server  *http.Server
 }
 
 type oauthPending struct {
-	userID    int64 // who initiated the connect — the callback saves THEIR credentials
+	userID    int64 // who initiated the connect — the exchange saves THEIR credentials
 	verifier  string
 	state     string
 	expiresAt time.Time
+}
+
+// setPending stores (replacing) a user's pending flow and sweeps expired ones.
+func (o *oauthRuntime) setPending(p *oauthPending) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.pending == nil {
+		o.pending = map[int64]*oauthPending{}
+	}
+	now := time.Now()
+	for uid, e := range o.pending {
+		if now.After(e.expiresAt) {
+			delete(o.pending, uid)
+		}
+	}
+	o.pending[p.userID] = p
+}
+
+// takePending removes and returns a user's pending flow (nil if none/expired).
+// Removal on take = every code/state attempt burns the flow, success or fail.
+func (o *oauthRuntime) takePending(userID int64) *oauthPending {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	p := o.pending[userID]
+	delete(o.pending, userID)
+	if p == nil || time.Now().After(p.expiresAt) {
+		return nil
+	}
+	return p
+}
+
+// takePendingByState is the :1455 local-callback path: the browser redirect
+// carries only code+state, so the flow is found by state across users.
+func (o *oauthRuntime) takePendingByState(state string) *oauthPending {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	for uid, p := range o.pending {
+		if p.state == state {
+			delete(o.pending, uid)
+			if time.Now().After(p.expiresAt) {
+				return nil
+			}
+			return p
+		}
+	}
+	return nil
 }
 
 // Settings keys.
@@ -172,14 +220,61 @@ func (s *Service) StartOpenAIConnect() (string, error) {
 		return "", err
 	}
 
-	s.oauth.mu.Lock()
-	s.oauth.pending = &oauthPending{userID: s.userID, verifier: pkce.Verifier, state: state, expiresAt: time.Now().Add(10 * time.Minute)}
-	s.oauth.mu.Unlock()
+	s.oauth.setPending(&oauthPending{userID: s.userID, verifier: pkce.Verifier, state: state, expiresAt: time.Now().Add(10 * time.Minute)})
 
+	// The :1455 listener completes the flow automatically when edi runs on the
+	// same machine as the browser. Remote (deployed) servers can't receive the
+	// redirect — there the user pastes the localhost URL they land on into
+	// CompleteOpenAIConnect instead. Failing to bind is therefore non-fatal.
 	if err := s.startCallbackServer(); err != nil {
-		return "", fmt.Errorf("start callback listener on :1455: %w", err)
+		fmt.Printf("openai connect: no local callback listener (%v) — complete via paste\n", err)
 	}
 	return openai.AuthorizeURLFor(pkce.Challenge, state), nil
+}
+
+// CompleteOpenAIConnect finishes a connect flow manually: the user signs in at
+// auth.openai.com in THEIR browser, lands on http://localhost:1455/auth/
+// callback?... (which errors in the browser unless edi runs locally — that's
+// expected), and pastes that URL here. Accepts a full URL, a bare query
+// string, or "code=...&state=...". The pending flow burns on every attempt.
+func (s *Service) CompleteOpenAIConnect(input string) (models.OpenAIStatus, error) {
+	code, state, err := parseOAuthCallback(input)
+	if err != nil {
+		return models.OpenAIStatus{}, err
+	}
+	pending := s.oauth.takePending(s.userID)
+	if pending == nil {
+		return models.OpenAIStatus{}, validationErr("no sign-in in progress (or it expired) — press Connect and try again")
+	}
+	if state != pending.state {
+		return models.OpenAIStatus{}, validationErr("this URL belongs to a different sign-in attempt — press Connect and try again")
+	}
+	tokens, err := openai.ExchangeCode(code, pending.verifier)
+	if err != nil {
+		return models.OpenAIStatus{}, fmt.Errorf("%w: token exchange failed: %v", ErrValidation, err)
+	}
+	if err := s.saveTokensFor(pending.userID, tokens); err != nil {
+		return models.OpenAIStatus{}, err
+	}
+	go s.shutdownCallbackServer()
+	return s.OpenAIStatus()
+}
+
+// parseOAuthCallback extracts code+state from whatever the user pasted.
+func parseOAuthCallback(input string) (code, state string, err error) {
+	raw := strings.TrimSpace(input)
+	if raw == "" {
+		return "", "", validationErr("paste the URL you were redirected to (it starts with http://localhost:1455/...)")
+	}
+	// Full URL → its query; "?a=b" / "a=b&c=d" → parsed directly.
+	if i := strings.IndexByte(raw, '?'); i >= 0 {
+		raw = raw[i+1:]
+	}
+	vals, perr := url.ParseQuery(raw)
+	if perr != nil || vals.Get("code") == "" || vals.Get("state") == "" {
+		return "", "", validationErr("that doesn't look like the callback URL — it must contain code= and state=")
+	}
+	return vals.Get("code"), vals.Get("state"), nil
 }
 
 // startCallbackServer starts (once) an HTTP server on :1455 to catch the OAuth
@@ -226,22 +321,21 @@ func (s *Service) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
 	state := r.URL.Query().Get("state")
 
-	s.oauth.mu.Lock()
-	pending := s.oauth.pending
-	s.oauth.mu.Unlock()
-
 	fail := func(msg string) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprint(w, callbackHTML("Connection failed", msg, false))
 	}
 
-	if pending == nil || time.Now().After(pending.expiresAt) {
-		fail("The sign-in request expired. Start again from edi.")
+	if code == "" || state == "" {
+		fail("Invalid callback. Start again from edi.")
 		return
 	}
-	if code == "" || state != pending.state {
-		fail("Invalid callback (state mismatch). Start again from edi.")
+	// Credentials belong to whoever started the flow — the callback arrives on
+	// the shared listener, so the flow is found (and burned) by its state.
+	pending := s.oauth.takePendingByState(state)
+	if pending == nil {
+		fail("The sign-in request expired or was already used. Start again from edi.")
 		return
 	}
 
@@ -250,16 +344,10 @@ func (s *Service) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		fail("Token exchange failed: " + err.Error())
 		return
 	}
-	// Credentials belong to whoever started the flow — NOT the service's own
-	// bound user (the callback arrives on the shared listener).
 	if err := s.saveTokensFor(pending.userID, tokens); err != nil {
 		fail("Could not save credentials: " + err.Error())
 		return
 	}
-
-	s.oauth.mu.Lock()
-	s.oauth.pending = nil
-	s.oauth.mu.Unlock()
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprint(w, callbackHTML("Connected to ChatGPT", "You can close this tab and return to edi.", true))
