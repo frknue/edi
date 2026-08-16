@@ -219,9 +219,10 @@ conditional nudge at per-user times (app_settings) falling back to
 (suspend/DST-safe), skips pushes >10 min late, never replays. **Only ONE
 environment may set TELEGRAM_BOT_TOKEN per bot** — concurrent getUpdates
 pollers 409; local live-testing needs a second throwaway bot. Isolation
-regression: `TestPresenceMultiUserIsolation`. **Not yet live-tested with a
-real bot token.** `edi-cli status` prints a fail-silent stats block for shell
-startup (never break a shell prompt on server errors).
+regression: `TestPresenceMultiUserIsolation`. Live-tested against a real bot
+(@edi_rpg_bot): deep-link pairing verified end-to-end on the deployed server.
+`edi-cli status` prints a fail-silent stats block for shell startup (never
+break a shell prompt on server errors).
 
 ## Conventions
 

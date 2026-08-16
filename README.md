@@ -172,8 +172,8 @@ docker run -p 8080:8080 -e DATABASE_URL=postgres://... -e EDI_TOKEN=<secret> -e 
   computed on read — no background job), and is paused by **wards** (30 gold buys
   7 decay-free days for one attribute, stacking on top of an active ward) or
   **rest mode** (pauses decay for every attribute at once, for planned downtime).
-- **Presence:** the in-server Telegram channel (*not yet live-tested — see
-  below*) pushes each linked user a morning briefing and an evening nudge and
+- **Presence:** the in-server Telegram channel pushes each linked user a
+  morning briefing and an evening nudge and
   answers `/status /quests /done /ward /rest`, and `edi-cli status` prints a
   fail-silent stats block for your shell prompt — the CLI is a thin client over
   the same REST API as everything else.
@@ -311,11 +311,6 @@ Two "ambient" surfaces show your dashboard without opening the app: the
 Telegram channel (runs inside the server) and a shell prompt block.
 
 ### Telegram
-
-> **Status: not yet validated against a live bot.** Covered by tests (unit +
-> a multi-user integration test driving real services with a stub Telegram),
-> but no one has run it with a real @BotFather token yet — do that pass before
-> relying on the pushes.
 
 Telegram runs **in-process**: set `TELEGRAM_BOT_TOKEN` on the server (create a
 bot with @BotFather) and every user can link their own chat:
