@@ -70,6 +70,16 @@ func NewRegistry() *Registry {
 			return svc.CreateQuest(p)
 		})
 
+	add("record_spontaneous_quest", "Record an unplanned real-life accomplishment as an already-completed quest. Awards XP, gold, streak and game rewards immediately; use create_quest for something the user still plans to do.",
+		`{"type":"object","required":["title"],"properties":{"title":{"type":"string"},"description":{"type":"string"},"type":{"type":"string","enum":["daily","weekly","main","side","boss","recovery"]},"difficulty":{"type":"string","enum":["trivial","easy","medium","hard","boss"]},"attribute_rewards":{"type":"object","additionalProperties":{"type":"integer"}}}}`,
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			var p models.QuestInput
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			return svc.RecordSpontaneousQuest(p)
+		})
+
 	add("draft_quest", "Ask the connected AI to propose a quest's type, difficulty and attribute XP from a title (and optional description). Suggests only — nothing is created; pass the result to create_quest to act on it.",
 		`{"type":"object","required":["title"],"properties":{"title":{"type":"string"},"description":{"type":"string"}}}`,
 		func(svc *services.Service, in json.RawMessage) (any, error) {

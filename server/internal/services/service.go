@@ -135,6 +135,8 @@ func (s *Service) GetWeakestAttribute() (models.Attribute, error) {
 // --- quests -----------------------------------------------------------------
 
 func (s *Service) validateQuestInput(in *models.QuestInput) error {
+	in.Title = strings.TrimSpace(in.Title)
+	in.Description = strings.TrimSpace(in.Description)
 	if in.Title == "" {
 		return validationErr("title is required")
 	}
@@ -282,6 +284,34 @@ func (s *Service) CompleteQuest(id int64) (models.CompletionResult, error) {
 			return models.CompletionResult{}, err
 		}
 	}
+	return s.completionResult(quest, events, levelUps, gold, outcome)
+}
+
+// RecordSpontaneousQuest records something worthwhile the user already did.
+// Creation and completion share one store transaction, so it never appears as
+// an unfinished quest and it receives exactly the same auditable game rewards
+// as any planned quest.
+func (s *Service) RecordSpontaneousQuest(in models.QuestInput) (models.CompletionResult, error) {
+	if in.Type == "" {
+		in.Type = "side"
+	}
+	if len(in.Subtasks) > 0 {
+		return models.CompletionResult{}, validationErr("spontaneous quests cannot have bonus objectives")
+	}
+	if err := s.validateQuestInput(&in); err != nil {
+		return models.CompletionResult{}, err
+	}
+	if _, err := s.ApplyDecay(); err != nil {
+		return models.CompletionResult{}, err
+	}
+	quest, events, levelUps, gold, outcome, err := s.store.RecordSpontaneousQuest(s.userID, in)
+	if err != nil {
+		return models.CompletionResult{}, err
+	}
+	return s.completionResult(quest, events, levelUps, gold, outcome)
+}
+
+func (s *Service) completionResult(quest models.Quest, events []models.XPEvent, levelUps []models.LevelUp, gold int64, outcome db.CompletionOutcome) (models.CompletionResult, error) {
 	// Post-commit, best-effort: badges must never fail a completion.
 	unlocked := s.evaluateAchievements()
 

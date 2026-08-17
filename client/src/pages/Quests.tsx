@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Plus, Scroll } from "lucide-react";
+import { Plus, Scroll, Sparkles } from "lucide-react";
 import {
   useQuests,
   useCreateQuest,
+  useRecordSpontaneousQuest,
   useUpdateQuest,
   useCompleteQuest,
   useSkipQuest,
@@ -23,6 +24,7 @@ export function QuestsPage() {
   const [typeFilter, setTypeFilter] = useState<(typeof TYPE_FILTERS)[number]>("all");
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("active");
   const [modalOpen, setModalOpen] = useState(false);
+  const [winModalOpen, setWinModalOpen] = useState(false);
   const [editing, setEditing] = useState<Quest | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -33,13 +35,14 @@ export function QuestsPage() {
   const { data: quests, isLoading } = useQuests(filters);
 
   const create = useCreateQuest();
+  const recordWin = useRecordSpontaneousQuest();
   const update = useUpdateQuest();
   const complete = useCompleteQuest();
   const skip = useSkipQuest();
   const archive = useArchiveQuest();
   const { celebrate } = useReward();
 
-  const busy = create.isPending || update.isPending || complete.isPending || skip.isPending || archive.isPending;
+  const busy = create.isPending || recordWin.isPending || update.isPending || complete.isPending || skip.isPending || archive.isPending;
 
   const openCreate = () => {
     setEditing(null);
@@ -50,6 +53,10 @@ export function QuestsPage() {
     setEditing(q);
     setFormError(null);
     setModalOpen(true);
+  };
+  const openWin = () => {
+    setFormError(null);
+    setWinModalOpen(true);
   };
 
   const handleSubmit = (input: QuestInput, id?: number) => {
@@ -77,16 +84,43 @@ export function QuestsPage() {
         }),
     });
 
+  const handleWin = (input: QuestInput) => {
+    setFormError(null);
+    recordWin.mutate(input, {
+      onError: (e) => setFormError((e as Error).message),
+      onSuccess: (res) => {
+        setWinModalOpen(false);
+        celebrate({
+          title: res.completed_quest.title,
+          xp_events: res.xp_events,
+          level_ups: res.level_ups,
+          label: "Spontaneous Win",
+          gold: res.gold,
+          crit: res.crit,
+          combo: res.combo_multiplier,
+          drop: res.drop,
+          achievements: res.achievements_unlocked,
+          level: res.dashboard.character.level,
+        });
+      },
+    });
+  };
+
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-xl font-bold tracking-tight text-ink">Quest Log</h1>
           <p className="text-sm text-faint">Create, edit, and manage your real-life quests.</p>
         </div>
-        <Btn variant="primary" onClick={openCreate} data-testid="new-quest">
-          <Plus size={16} /> New quest
-        </Btn>
+        <div className="flex items-center gap-2 sm:shrink-0">
+          <Btn variant="ghost" className="flex-1 sm:flex-none" onClick={openWin} data-testid="spontaneous-win">
+            <Sparkles size={16} /> Log a win
+          </Btn>
+          <Btn variant="primary" className="flex-1 sm:flex-none" onClick={openCreate} data-testid="new-quest">
+            <Plus size={16} /> New quest
+          </Btn>
+        </div>
       </div>
 
       {/* Filters */}
@@ -153,6 +187,14 @@ export function QuestsPage() {
         error={formError}
         onClose={() => setModalOpen(false)}
         onSubmit={handleSubmit}
+      />
+      <QuestFormModal
+        open={winModalOpen}
+        mode="spontaneous"
+        busy={recordWin.isPending}
+        error={formError}
+        onClose={() => setWinModalOpen(false)}
+        onSubmit={handleWin}
       />
     </div>
   );

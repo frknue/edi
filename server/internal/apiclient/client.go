@@ -107,6 +107,12 @@ func (c *Client) CreateQuest(in models.QuestInput) (models.Quest, error) {
 	return qst, err
 }
 
+func (c *Client) RecordSpontaneousQuest(in models.QuestInput) (models.CompletionResult, error) {
+	var r models.CompletionResult
+	err := c.do(http.MethodPost, "/api/quests/spontaneous", in, &r)
+	return r, err
+}
+
 func (c *Client) CompleteQuest(id int64) (models.CompletionResult, error) {
 	var r models.CompletionResult
 	err := c.do(http.MethodPost, fmt.Sprintf("/api/quests/%d/complete", id), nil, &r)

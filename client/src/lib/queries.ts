@@ -75,6 +75,14 @@ export function useCreateQuest() {
   });
 }
 
+export function useRecordSpontaneousQuest() {
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: (input: QuestInput) => api.recordSpontaneousQuest(input),
+    onSuccess: invalidate,
+  });
+}
+
 // Drafting only proposes form values — nothing changes server-side, so there is
 // nothing to invalidate. Failures surface through the global mutation toast.
 export function useDraftQuest() {

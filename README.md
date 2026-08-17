@@ -195,6 +195,7 @@ Base: `/api`
 | GET | `/attributes` | All attributes with derived level/progress |
 | GET | `/quests?type=&status=` | List/filter quests |
 | POST | `/quests` | Create a quest |
+| POST | `/quests/spontaneous` | Record an unplanned accomplishment as a completed quest and award its rewards atomically |
 | POST | `/quests/draft` | AI-propose a quest's type/difficulty/XP from a title (+ description); suggests only, persists nothing |
 | PATCH | `/quests/:id` | Update a quest (partial) |
 | POST | `/quests/:id/complete` | Complete → awards XP, writes events, updates streak, returns refreshed dashboard |
@@ -224,8 +225,9 @@ Base: `/api`
 
 ### Agent-ready by design
 
-`server/internal/agent` wraps the service layer as 22 named tools with JSON Schemas
-(`get_dashboard`, `create_quest`, `complete_quest`, `generate_suggestions`,
+`server/internal/agent` wraps the service layer as 27 named tools with JSON Schemas
+(`get_dashboard`, `create_quest`, `record_spontaneous_quest`, `complete_quest`,
+`generate_suggestions`,
 `accept_suggestion`, `list_shop_items`, `purchase_shop_item`, `list_gold_events`,
 `ward_attribute`, `set_rest_mode`, …).
 They are discoverable at `GET /api/agent/tools` and callable
@@ -252,6 +254,7 @@ make backend                      # start the API (or `make dev`)
 make cli ARGS=dashboard           # character, attributes, today's quests, streak
 make cli ARGS="quests --status active"
 make cli ARGS='add --title "Cold plunge" --type daily --reward discipline=25 --reward health=15'
+make cli ARGS='win --title "Helped a stranger" --reward relationships=25'
 make cli ARGS="complete 3"        # shows XP gained + level-ups
 make cli ARGS=suggest-gen
 make cli ARGS=tools               # the agent tool catalog
@@ -261,7 +264,7 @@ make cli ARGS=tools               # the agent tool catalog
 ### MCP server (AI agent bridge)
 
 `edi-mcp` is a Model Context Protocol server (stdio JSON-RPC) that exposes the
-22 agent tools to an AI client. It is a pure proxy to `/api/agent/tools` — the agent
+27 agent tools to an AI client. It is a pure proxy to `/api/agent/tools` — the agent
 drives the app through the **same service path** as every other client. A quest the
 agent creates is immediately visible to the web UI, CLI, and DB. New tools (like the
 gold economy ones below) appear automatically — the MCP server never needs a code
@@ -282,7 +285,7 @@ Point an MCP-capable client (Claude Desktop / Claude Code) at it — start the A
 ```
 
 (Build the binary with `make build`.) Tools available to the agent: `get_dashboard`,
-`list_quests`, `create_quest`, `draft_quest`, `update_quest`, `toggle_subtask`, `complete_quest`,
+`list_quests`, `create_quest`, `record_spontaneous_quest`, `draft_quest`, `update_quest`, `toggle_subtask`, `complete_quest`,
 `skip_quest`, `archive_quest`, `create_journal_entry`, `list_journal_entries`,
 `get_weakest_attribute`, `generate_suggestions`, `accept_suggestion`,
 `dismiss_suggestion`, `list_shop_items`, `create_shop_item`, `update_shop_item`,

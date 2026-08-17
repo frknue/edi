@@ -188,6 +188,75 @@ func TestCompleteQuestLevelUp(t *testing.T) {
 	}
 }
 
+func TestRecordSpontaneousQuestCompletesAndAuditsImmediately(t *testing.T) {
+	svc := newTestService(t)
+
+	before, err := svc.ListAttributes()
+	if err != nil {
+		t.Fatalf("list attributes: %v", err)
+	}
+	relBefore := attrByKey(before, "relationships").TotalXP
+
+	result, err := svc.RecordSpontaneousQuest(models.QuestInput{
+		Title:            "  Helped a stranger carry their bags  ",
+		Description:      "  Saw a chance to help and took it.  ",
+		Difficulty:       "easy",
+		AttributeRewards: map[string]int64{"relationships": 25},
+	})
+	if err != nil {
+		t.Fatalf("record spontaneous quest: %v", err)
+	}
+
+	if result.Quest.Status != models.StatusCompleted || result.Quest.CompletedAt == nil {
+		t.Fatalf("quest = status %q completed_at %v, want completed immediately", result.Quest.Status, result.Quest.CompletedAt)
+	}
+	if result.Quest.Type != "side" {
+		t.Errorf("default type = %q, want side", result.Quest.Type)
+	}
+	if result.Quest.Title != "Helped a stranger carry their bags" {
+		t.Errorf("trimmed title = %q", result.Quest.Title)
+	}
+	if len(result.XPEvents) != 1 || result.XPEvents[0].Amount != 25 || result.XPEvents[0].AttributeKey != "relationships" {
+		t.Fatalf("xp events = %+v, want one +25 relationships event", result.XPEvents)
+	}
+	if got := attrByKey(result.Dashboard.Attributes, "relationships").TotalXP; got != relBefore+25 {
+		t.Errorf("relationships total = %d, want %d", got, relBefore+25)
+	}
+
+	active, err := svc.ListQuests("", models.StatusActive)
+	if err != nil {
+		t.Fatalf("list active quests: %v", err)
+	}
+	for _, q := range active {
+		if q.ID == result.Quest.ID {
+			t.Fatal("spontaneous quest leaked into the active quest list")
+		}
+	}
+
+	var total, eventSum int64
+	if err := svc.store.DB().QueryRow(
+		`SELECT total_xp, (SELECT COALESCE(SUM(amount), 0) FROM xp_events WHERE user_id = $1 AND attribute_key = $2)
+		 FROM attributes WHERE user_id = $1 AND key = $2`, svc.userID, "relationships").Scan(&total, &eventSum); err != nil {
+		t.Fatalf("audit query: %v", err)
+	}
+	if total != eventSum {
+		t.Errorf("audit invariant: total_xp=%d sum(events)=%d", total, eventSum)
+	}
+}
+
+func TestRecordSpontaneousQuestRejectsBonusObjectives(t *testing.T) {
+	svc := newTestService(t)
+	_, err := svc.RecordSpontaneousQuest(models.QuestInput{
+		Title: "Already happened",
+		Subtasks: []models.SubtaskInput{{
+			Title: "Also already happened",
+		}},
+	})
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("error = %v, want ErrValidation", err)
+	}
+}
+
 // insertTestSuggestion adds a pending suggestion directly via the store (suggestions
 // are normally produced by the LLM, which is unavailable/undesired in unit tests).
 func insertTestSuggestion(t *testing.T, svc *Service) models.AgentSuggestion {

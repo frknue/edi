@@ -77,6 +77,20 @@ func (h *Handlers) createQuest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, quest)
 }
 
+func (h *Handlers) recordSpontaneousQuest(w http.ResponseWriter, r *http.Request) {
+	var in models.QuestInput
+	if err := decodeBody(r, &in); err != nil {
+		writeError(w, err)
+		return
+	}
+	result, err := h.forUser(r).RecordSpontaneousQuest(in)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, result)
+}
+
 // draftQuest asks the AI for a quest's type/difficulty/XP. It only proposes —
 // nothing is persisted; the client applies the draft to the open form.
 func (h *Handlers) draftQuest(w http.ResponseWriter, r *http.Request) {

@@ -120,6 +120,8 @@ export const api = {
   },
   createQuest: (input: QuestInput) =>
     request<Quest>("/quests", { method: "POST", body: JSON.stringify(input) }),
+  recordSpontaneousQuest: (input: QuestInput) =>
+    request<CompletionResult>("/quests/spontaneous", { method: "POST", body: JSON.stringify(input) }),
   draftQuest: (body: { title: string; description: string }) =>
     request<QuestDraft>("/quests/draft", { method: "POST", body: JSON.stringify(body) }),
   updateQuest: (id: number, patch: Partial<QuestInput> & { status?: string }) =>

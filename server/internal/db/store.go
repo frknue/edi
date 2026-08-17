@@ -363,6 +363,18 @@ type CompletionOutcome struct {
 }
 
 func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPEvent, []models.LevelUp, int64, CompletionOutcome, error) {
+	return s.completeQuest(userID, questID, nil)
+}
+
+// RecordSpontaneousQuest creates a quest and completes it in the same
+// per-user transaction. It is the "I already did this" path: clients get the
+// normal completion rewards without briefly creating an active quest or
+// duplicating any of the XP/gold/streak game logic below.
+func (s *Store) RecordSpontaneousQuest(userID int64, in models.QuestInput) (models.Quest, []models.XPEvent, []models.LevelUp, int64, CompletionOutcome, error) {
+	return s.completeQuest(userID, 0, &in)
+}
+
+func (s *Store) completeQuest(userID, questID int64, spontaneous *models.QuestInput) (models.Quest, []models.XPEvent, []models.LevelUp, int64, CompletionOutcome, error) {
 	fail := func(err error) (models.Quest, []models.XPEvent, []models.LevelUp, int64, CompletionOutcome, error) {
 		return models.Quest{}, nil, nil, 0, CompletionOutcome{}, err
 	}
@@ -383,6 +395,15 @@ func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPE
 	defer tx.Rollback() //nolint:errcheck — no-op after a successful Commit
 
 	now := time.Now().UTC()
+	if spontaneous != nil {
+		if err := tx.QueryRow(
+			`INSERT INTO quests(user_id, title, description, type, difficulty, status, attribute_rewards, skip_count, created_at, due_date)
+			 VALUES($1, $2, $3, $4, $5, 'active', $6, 0, $7, $8) RETURNING id`,
+			userID, spontaneous.Title, spontaneous.Description, spontaneous.Type, spontaneous.Difficulty,
+			marshalRewards(spontaneous.AttributeRewards), now, nullTime(spontaneous.DueDate)).Scan(&questID); err != nil {
+			return fail(err)
+		}
+	}
 
 	res, err := tx.Exec(
 		`UPDATE quests SET status = 'completed', completed_at = $1

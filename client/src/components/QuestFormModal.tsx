@@ -13,13 +13,14 @@ const DIFFICULTIES = Object.keys(difficultyMeta) as Difficulty[];
 interface Props {
   open: boolean;
   initial?: Quest | null;
+  mode?: "quest" | "spontaneous";
   busy?: boolean;
   error?: string | null;
   onClose: () => void;
   onSubmit: (input: QuestInput, id?: number) => void;
 }
 
-export function QuestFormModal({ open, initial, busy, error, onClose, onSubmit }: Props) {
+export function QuestFormModal({ open, initial, mode = "quest", busy, error, onClose, onSubmit }: Props) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<QuestType>("daily");
@@ -66,14 +67,14 @@ export function QuestFormModal({ open, initial, busy, error, onClose, onSubmit }
     draft.reset();
     setTitle(initial?.title ?? "");
     setDescription(initial?.description ?? "");
-    setType(initial?.type ?? "daily");
+    setType(initial?.type ?? (mode === "spontaneous" ? "side" : "daily"));
     setDifficulty(initial?.difficulty ?? "easy");
     setRewards(initial?.attribute_rewards ? { ...initial.attribute_rewards } : {});
     setSubtasks(
       initial?.subtasks?.map((st) => ({ title: st.title, attribute_rewards: { ...st.attribute_rewards } })) ?? [],
     );
     setExpandedSub(null);
-  }, [open, initial]);
+  }, [open, initial, mode]);
 
   useEffect(() => {
     if (!open) return;
@@ -119,7 +120,7 @@ export function QuestFormModal({ open, initial, busy, error, onClose, onSubmit }
         type,
         difficulty,
         attribute_rewards: cleaned,
-        subtasks: cleanedSubs,
+        subtasks: mode === "spontaneous" ? [] : cleanedSubs,
       },
       initial?.id,
     );
@@ -146,7 +147,7 @@ export function QuestFormModal({ open, initial, busy, error, onClose, onSubmit }
           >
             <div className="flex items-center justify-between border-b border-edge px-5 py-3.5">
               <h2 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-ink">
-                {initial ? "Edit quest" : "New quest"}
+                {initial ? "Edit quest" : mode === "spontaneous" ? "Claim a win" : "New quest"}
               </h2>
               <button onClick={onClose} className="text-faint hover:text-ink" aria-label="Close">
                 <X size={18} />
@@ -154,13 +155,18 @@ export function QuestFormModal({ open, initial, busy, error, onClose, onSubmit }
             </div>
 
             <div className="max-h-[70vh] space-y-4 overflow-y-auto px-5 py-4">
+              {mode === "spontaneous" && (
+                <p className="rounded-lg border border-[color-mix(in_srgb,var(--color-gold)_28%,transparent)] bg-[color-mix(in_srgb,var(--color-gold)_7%,transparent)] px-3 py-2 text-xs leading-relaxed text-muted">
+                  Not every victory starts in the quest log. Record something good you already did and claim the XP.
+                </p>
+              )}
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted">Title</label>
                 <input
                   autoFocus
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. 30 minute workout"
+                  placeholder={mode === "spontaneous" ? "e.g. Helped a stranger" : "e.g. 30 minute workout"}
                   className="w-full rounded-lg border border-edge bg-white/[0.03] px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-[var(--color-gold)] focus:outline-none"
                 />
               </div>
@@ -290,25 +296,26 @@ export function QuestFormModal({ open, initial, busy, error, onClose, onSubmit }
                 </div>
               </div>
 
-              <div>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <label className="block text-xs font-medium text-muted">
-                    Bonus objectives <span className="text-faint">(optional subtasks — extra XP if checked)</span>
-                  </label>
-                  <button
-                    onClick={() => {
-                      setSubtasks((ss) => [...ss, { title: "", attribute_rewards: {} }]);
-                      setExpandedSub(subtasks.length);
-                    }}
-                    data-testid="add-subtask"
-                    className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--color-spirituality)]"
-                  >
-                    <Plus size={12} /> Add
-                  </button>
-                </div>
-                {subtasks.length > 0 && (
-                  <div className="space-y-1.5">
-                    {subtasks.map((st, i) => {
+              {mode !== "spontaneous" && (
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <label className="block text-xs font-medium text-muted">
+                      Bonus objectives <span className="text-faint">(optional subtasks — extra XP if checked)</span>
+                    </label>
+                    <button
+                      onClick={() => {
+                        setSubtasks((ss) => [...ss, { title: "", attribute_rewards: {} }]);
+                        setExpandedSub(subtasks.length);
+                      }}
+                      data-testid="add-subtask"
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--color-spirituality)]"
+                    >
+                      <Plus size={12} /> Add
+                    </button>
+                  </div>
+                  {subtasks.length > 0 && (
+                    <div className="space-y-1.5">
+                      {subtasks.map((st, i) => {
                       const expanded = expandedSub === i;
                       return (
                         <div key={i} className="rounded-lg border border-edge bg-white/[0.02]">
@@ -377,10 +384,11 @@ export function QuestFormModal({ open, initial, busy, error, onClose, onSubmit }
                           )}
                         </div>
                       );
-                    })}
-                  </div>
-                )}
-              </div>
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {error && <p className="text-xs text-[#ff8a80]">{error}</p>}
             </div>
@@ -390,7 +398,7 @@ export function QuestFormModal({ open, initial, busy, error, onClose, onSubmit }
                 Cancel
               </Btn>
               <Btn variant="primary" disabled={busy || title.trim() === ""} onClick={submit}>
-                {initial ? "Save changes" : "Create quest"}
+                {initial ? "Save changes" : mode === "spontaneous" ? "Claim XP" : "Create quest"}
               </Btn>
             </div>
           </motion.div>

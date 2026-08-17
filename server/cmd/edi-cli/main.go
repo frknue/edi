@@ -11,6 +11,7 @@
 //	dashboard                       Character, attributes, today's quests, streak
 //	quests [--type t] [--status s]  List quests
 //	add --title T [flags]           Create a quest (--type --difficulty --desc --reward k=v)
+//	win --title T [flags]           Record an unplanned quest as already completed
 //	complete <id>                   Complete a quest (shows XP + level-ups)
 //	skip <id> | archive <id>        Skip / archive a quest
 //	journal                         List recent reflections
@@ -72,6 +73,8 @@ func run(c *apiclient.Client, cmd string, args []string) error {
 		return cmdQuests(c, args)
 	case "add":
 		return cmdAdd(c, args)
+	case "win":
+		return cmdWin(c, args)
 	case "complete":
 		return cmdComplete(c, args)
 	case "subtask":
@@ -237,6 +240,31 @@ func cmdAdd(c *apiclient.Client, args []string) error {
 	return nil
 }
 
+func cmdWin(c *apiclient.Client, args []string) error {
+	fs := flag.NewFlagSet("win", flag.ContinueOnError)
+	title := fs.String("title", "", "completed quest title (required)")
+	desc := fs.String("desc", "", "description")
+	typ := fs.String("type", "side", "type: daily|weekly|main|side|boss|recovery")
+	diff := fs.String("difficulty", "easy", "difficulty: trivial|easy|medium|hard|boss")
+	var rewards rewardFlag
+	fs.Var(&rewards, "reward", "attribute reward k=v (repeatable), e.g. --reward relationships=25")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *title == "" {
+		return fmt.Errorf("--title is required")
+	}
+	res, err := c.RecordSpontaneousQuest(models.QuestInput{
+		Title: *title, Description: *desc, Type: *typ, Difficulty: *diff,
+		AttributeRewards: rewards.m,
+	})
+	if err != nil {
+		return err
+	}
+	printCompletion(res, "recorded spontaneous win")
+	return nil
+}
+
 func cmdComplete(c *apiclient.Client, args []string) error {
 	id, err := argID(args)
 	if err != nil {
@@ -246,20 +274,24 @@ func cmdComplete(c *apiclient.Client, args []string) error {
 	if err != nil {
 		return err
 	}
+	printCompletion(res, "completed")
+	return nil
+}
+
+func printCompletion(res models.CompletionResult, verb string) {
 	var total int64
 	parts := []string{}
 	for _, e := range res.XPEvents {
 		total += e.Amount
 		parts = append(parts, fmt.Sprintf("+%d %s", e.Amount, e.AttributeName))
 	}
-	fmt.Printf("%s completed %q  %s\n", green("✓"), res.Quest.Title, bold(fmt.Sprintf("+%d XP", total)))
+	fmt.Printf("%s %s %q  %s\n", green("✓"), verb, res.Quest.Title, bold(fmt.Sprintf("+%d XP", total)))
 	if len(parts) > 0 {
 		fmt.Println("  " + dim(strings.Join(parts, "  ")))
 	}
 	for _, lu := range res.LevelUps {
 		fmt.Printf("  %s %s reached Lv %d\n", green("⤴"), lu.AttributeName, lu.ToLevel)
 	}
-	return nil
 }
 
 func cmdSimpleQuest(c *apiclient.Client, args []string, fn func(int64) (models.Quest, error), verb string) error {
@@ -592,6 +624,7 @@ commands:
   dashboard                          character, attributes, today's quests, streak
   quests [--type t] [--status s]     list quests
   add --title T [--type --difficulty --desc --reward k=v ...]
+  win --title T [--type --difficulty --desc --reward k=v ...]
   complete <id> | skip <id> | archive <id>
   subtask <quest_id> <subtask_id>    toggle a bonus objective
   journal                            list recent reflections
