@@ -4,6 +4,8 @@
 // Lv 10, a crown at Lv 15, and earned titles give an aura. Idle bob + blink
 // by default; "celebrate" jumps, "crit" shakes (see index.css keyframes).
 
+import { t } from "../lib/i18n";
+
 const W = 16;
 const H = 15;
 
@@ -167,7 +169,7 @@ export function PixelHero({
         width={size}
         height={(size * H) / W}
         style={{ imageRendering: "pixelated", shapeRendering: "crispEdges", position: "relative" }}
-        aria-label={`Pixel hero, level ${level}`}
+        aria-label={t("hero.alt", { level })}
         role="img"
       >
         {grid.flatMap((row, y) =>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { CheckCircle2, TriangleAlert, X } from "lucide-react";
+import { t as tr } from "./i18n";
 
 export type ToastType = "error" | "success" | "info";
 
@@ -71,7 +72,7 @@ export function Toaster() {
             >
               <Icon size={16} style={{ color: s.color, marginTop: 1 }} className="shrink-0" />
               <p className="flex-1 text-[13px] leading-snug text-ink">{t.message}</p>
-              <button onClick={() => dismiss(t.id)} className="text-faint hover:text-ink" aria-label="Dismiss">
+              <button onClick={() => dismiss(t.id)} className="text-faint hover:text-ink" aria-label={tr("common.dismiss")}>
                 <X size={14} />
               </button>
             </motion.div>

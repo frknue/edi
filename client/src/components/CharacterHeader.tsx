@@ -3,7 +3,8 @@ import { PixelHero } from "./PixelHero";
 import { Coins, Flame } from "lucide-react";
 import type { CharacterSummary, DailyProgress, Streak } from "../lib/types";
 import { ProgressBar } from "./ui";
-import { pct } from "../lib/format";
+import { formatNumber, pct } from "../lib/format";
+import { useI18n } from "../lib/i18n";
 
 function DailyRing({ ratio, completed, goal }: { ratio: number; completed: number; goal: number }) {
   const r = 26;
@@ -49,6 +50,7 @@ export function CharacterHeader({
   daily: DailyProgress;
   gold: number;
 }) {
+  const { t } = useI18n();
   return (
     <motion.section
       initial={{ opacity: 0, y: 14 }}
@@ -82,7 +84,7 @@ export function CharacterHeader({
           </div>
           <div>
             <div className="font-display text-[11px] uppercase tracking-[0.32em] text-muted">
-              &gt; operator
+              {t("hero.operator")}
             </div>
             <h1 className="cursor-blink font-display text-3xl leading-tight text-ink">
               {character.name}
@@ -97,7 +99,7 @@ export function CharacterHeader({
               </div>
             )}
             <div className="tabnum mt-0.5 text-xs text-faint">
-              {character.total_xp.toLocaleString()} total XP
+              {t("hero.totalXp", { xp: formatNumber(character.total_xp) })}
             </div>
           </div>
         </div>
@@ -106,7 +108,7 @@ export function CharacterHeader({
         <div className="flex-1 lg:px-4">
           <div className="mb-1.5 flex items-center justify-between text-xs">
             <span className="font-display uppercase tracking-wider text-muted">
-              Progress to Lv {character.level + 1}
+              {t("hero.progressTo", { level: character.level + 1 })}
             </span>
             <span className="tabnum text-faint">
               {character.xp_into_level} / {character.xp_for_next_level}
@@ -124,7 +126,7 @@ export function CharacterHeader({
               <span className="tabnum text-2xl font-bold text-ink">{gold}</span>
             </div>
             <div className="mt-0.5 font-display text-[10px] uppercase tracking-wider text-faint">
-              Gold
+              {t("hero.gold")}
             </div>
           </div>
           <div className="text-center">
@@ -135,23 +137,23 @@ export function CharacterHeader({
               <span className="tabnum text-2xl font-bold text-ink">{streak.current}</span>
             </div>
             <div className="mt-0.5 font-display text-[10px] uppercase tracking-wider text-faint">
-              Day streak
+              {t("hero.dayStreak")}
             </div>
-            <div className="text-[10px] text-faint">best {streak.longest}</div>
+            <div className="text-[10px] text-faint">{t("hero.best", { n: streak.longest })}</div>
           </div>
           <div className="text-center">
             <DailyRing ratio={daily.ratio} completed={daily.completed_today} goal={daily.goal} />
             <div className="mt-0.5 font-display text-[10px] uppercase tracking-wider text-faint">
-              Today
+              {t("hero.today")}
             </div>
             {daily.next_combo_multiplier > 1 && (
               <div
                 className="tabnum text-[10px] font-semibold"
                 style={{ color: "var(--color-spirituality)" }}
-                title="Combo chain: back-to-back completions today multiply XP"
+                title={t("hero.comboTitle")}
                 data-testid="combo-chip"
               >
-                🔗 next ×{daily.next_combo_multiplier}
+                🔗 {t("hero.nextCombo", { mult: daily.next_combo_multiplier })}
               </div>
             )}
           </div>

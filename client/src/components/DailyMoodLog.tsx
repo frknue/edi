@@ -22,6 +22,8 @@ import { relativeTime } from "../lib/format";
 import { EMOTIONS, DISTORTIONS, emotionLabel, distortionName } from "../lib/cbt";
 import type { MoodDistortionHit, MoodLog, MoodResponseIdea, MoodThought, ToolEntry } from "../lib/types";
 import { Btn, EmptyState, SectionTitle, Spinner } from "./ui";
+import { useI18n } from "../lib/i18n";
+import type { MessageKey } from "../lib/locales/en";
 
 interface EmotionState {
   before: number;
@@ -38,7 +40,7 @@ const emptyThought = (): MoodThought => ({
   belief_after: 30,
 });
 
-const STEPS = ["The moment", "The thoughts", "Re-rate & finish"];
+const STEP_KEYS: MessageKey[] = ["mood.step1", "mood.step2", "mood.step3"];
 
 // DailyMoodLog lands on the HISTORY of past logs (reviewing them is part of the
 // method — you see your shifts and recurring distortions). [ NEW LOG ] enters
@@ -61,6 +63,7 @@ function avgShift(data: MoodLog): { before: number; after: number } {
 }
 
 function MoodLogHistory({ onClose, onNew }: { onClose: () => void; onNew: () => void }) {
+  const { t, tp } = useI18n();
   const { data: entries, isLoading } = useToolEntries("daily_mood_log");
 
   // Aggregate insight across all logs: average distress drop + top distortions.
@@ -83,35 +86,35 @@ function MoodLogHistory({ onClose, onNew }: { onClose: () => void; onNew: () => 
     <div className="mx-auto max-w-2xl">
       <div className="mb-5 flex items-center justify-between">
         <button onClick={onClose} className="flex items-center gap-1.5 text-sm text-muted hover:text-ink">
-          <ArrowLeft size={16} /> Back
+          <ArrowLeft size={16} /> {t("common.back")}
         </button>
         <Btn variant="primary" onClick={onNew} data-testid="new-mood-log">
-          <Plus size={15} /> New log
+          <Plus size={15} /> {t("mood.newLog")}
         </Btn>
       </div>
 
       <div className="mb-1 font-display text-[11px] uppercase tracking-[0.24em] text-[var(--color-spirituality)]">
-        Daily Mood Log · Dr. David Burns · TEAM-CBT
+        {t("mood.overline")}
       </div>
-      <h1 className="mb-4 font-display text-3xl leading-tight text-ink">Your logs</h1>
+      <h1 className="mb-4 font-display text-3xl leading-tight text-ink">{t("mood.yourLogs")}</h1>
 
       {stats && (
         <div className="hud-panel clip-corner mb-5 flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-          <Stat label="logs" value={String(stats.count)} />
+          <Stat label={tp("mood.logs", stats.count)} value={String(stats.count)} />
           <Stat
-            label="avg. distress drop"
-            value={`${stats.avgDrop > 0 ? "−" : ""}${Math.abs(stats.avgDrop)} pts`}
+            label={t("mood.avgDrop")}
+            value={t("mood.pts", { n: `${stats.avgDrop > 0 ? "−" : ""}${Math.abs(stats.avgDrop)}` })}
             color={stats.avgDrop > 0 ? "var(--color-health)" : "var(--color-muted)"}
           />
           {stats.top.length > 0 && (
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] uppercase tracking-wider text-faint">recurring</span>
+              <span className="text-[10px] uppercase tracking-wider text-faint">{t("mood.recurring")}</span>
               {stats.top.map(([code, n]) => (
                 <span
                   key={code}
                   className="rounded-sm px-1.5 py-0.5 text-[11px]"
                   style={{ background: "rgba(185,138,255,0.14)", color: "#b98aff" }}
-                  title={`${distortionName(code)} appeared in ${n} thought${n === 1 ? "" : "s"}`}
+                  title={tp("mood.appearedIn", n, { name: distortionName(code) })}
                 >
                   {distortionName(code)} ×{n}
                 </span>
@@ -126,12 +129,12 @@ function MoodLogHistory({ onClose, onNew }: { onClose: () => void; onNew: () => 
       ) : !entries || entries.length === 0 ? (
         <EmptyState
           icon={<BrainCircuit size={22} />}
-          title="No mood logs yet"
-          hint="Work through an upsetting moment — your first log will appear here."
+          title={t("mood.noLogs")}
+          hint={t("mood.noLogsHint")}
         />
       ) : (
         <div className="space-y-2.5">
-          <SectionTitle hint="Most recent first. Tap a log to review it.">History</SectionTitle>
+          <SectionTitle hint={t("mood.historyHint")}>{t("mood.history")}</SectionTitle>
           {entries.map((e, i) => (
             <HistoryEntry key={e.id} entry={e} index={i} />
           ))}
@@ -153,6 +156,7 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
 }
 
 function HistoryEntry({ entry, index }: { entry: ToolEntry; index: number }) {
+  const { t, tp } = useI18n();
   const [open, setOpen] = useState(false);
   const data = entry.data;
   const { before, after } = avgShift(data);
@@ -173,8 +177,7 @@ function HistoryEntry({ entry, index }: { entry: ToolEntry; index: number }) {
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm text-ink">{data.event}</div>
           <div className="mt-0.5 text-[11px] text-faint">
-            {relativeTime(entry.created_at)} · {data.thoughts?.length ?? 0} thought
-            {(data.thoughts?.length ?? 0) === 1 ? "" : "s"} · +{entry.xp_awarded} XP
+            {relativeTime(entry.created_at)} · {tp("mood.thoughts", data.thoughts?.length ?? 0)} · +{entry.xp_awarded} XP
           </div>
         </div>
         <span className="tabnum shrink-0 text-sm">
@@ -206,14 +209,14 @@ function HistoryEntry({ entry, index }: { entry: ToolEntry; index: number }) {
           </div>
 
           {/* thoughts worked through */}
-          {(data.thoughts ?? []).map((t, i) => (
+          {(data.thoughts ?? []).map((th, i) => (
             <div key={i} className="rounded-sm border border-edge bg-white/[0.02] p-2.5">
-              <div className="text-[13px] text-ink">“{t.thought}”</div>
+              <div className="text-[13px] text-ink">“{th.thought}”</div>
               <div className="mt-1 flex flex-wrap items-center gap-1.5">
                 <span className="tabnum text-[11px] text-faint">
-                  belief {t.belief_before}%→{t.belief_after}%
+                  {t("mood.belief", { before: th.belief_before, after: th.belief_after })}
                 </span>
-                {t.distortions.map((d) => (
+                {th.distortions.map((d) => (
                   <span
                     key={d}
                     className="rounded-sm px-1.5 py-0.5 text-[10px]"
@@ -223,13 +226,13 @@ function HistoryEntry({ entry, index }: { entry: ToolEntry; index: number }) {
                   </span>
                 ))}
               </div>
-              {t.positive_thought && (
+              {th.positive_thought && (
                 <div
                   className="mt-2 rounded-sm border-l-2 py-1 pl-2 text-[13px]"
                   style={{ borderColor: "var(--color-health)", color: "var(--color-muted)" }}
                 >
-                  {t.positive_thought}
-                  <span className="tabnum ml-1.5 text-[10px] text-faint">({t.positive_belief}% believed)</span>
+                  {th.positive_thought}
+                  <span className="tabnum ml-1.5 text-[10px] text-faint">{t("mood.believed", { n: th.positive_belief })}</span>
                 </div>
               )}
             </div>
@@ -243,6 +246,7 @@ function HistoryEntry({ entry, index }: { entry: ToolEntry; index: number }) {
 // --- guided 3-step flow ---------------------------------------------------------
 
 function MoodLogFlow({ onClose }: { onClose: () => void }) {
+  const { t } = useI18n();
   const [step, setStep] = useState(0);
   const [event, setEvent] = useState("");
   const [emotions, setEmotions] = useState<EmotionMap>({});
@@ -280,10 +284,10 @@ function MoodLogFlow({ onClose }: { onClose: () => void }) {
     complete.mutate(data, {
       onSuccess: (res) => {
         celebrate({
-          title: "Daily Mood Log",
+          title: t("mood.toolTitle"),
           xp_events: res.xp_events,
           level_ups: res.level_ups,
-          label: "Tool Complete",
+          label: t("reward.toolComplete"),
           gold: res.gold,
         });
         onClose();
@@ -296,10 +300,10 @@ function MoodLogFlow({ onClose }: { onClose: () => void }) {
       {/* Header */}
       <div className="mb-5 flex items-center justify-between">
         <button onClick={onClose} className="flex items-center gap-1.5 text-sm text-muted hover:text-ink">
-          <ArrowLeft size={16} /> Back
+          <ArrowLeft size={16} /> {t("common.back")}
         </button>
         <div className="flex items-center gap-1.5">
-          {STEPS.map((_, i) => (
+          {STEP_KEYS.map((_, i) => (
             <span
               key={i}
               className="h-1.5 rounded-full transition-all"
@@ -313,25 +317,25 @@ function MoodLogFlow({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="mb-1 font-display text-[11px] uppercase tracking-[0.24em] text-[var(--color-spirituality)]">
-        Daily Mood Log · Step {step + 1}/3
+        {t("mood.stepOf", { step: step + 1 })}
       </div>
-      <h1 className="mb-5 font-display text-2xl font-bold tracking-tight text-ink">{STEPS[step]}</h1>
+      <h1 className="mb-5 font-display text-2xl font-bold tracking-tight text-ink">{t(STEP_KEYS[step])}</h1>
 
       <motion.div key={step} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25 }}>
         {step === 0 && (
           <div className="space-y-6">
-            <Field label="What happened?" hint="One specific upsetting moment — the who, what, when.">
+            <Field label={t("mood.whatHappened")} hint={t("mood.whatHappenedHint")}>
               <textarea
                 autoFocus
                 value={event}
                 onChange={(e) => setEvent(e.target.value)}
                 rows={3}
-                placeholder="e.g. My manager gave critical feedback on the project in front of the team."
+                placeholder={t("mood.eventPlaceholder")}
                 className="w-full resize-none rounded-lg border border-edge bg-white/[0.03] px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-[var(--color-spirituality)] focus:outline-none"
               />
             </Field>
 
-            <Field label="How did you feel?" hint="Pick the feelings, then rate how strong each was (0–100%).">
+            <Field label={t("mood.howFeel")} hint={t("mood.howFeelHint")}>
               <div className="flex flex-wrap gap-2">
                 {EMOTIONS.map((e) => {
                   const active = !!emotions[e.key];
@@ -381,8 +385,9 @@ function MoodLogFlow({ onClose }: { onClose: () => void }) {
         {step === 1 && (
           <div className="space-y-4">
             <p className="text-sm text-muted">
-              Write the automatic negative thoughts running through your mind, tag the distortions in each, then
-              answer with a response that is <em>100% true</em> and takes the sting out.
+              {t("mood.thoughtsIntro1")}
+              <em>{t("mood.hundredTrue")}</em>
+              {t("mood.thoughtsIntro2")}
             </p>
             {thoughts.map((t, i) => (
               <ThoughtEditor
@@ -400,14 +405,14 @@ function MoodLogFlow({ onClose }: { onClose: () => void }) {
               onClick={() => setThoughts((ts) => [...ts, emptyThought()])}
               className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-edge py-2.5 text-xs text-muted hover:border-edge2 hover:text-ink"
             >
-              <Plus size={14} /> Add another thought
+              <Plus size={14} /> {t("mood.addThought")}
             </button>
           </div>
         )}
 
         {step === 2 && (
           <div className="space-y-6">
-            <Field label="Re-rate your feelings" hint="Now that you've answered the thoughts, how strong is each feeling?">
+            <Field label={t("mood.rerate")} hint={t("mood.rerateHint")}>
               <div className="space-y-3">
                 {chosenEmotions.map((key) => {
                   const meta = EMOTIONS.find((x) => x.key === key)!;
@@ -417,7 +422,7 @@ function MoodLogFlow({ onClose }: { onClose: () => void }) {
                       <div className="mb-1 flex items-baseline justify-between">
                         <span className="text-sm text-ink">{meta.label}</span>
                         <span className="tabnum text-[11px] text-faint">
-                          was {st.before}% → now {st.after}%
+                          {t("mood.wasNow", { before: st.before, after: st.after })}
                         </span>
                       </div>
                       <PercentSlider
@@ -439,20 +444,20 @@ function MoodLogFlow({ onClose }: { onClose: () => void }) {
       <div className="mt-7 flex items-center justify-between">
         {step > 0 ? (
           <Btn variant="ghost" onClick={() => setStep((s) => s - 1)}>
-            <ArrowLeft size={15} /> Back
+            <ArrowLeft size={15} /> {t("common.back")}
           </Btn>
         ) : (
           <Btn variant="soft" onClick={onClose}>
-            <X size={15} /> Cancel
+            <X size={15} /> {t("common.cancel")}
           </Btn>
         )}
         {step < 2 ? (
           <Btn variant="primary" disabled={!canNext} onClick={() => setStep((s) => s + 1)} data-testid="mood-next">
-            Continue <ArrowRight size={15} />
+            {t("mood.continue")} <ArrowRight size={15} />
           </Btn>
         ) : (
           <Btn variant="primary" disabled={complete.isPending} onClick={finish} data-testid="mood-finish">
-            <Check size={16} /> Finish & earn XP
+            <Check size={16} /> {t("mood.finish")}
           </Btn>
         )}
       </div>
@@ -477,6 +482,7 @@ function ThoughtEditor({
   onChange: (t: MoodThought) => void;
   onRemove: () => void;
 }) {
+  const { t } = useI18n();
   const set = (patch: Partial<MoodThought>) => onChange({ ...thought, ...patch });
   const toggleDistortion = (code: string) =>
     set({
@@ -494,7 +500,7 @@ function ThoughtEditor({
 
   const runAssist = async (mode: "distortions" | "responses") => {
     if (thought.thought.trim() === "") {
-      pushToast("Write the negative thought first", "info");
+      pushToast(t("mood.writeThoughtFirst"), "info");
       return;
     }
     if (!(await requestConsent())) return;
@@ -503,7 +509,7 @@ function ThoughtEditor({
       {
         onSuccess: (res) => {
           if (res.crisis) {
-            setCrisis(res.crisis_message ?? "Please reach out for support.");
+            setCrisis(res.crisis_message ?? t("mood.reachOut"));
             setHits([]);
             setCandidates([]);
             return;
@@ -524,9 +530,9 @@ function ThoughtEditor({
   return (
     <div className="hud-panel space-y-3 p-4">
       <div className="flex items-center justify-between">
-        <span className="font-display text-[11px] uppercase tracking-wider text-faint">Thought {index + 1}</span>
+        <span className="font-display text-[11px] uppercase tracking-wider text-faint">{t("mood.thoughtN", { n: index + 1 })}</span>
         {canRemove && (
-          <button onClick={onRemove} className="text-faint hover:text-[#ff8a80]" aria-label="Remove thought">
+          <button onClick={onRemove} className="text-faint hover:text-[#ff8a80]" aria-label={t("mood.removeThought")}>
             <Trash2 size={14} />
           </button>
         )}
@@ -537,11 +543,11 @@ function ThoughtEditor({
           value={thought.thought}
           onChange={(e) => set({ thought: e.target.value })}
           rows={2}
-          placeholder="Negative thought — e.g. “I'm not good enough.”"
+          placeholder={t("mood.thoughtPlaceholder")}
           className="w-full resize-none rounded-lg border border-edge bg-white/[0.03] px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-[var(--color-spirituality)] focus:outline-none"
         />
         <div className="mt-2">
-          <LabeledSlider label="I believe this" value={thought.belief_before} onChange={(v) => set({ belief_before: v })} />
+          <LabeledSlider label={t("mood.believeThis")} value={thought.belief_before} onChange={(v) => set({ belief_before: v })} />
         </div>
       </div>
 
@@ -554,8 +560,15 @@ function ThoughtEditor({
 
       <div>
         <div className="mb-1.5 flex items-center justify-between">
-          <span className="text-[11px] text-muted">Distortions in this thought</span>
-          {aiEnabled && <AssistButton label="Find distortions" loading={loadingMode === "distortions"} onClick={() => runAssist("distortions")} />}
+          <span className="text-[11px] text-muted">{t("mood.distortionsIn")}</span>
+          {aiEnabled && (
+            <AssistButton
+              id="find-distortions"
+              label={t("mood.findDistortions")}
+              loading={loadingMode === "distortions"}
+              onClick={() => runAssist("distortions")}
+            />
+          )}
         </div>
         <div className="flex flex-wrap gap-1.5">
           {DISTORTIONS.map((d) => {
@@ -593,14 +606,21 @@ function ThoughtEditor({
 
       <div className="rounded-lg border border-[var(--color-health)]/25 bg-[var(--color-health)]/[0.05] p-2.5">
         <div className="mb-1.5 flex items-center justify-between">
-          <span className="text-[11px] text-muted">A truer, kinder response</span>
-          {aiEnabled && <AssistButton label="Suggest a response" loading={loadingMode === "responses"} onClick={() => runAssist("responses")} />}
+          <span className="text-[11px] text-muted">{t("mood.truerResponse")}</span>
+          {aiEnabled && (
+            <AssistButton
+              id="suggest-a-response"
+              label={t("mood.suggestResponse")}
+              loading={loadingMode === "responses"}
+              onClick={() => runAssist("responses")}
+            />
+          )}
         </div>
         <textarea
           value={thought.positive_thought}
           onChange={(e) => set({ positive_thought: e.target.value })}
           rows={2}
-          placeholder="Must be 100% true — the kind of thing you'd tell a friend."
+          placeholder={t("mood.responsePlaceholder")}
           className="w-full resize-none rounded-lg border border-edge bg-white/[0.03] px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-[var(--color-health)] focus:outline-none"
         />
         {candidates.length > 0 && (
@@ -622,18 +642,18 @@ function ThoughtEditor({
                 <p className="text-[13px] leading-snug text-ink">{c.text}</p>
               </button>
             ))}
-            <p className="text-[10px] text-faint">Tap one to use it, then make it your own.</p>
+            <p className="text-[10px] text-faint">{t("mood.tapToUse")}</p>
           </div>
         )}
         <div className="mt-2 space-y-2">
           <LabeledSlider
-            label="I believe the response"
+            label={t("mood.believeResponse")}
             value={thought.positive_belief}
             color="var(--color-health)"
             onChange={(v) => set({ positive_belief: v })}
           />
           <LabeledSlider
-            label="Now I believe the negative thought"
+            label={t("mood.nowBelieve")}
             value={thought.belief_after}
             color="var(--color-gold)"
             onChange={(v) => set({ belief_after: v })}
@@ -644,12 +664,23 @@ function ThoughtEditor({
   );
 }
 
-function AssistButton({ label, loading, onClick }: { label: string; loading?: boolean; onClick: () => void }) {
+// `id` keeps the data-testid stable across languages.
+function AssistButton({
+  id,
+  label,
+  loading,
+  onClick,
+}: {
+  id: string;
+  label: string;
+  loading?: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       onClick={onClick}
       disabled={loading}
-      data-testid={`assist-${label.toLowerCase().replace(/\s+/g, "-")}`}
+      data-testid={`assist-${id}`}
       className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium transition-colors disabled:opacity-60"
       style={{ color: "var(--color-spirituality)" }}
     >
@@ -660,6 +691,7 @@ function AssistButton({ label, loading, onClick }: { label: string; loading?: bo
 }
 
 function Summary({ emotions, thoughts }: { emotions: EmotionMap; thoughts: MoodThought[] }) {
+  const { t, tp } = useI18n();
   const vals = Object.values(emotions);
   const avg = (fn: (e: EmotionState) => number) =>
     vals.length ? Math.round(vals.reduce((s, e) => s + fn(e), 0) / vals.length) : 0;
@@ -669,15 +701,15 @@ function Summary({ emotions, thoughts }: { emotions: EmotionMap; thoughts: MoodT
   return (
     <div className="hud-panel clip-corner p-4 text-center">
       <div className="mb-1 flex items-center justify-center gap-2 font-display text-[11px] uppercase tracking-wider text-faint">
-        <Sparkles size={13} style={{ color: "var(--color-spirituality)" }} /> Your shift
+        <Sparkles size={13} style={{ color: "var(--color-spirituality)" }} /> {t("mood.yourShift")}
       </div>
       <div className="tabnum text-2xl font-bold text-ink">
         {before}% <span className="text-faint">→</span>{" "}
         <span style={{ color: drop > 0 ? "var(--color-health)" : "var(--color-ink)" }}>{after}%</span>
       </div>
       <p className="mt-1 text-xs text-muted">
-        Average distress{drop > 0 ? ` down ${drop} points` : ""} · {thoughts.length} thought
-        {thoughts.length === 1 ? "" : "s"} reframed
+        {t("mood.avgDistress")}
+        {drop > 0 ? t("mood.downPoints", { n: drop }) : ""} · {tp("mood.reframed", thoughts.length)}
       </p>
     </div>
   );

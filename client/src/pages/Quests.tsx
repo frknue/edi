@@ -16,11 +16,14 @@ import { QuestFormModal } from "../components/QuestFormModal";
 import { Btn, EmptyState, SectionTitle, Spinner } from "../components/ui";
 import { typeMeta, getType } from "../lib/theme";
 import type { Quest, QuestInput, QuestType } from "../lib/types";
+import { useI18n } from "../lib/i18n";
+import type { MessageKey } from "../lib/locales/en";
 
 const TYPE_FILTERS: ("all" | QuestType)[] = ["all", ...(Object.keys(typeMeta) as QuestType[])];
 const STATUS_FILTERS = ["active", "completed", "skipped", "archived", "all"] as const;
 
 export function QuestsPage() {
+  const { t, tp } = useI18n();
   const [typeFilter, setTypeFilter] = useState<(typeof TYPE_FILTERS)[number]>("all");
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("active");
   const [modalOpen, setModalOpen] = useState(false);
@@ -74,7 +77,7 @@ export function QuestsPage() {
           title: res.completed_quest.title,
           xp_events: res.xp_events,
           level_ups: res.level_ups,
-          label: "Quest Complete",
+          label: t("reward.questComplete"),
           gold: res.gold,
           crit: res.crit,
           combo: res.combo_multiplier,
@@ -94,7 +97,7 @@ export function QuestsPage() {
           title: res.completed_quest.title,
           xp_events: res.xp_events,
           level_ups: res.level_ups,
-          label: "Spontaneous Win",
+          label: t("reward.spontaneousWin"),
           gold: res.gold,
           crit: res.crit,
           combo: res.combo_multiplier,
@@ -110,37 +113,37 @@ export function QuestsPage() {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-display text-xl font-bold tracking-tight text-ink">Quest Log</h1>
-          <p className="text-sm text-faint">Create, edit, and manage your real-life quests.</p>
+          <h1 className="font-display text-xl font-bold tracking-tight text-ink">{t("quests.title")}</h1>
+          <p className="text-sm text-faint">{t("quests.subtitle")}</p>
         </div>
         <div className="flex items-center gap-2 sm:shrink-0">
           <Btn variant="ghost" className="flex-1 sm:flex-none" onClick={openWin} data-testid="spontaneous-win">
-            <Sparkles size={16} /> Log a win
+            <Sparkles size={16} /> {t("quests.logWin")}
           </Btn>
           <Btn variant="primary" className="flex-1 sm:flex-none" onClick={openCreate} data-testid="new-quest">
-            <Plus size={16} /> New quest
+            <Plus size={16} /> {t("quests.new")}
           </Btn>
         </div>
       </div>
 
       {/* Filters */}
       <div className="hud-panel space-y-3 p-3.5">
-        <FilterRow label="Type">
-          {TYPE_FILTERS.map((t) => (
+        <FilterRow label={t("quests.filterType")}>
+          {TYPE_FILTERS.map((ty) => (
             <Chip
-              key={t}
-              active={typeFilter === t}
-              color={t === "all" ? "var(--color-gold)" : getType(t as QuestType).color}
-              onClick={() => setTypeFilter(t)}
+              key={ty}
+              active={typeFilter === ty}
+              color={ty === "all" ? "var(--color-gold)" : getType(ty as QuestType).color}
+              onClick={() => setTypeFilter(ty)}
             >
-              {t === "all" ? "All" : getType(t as QuestType).label}
+              {ty === "all" ? t("common.all") : getType(ty as QuestType).label}
             </Chip>
           ))}
         </FilterRow>
-        <FilterRow label="Status">
+        <FilterRow label={t("quests.filterStatus")}>
           {STATUS_FILTERS.map((s) => (
             <Chip key={s} active={statusFilter === s} color="var(--color-focus)" onClick={() => setStatusFilter(s)}>
-              {s[0].toUpperCase() + s.slice(1)}
+              {t(s === "all" ? "common.all" : (`status.${s}` as MessageKey))}
             </Chip>
           ))}
         </FilterRow>
@@ -151,12 +154,12 @@ export function QuestsPage() {
       ) : !quests || quests.length === 0 ? (
         <EmptyState
           icon={<Scroll size={22} />}
-          title="No quests match these filters"
-          hint="Try a different filter or create a new quest."
+          title={t("quests.noMatch")}
+          hint={t("quests.noMatchHint")}
         />
       ) : (
         <>
-          <SectionTitle hint={`${quests.length} quest${quests.length === 1 ? "" : "s"}`}>Results</SectionTitle>
+          <SectionTitle hint={tp("quests.count", quests.length)}>{t("quests.results")}</SectionTitle>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {quests.map((q, i) => (
               <QuestCard
@@ -171,7 +174,7 @@ export function QuestsPage() {
                 onRestore={(id) =>
                   update.mutate(
                     { id, patch: { status: "active" } },
-                    { onSuccess: (r) => pushToast(`Quest restored: ${r.title}`, "success") },
+                    { onSuccess: (r) => pushToast(t("quests.restored", { title: r.title }), "success") },
                   )
                 }
               />

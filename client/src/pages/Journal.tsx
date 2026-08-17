@@ -7,6 +7,7 @@ import { pushToast } from "../lib/toast";
 import { Btn, EmptyState, SectionTitle, Spinner } from "../components/ui";
 import { relativeTime } from "../lib/format";
 import type { JournalEntry } from "../lib/types";
+import { useI18n } from "../lib/i18n";
 
 function scoreColor(v: number): string {
   if (v <= 3) return "#ff5f56";
@@ -81,8 +82,10 @@ function toDays(entries: JournalEntry[]): Map<string, DayPoint> {
 
 // Single-series sparkline: one hue, 2px line, latest value direct-labeled,
 // per-point tooltips. (Two measures = two charts — never a dual axis.)
-function Sparkline({ label, color, points }: { label: string; color: string; points: DayPoint[]; }) {
-  const vals = points.map((p) => ({ ...p, v: label === "mood" ? p.mood : p.energy }));
+function Sparkline({ series, color, points }: { series: "mood" | "energy"; color: string; points: DayPoint[] }) {
+  const { t } = useI18n();
+  const label = series === "mood" ? t("journal.moodKey") : t("journal.energyKey");
+  const vals = points.map((p) => ({ ...p, v: series === "mood" ? p.mood : p.energy }));
   const W = 220;
   const H = 40;
   const n = vals.length;
@@ -95,10 +98,10 @@ function Sparkline({ label, color, points }: { label: string; color: string; poi
     <div className="flex items-center gap-3">
       <span className="w-14 shrink-0 text-[10px] uppercase tracking-wider text-faint">{label}</span>
       {n === 0 ? (
-        <span className="text-[11px] text-faint">no data yet</span>
+        <span className="text-[11px] text-faint">{t("journal.noData")}</span>
       ) : (
         <>
-          <svg width={W} height={H} className="shrink-0" role="img" aria-label={`${label} per day`}>
+          <svg width={W} height={H} className="shrink-0" role="img" aria-label={t("journal.perDay", { label })}>
             <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
             {vals.map((p, i) => (
               <circle key={p.date} cx={x(i)} cy={y(p.v)} r="6" fill="transparent">
@@ -119,6 +122,7 @@ function Sparkline({ label, color, points }: { label: string; color: string; poi
 // Consistency heatmap: last 10 weeks, sequential single-hue phosphor ramp —
 // brighter green = better mood that day; empty cell = no entry.
 function Heatmap({ days }: { days: Map<string, DayPoint> }) {
+  const { t, tp } = useI18n();
   const weeks = 10;
   const today = new Date();
   // Start on the Monday `weeks` back.
@@ -139,7 +143,7 @@ function Heatmap({ days }: { days: Map<string, DayPoint> }) {
 
   return (
     <div className="flex items-center gap-3">
-      <span className="w-14 shrink-0 text-[10px] uppercase tracking-wider text-faint">{weeks} weeks</span>
+      <span className="w-14 shrink-0 text-[10px] uppercase tracking-wider text-faint">{t("journal.weeks", { n: weeks })}</span>
       <div className="flex gap-[3px]">
         {cols.map((col, w) => (
           <div key={w} className="flex flex-col gap-[3px]">
@@ -156,7 +160,13 @@ function Heatmap({ days }: { days: Map<string, DayPoint> }) {
                   key={key}
                   className="h-[10px] w-[10px] rounded-[2px]"
                   style={{ background: bg }}
-                  title={dp ? `${key} · mood ${dp.mood.toFixed(1)} · ${dp.count} entr${dp.count === 1 ? "y" : "ies"}` : future ? "" : `${key} · no entry`}
+                  title={
+                    dp
+                      ? t("journal.cellTitle", { date: key, mood: dp.mood.toFixed(1), entries: tp("journal.entries", dp.count) })
+                      : future
+                        ? ""
+                        : t("journal.noEntry", { date: key })
+                  }
                 />
               );
             })}
@@ -164,17 +174,18 @@ function Heatmap({ days }: { days: Map<string, DayPoint> }) {
         ))}
       </div>
       <div className="flex items-center gap-1 text-[9px] text-faint">
-        low
+        {t("journal.low")}
         {[0.25, 0.5, 0.75, 0.95].map((a) => (
           <span key={a} className="h-[8px] w-[8px] rounded-[2px]" style={{ background: `rgba(75,255,126,${a})` }} />
         ))}
-        high
+        {t("journal.high")}
       </div>
     </div>
   );
 }
 
 function TrendsPanel({ entries }: { entries: JournalEntry[] }) {
+  const { t } = useI18n();
   const days = useMemo(() => toDays(entries), [entries]);
   const recent = useMemo(() => {
     const cutoff = new Date();
@@ -188,11 +199,11 @@ function TrendsPanel({ entries }: { entries: JournalEntry[] }) {
   return (
     <section className="hud-panel clip-corner space-y-2.5 px-4 py-3">
       <div className="font-display text-sm uppercase tracking-[0.14em] text-ink">
-        <span className="mr-1.5 text-[var(--color-phos)]">▸</span>Trends
-        <span className="ml-2 text-[10px] normal-case tracking-normal text-faint">last 30 days · per-day averages</span>
+        <span className="mr-1.5 text-[var(--color-phos)]">▸</span>{t("journal.trends")}
+        <span className="ml-2 text-[10px] normal-case tracking-normal text-faint">{t("journal.trendsHint")}</span>
       </div>
-      <Sparkline label="mood" color="#4bff7e" points={recent} />
-      <Sparkline label="energy" color="#ffb000" points={recent} />
+      <Sparkline series="mood" color="#4bff7e" points={recent} />
+      <Sparkline series="energy" color="#ffb000" points={recent} />
       <Heatmap days={days} />
     </section>
   );
@@ -201,6 +212,7 @@ function TrendsPanel({ entries }: { entries: JournalEntry[] }) {
 // --- page ---------------------------------------------------------------------
 
 export function JournalPage() {
+  const { t } = useI18n();
   const [query, setQuery] = useState("");
   const { data: entries, isLoading } = useJournal(query);
   // Unfiltered set for trends (so searching doesn't reshape the charts).
@@ -237,7 +249,7 @@ export function JournalPage() {
         { id: editingId, patch: { mood, energy, notes: notes.trim() } },
         {
           onSuccess: () => {
-            pushToast("Reflection updated", "success");
+            pushToast(t("journal.updated"), "success");
             cancelEdit();
           },
         },
@@ -251,10 +263,10 @@ export function JournalPage() {
           setNotes("");
           if (res.xp_events.length > 0) {
             celebrate({
-              title: "Daily reflection",
+              title: t("reward.dailyReflection"),
               xp_events: res.xp_events,
               level_ups: res.level_ups,
-              label: "Journal",
+              label: t("reward.journal"),
               gold: res.gold,
             });
           } else {
@@ -267,9 +279,9 @@ export function JournalPage() {
   };
 
   const remove = (e: JournalEntry) => {
-    if (!window.confirm("Delete this reflection? This cannot be undone.")) return;
+    if (!window.confirm(t("journal.confirmDelete"))) return;
     if (editingId === e.id) cancelEdit();
-    deleteJournal.mutate(e.id, { onSuccess: () => pushToast("Reflection deleted", "info") });
+    deleteJournal.mutate(e.id, { onSuccess: () => pushToast(t("journal.deleted"), "info") });
   };
 
   const busy = createJournal.isPending || updateJournal.isPending;
@@ -277,10 +289,8 @@ export function JournalPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="font-display text-3xl leading-tight text-ink">Journal</h1>
-        <p className="text-sm text-faint">
-          Log how today felt. The first reflection of each day earns XP.
-        </p>
+        <h1 className="font-display text-3xl leading-tight text-ink">{t("journal.title")}</h1>
+        <p className="text-sm text-faint">{t("journal.subtitle")}</p>
       </div>
 
       {allEntries && <TrendsPanel entries={allEntries} />}
@@ -288,34 +298,34 @@ export function JournalPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Composer */}
         <section className="hud-panel clip-corner space-y-5 p-5">
-          <SectionTitle hint={editingId !== null ? `Editing entry #${editingId}` : "Rate 1-10 and jot a note."}>
-            {editingId !== null ? "Edit reflection" : "Today's check-in"}
+          <SectionTitle hint={editingId !== null ? t("journal.editingHint", { id: editingId }) : t("journal.rateHint")}>
+            {editingId !== null ? t("journal.editReflection") : t("journal.checkin")}
           </SectionTitle>
-          <ScoreSlider label="Mood" value={mood} onChange={setMood} icon={<Smile size={13} />} />
-          <ScoreSlider label="Energy" value={energy} onChange={setEnergy} icon={<BatteryCharging size={13} />} />
+          <ScoreSlider label={t("journal.mood")} value={mood} onChange={setMood} icon={<Smile size={13} />} />
+          <ScoreSlider label={t("journal.energy")} value={energy} onChange={setEnergy} icon={<BatteryCharging size={13} />} />
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted">Notes</label>
+            <label className="mb-1.5 block text-xs font-medium text-muted">{t("journal.notes")}</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={5}
-              placeholder="What went well? What drained you? What will you do tomorrow?"
+              placeholder={t("journal.notesPlaceholder")}
               className="w-full resize-none rounded-lg border border-edge bg-white/[0.03] px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-[var(--color-gold)] focus:outline-none"
             />
           </div>
           <div className="flex items-center justify-end gap-3">
             {saved && (
               <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-[var(--color-health)]">
-                Saved ✓
+                {t("journal.saved")}
               </motion.span>
             )}
             {editingId !== null && (
               <Btn variant="soft" onClick={cancelEdit}>
-                <X size={14} /> Cancel
+                <X size={14} /> {t("common.cancel")}
               </Btn>
             )}
             <Btn variant="primary" disabled={busy} onClick={submit} data-testid="save-journal">
-              <BookHeart size={15} /> {editingId !== null ? "Save changes" : "Save reflection"}
+              <BookHeart size={15} /> {editingId !== null ? t("common.saveChanges") : t("journal.saveReflection")}
             </Btn>
           </div>
         </section>
@@ -323,34 +333,34 @@ export function JournalPage() {
         {/* History */}
         <section>
           <SectionTitle
-            hint="Most recent first."
+            hint={t("journal.recentFirst")}
             action={
               <label className="flex items-center gap-1.5 rounded-sm border border-edge bg-white/[0.02] px-2 py-1">
                 <Search size={13} className="text-faint" />
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="search notes…"
+                  placeholder={t("journal.searchPlaceholder")}
                   data-testid="journal-search"
                   className="w-32 bg-transparent text-xs text-ink placeholder:text-faint focus:outline-none"
                 />
                 {query && (
-                  <button onClick={() => setQuery("")} className="text-faint hover:text-ink" aria-label="Clear search">
+                  <button onClick={() => setQuery("")} className="text-faint hover:text-ink" aria-label={t("journal.clearSearch")}>
                     <X size={12} />
                   </button>
                 )}
               </label>
             }
           >
-            Reflections
+            {t("journal.reflections")}
           </SectionTitle>
           {isLoading ? (
             <Spinner />
           ) : !entries || entries.length === 0 ? (
             <EmptyState
               icon={<BookHeart size={20} />}
-              title={query ? "No matches" : "No reflections yet"}
-              hint={query ? "Try a different search." : "Your first entry will appear here."}
+              title={query ? t("journal.noMatches") : t("journal.noReflections")}
+              hint={query ? t("journal.tryDifferent") : t("journal.firstEntry")}
             />
           ) : (
             <div className="space-y-2.5">
@@ -377,7 +387,7 @@ export function JournalPage() {
                         onClick={() => startEdit(e)}
                         data-testid={`journal-edit-${e.id}`}
                         className="text-faint opacity-0 transition-opacity hover:text-ink group-hover:opacity-100"
-                        aria-label="Edit reflection"
+                        aria-label={t("journal.editReflection")}
                       >
                         <Pencil size={13} />
                       </button>
@@ -385,7 +395,7 @@ export function JournalPage() {
                         onClick={() => remove(e)}
                         data-testid={`journal-delete-${e.id}`}
                         className="text-faint opacity-0 transition-opacity hover:text-[#ff8a80] group-hover:opacity-100"
-                        aria-label="Delete reflection"
+                        aria-label={t("journal.deleteReflection")}
                       >
                         <Trash2 size={13} />
                       </button>
@@ -394,7 +404,7 @@ export function JournalPage() {
                   {e.notes ? (
                     <p className="text-sm leading-relaxed text-muted">{e.notes}</p>
                   ) : (
-                    <p className="text-sm italic text-faint">No notes.</p>
+                    <p className="text-sm italic text-faint">{t("journal.noNotes")}</p>
                   )}
                 </motion.div>
               ))}

@@ -12,6 +12,8 @@ import { PixelHero } from "../components/PixelHero";
 import { ArrowUpRight, Coins, X } from "lucide-react";
 import type { Achievement, ItemDrop, LevelUp, XPEvent } from "./types";
 import { getAttr, rarityColor } from "./theme";
+import { t } from "./i18n";
+import type { MessageKey } from "./locales/en";
 
 // A generic reward payload so any XP-awarding action (quest, tool, …) can
 // trigger the celebration overlay.
@@ -67,6 +69,10 @@ function RewardOverlay({
 }) {
   const totalXP = result?.xp_events.reduce((sum, e) => sum + e.amount, 0) ?? 0;
   const shownXP = useCountUp(totalXP);
+  const rarityLabel = (r: string) => {
+    const key = `rarity.${r}` as MessageKey;
+    return r in rarityColor ? t(key) : r;
+  };
   return (
     <AnimatePresence>
       {result && (
@@ -107,7 +113,7 @@ function RewardOverlay({
             <button
               onClick={onClose}
               className="absolute right-3 top-3 text-faint transition-colors hover:text-ink"
-              aria-label="Close"
+              aria-label={t("common.close")}
             >
               <X size={18} />
             </button>
@@ -135,11 +141,11 @@ function RewardOverlay({
                 }}
                 data-testid="crit-banner"
               >
-                CRITICAL HIT!
+                {t("reward.crit")}
               </motion.div>
             )}
             <div className="font-display text-sm uppercase tracking-[0.3em] text-muted">
-              *** {result.label ?? "Quest Complete"} ***
+              *** {result.label ?? t("reward.questComplete")} ***
             </div>
             <div className="mt-1 truncate px-2 text-lg font-semibold text-ink">
               {result.title}
@@ -164,7 +170,7 @@ function RewardOverlay({
                 transition={{ delay: 0.15 }}
                 data-testid="combo-line"
               >
-                🔗 COMBO ×{result.combo}
+                🔗 {t("reward.combo", { mult: result.combo })}
               </motion.div>
             )}
 
@@ -177,7 +183,7 @@ function RewardOverlay({
                 transition={{ delay: 0.2 }}
               >
                 <Coins size={16} />
-                +{result.gold} gold
+                {t("reward.gold", { gold: result.gold })}
               </motion.div>
             )}
 
@@ -216,7 +222,7 @@ function RewardOverlay({
                 data-testid="loot-drop"
               >
                 <div className="font-display text-[10px] uppercase tracking-[0.25em]" style={{ color: rarityColor[result.drop.rarity] }}>
-                  {result.drop.rarity} drop!
+                  {t("reward.drop", { rarity: rarityLabel(result.drop.rarity) })}
                 </div>
                 <div className="mt-1 flex items-center gap-2">
                   <span className="text-2xl">{result.drop.icon}</span>
@@ -245,7 +251,7 @@ function RewardOverlay({
                     style={{ borderColor: "var(--color-gold)", background: "rgba(255,176,0,0.1)", color: "var(--color-goldhi)" }}
                   >
                     🏆 {a.icon} {a.name}
-                    {a.title && <span className="text-[11px] font-normal opacity-80">· title: {a.title}</span>}
+                    {a.title && <span className="text-[11px] font-normal opacity-80">{t("reward.title", { title: a.title })}</span>}
                   </div>
                 ))}
               </motion.div>
@@ -267,7 +273,7 @@ function RewardOverlay({
                       style={{ background: `${meta.color}1a`, color: meta.color }}
                     >
                       <ArrowUpRight size={15} />
-                      {meta.label} reached Lv {lu.to_level}
+                      {t("reward.reachedLv", { attr: meta.label, level: lu.to_level })}
                     </div>
                   );
                 })}

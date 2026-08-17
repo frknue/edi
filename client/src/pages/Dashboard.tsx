@@ -18,6 +18,8 @@ import { XPFeed } from "../components/XPFeed";
 import { SuggestionCard } from "../components/SuggestionCard";
 import { Btn, EmptyState, SectionTitle, Spinner, RewardChips } from "../components/ui";
 import { pushToast } from "../lib/toast";
+import { formatTime } from "../lib/format";
+import { useI18n } from "../lib/i18n";
 
 export function DashboardPage({
   onGoToQuests,
@@ -26,6 +28,7 @@ export function DashboardPage({
   onGoToQuests: () => void;
   onGoToAgent: () => void;
 }) {
+  const { t } = useI18n();
   const { data, isLoading, isError, error } = useDashboard();
   const { data: openai } = useOpenAIStatus();
   const complete = useCompleteQuest();
@@ -34,12 +37,12 @@ export function DashboardPage({
   const setRest = useSetRestMode();
   const { celebrate } = useReward();
 
-  if (isLoading) return <Spinner label="Loading your character…" />;
+  if (isLoading) return <Spinner label={t("dash.loading")} />;
   if (isError || !data) {
     return (
       <EmptyState
-        title="Couldn't reach the backend"
-        hint={(error as Error)?.message ?? "Is the Go server running on :8080?"}
+        title={t("common.backendUnreachable")}
+        hint={(error as Error)?.message ?? t("common.backendHint")}
       />
     );
   }
@@ -51,7 +54,7 @@ export function DashboardPage({
           title: res.completed_quest.title,
           xp_events: res.xp_events,
           level_ups: res.level_ups,
-          label: "Quest Complete",
+          label: t("reward.questComplete"),
           gold: res.gold,
         }),
     });
@@ -74,9 +77,9 @@ export function DashboardPage({
               key={i}
               className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium"
               style={{ borderColor: "#b98aff66", background: "#b98aff14", color: "#cbaaff" }}
-              title={`until ${new Date(b.expires_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
+              title={t("dash.buffUntil", { time: formatTime(b.expires_at) })}
             >
-              ✨ +{b.percent}% {b.attribute === "" ? "ALL" : b.attribute} XP until midnight
+              {t("dash.buff", { percent: b.percent, attr: b.attribute === "" ? t("dash.buffAll") : getAttr(b.attribute).label })}
             </span>
           ))}
         </div>
@@ -90,13 +93,13 @@ export function DashboardPage({
         >
           <div className="flex items-center gap-2 text-sm" style={{ color: "var(--color-goldhi)" }}>
             <Moon size={16} />
-            Rest mode is ON — all decay is paused. Recover well.
+            {t("dash.restOn")}
           </div>
           <button
             onClick={() => setRest.mutate(false)}
             className="rounded-md border border-edge px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:text-ink"
           >
-            Wake up
+            {t("dash.wakeUp")}
           </button>
         </div>
       )}
@@ -107,29 +110,28 @@ export function DashboardPage({
           style={{ borderColor: "#ff6a3d88", background: "rgba(255,106,61,0.07)", color: "#ff8a65" }}
           data-testid="decay-alert"
         >
-          SYSTEM DEGRADATION — {data.decayed_today} XP lost to decay since your last visit. Train the rusting
-          attributes or ward them.
+          {t("dash.degradation", { xp: data.decayed_today })}
         </div>
       )}
 
       {/* Attributes */}
       <section>
         <SectionTitle
-          hint="Every action trains a real-life stat."
+          hint={t("dash.attributesHint")}
           action={
             !data.rest_mode && (
               <button
                 onClick={() => setRest.mutate(true)}
                 className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-faint transition-colors hover:text-muted"
-                title="Pause all decay (vacation/sick)"
+                title={t("dash.restTitle")}
                 data-testid="rest-toggle"
               >
-                <Moon size={12} /> rest mode
+                <Moon size={12} /> {t("dash.restMode")}
               </button>
             )
           }
         >
-          Attributes
+          {t("dash.attributes")}
         </SectionTitle>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {data.attributes.map((a, i) => (
@@ -152,7 +154,7 @@ export function DashboardPage({
               <div className="mb-2 flex items-center gap-2">
                 <Sparkles size={14} style={{ color: "var(--color-gold)" }} />
                 <span className="font-display text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--color-gold)]">
-                  Recommended next
+                  {t("dash.recommended")}
                 </span>
               </div>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -169,7 +171,7 @@ export function DashboardPage({
                   disabled={complete.isPending}
                   onClick={() => handleComplete(rec.id)}
                 >
-                  <Zap size={16} /> Complete
+                  <Zap size={16} /> {t("common.complete")}
                 </Btn>
               </div>
             </motion.div>
@@ -177,20 +179,20 @@ export function DashboardPage({
 
           <section>
             <SectionTitle
-              hint="Complete actions to earn XP."
+              hint={t("dash.questsHint")}
               action={
                 <Btn variant="ghost" onClick={onGoToQuests}>
-                  Manage <ArrowRight size={14} />
+                  {t("dash.manage")} <ArrowRight size={14} />
                 </Btn>
               }
             >
-              Today's Quests
+              {t("dash.todaysQuests")}
             </SectionTitle>
             {data.today_quests.length === 0 ? (
               <EmptyState
                 icon={<Swords size={20} />}
-                title="No active quests"
-                hint="Create one or accept a suggestion to get going."
+                title={t("dash.noActiveQuests")}
+                hint={t("dash.noActiveQuestsHint")}
               />
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -212,22 +214,22 @@ export function DashboardPage({
         {/* Side column */}
         <div className="space-y-6">
           <section className="hud-panel p-4">
-            <SectionTitle hint="Your latest gains.">Recent XP</SectionTitle>
+            <SectionTitle hint={t("dash.recentXpHint")}>{t("dash.recentXp")}</SectionTitle>
             <XPFeed events={data.recent_xp_events} />
           </section>
 
           <section>
-            <SectionTitle hint="From your ChatGPT model.">AI Suggestions</SectionTitle>
+            <SectionTitle hint={t("dash.aiHint")}>{t("dash.aiSuggestions")}</SectionTitle>
             {openai && !openai.connected ? (
               <button
                 onClick={onGoToAgent}
                 className="flex w-full items-center gap-2 rounded-xl border border-dashed border-edge px-4 py-3 text-left text-xs text-muted transition-colors hover:border-edge2 hover:text-ink"
               >
                 <Sparkles size={15} style={{ color: "#b98aff" }} />
-                Connect your ChatGPT account on the Agent tab to unlock AI suggestions.
+                {t("dash.connectHint")}
               </button>
             ) : data.pending_suggestions.length === 0 ? (
-              <EmptyState title="No suggestions" hint="Generate some on the Agent tab." />
+              <EmptyState title={t("dash.noSuggestions")} hint={t("dash.noSuggestionsHint")} />
             ) : (
               <div className="space-y-3">
                 {data.pending_suggestions.slice(0, 2).map((s, i) => (
@@ -238,7 +240,7 @@ export function DashboardPage({
                     busy={accept.isPending}
                     onAccept={(id) =>
                       accept.mutate(id, {
-                        onSuccess: (q) => pushToast(`Added quest: ${q.title}`, "success"),
+                        onSuccess: (q) => pushToast(t("dash.addedQuest", { title: q.title }), "success"),
                       })
                     }
                   />
@@ -256,6 +258,7 @@ export function DashboardPage({
 // NearGoal names the attribute closest to leveling — something is always
 // almost done, and the brain wants to close it.
 function NearGoal({ attributes }: { attributes: import("../lib/types").Attribute[] }) {
+  const { t } = useI18n();
   const candidates = attributes
     .map((a) => ({ a, left: a.xp_for_next_level - a.xp_into_level }))
     .filter((c) => c.left > 0)
@@ -272,8 +275,10 @@ function NearGoal({ attributes }: { attributes: import("../lib/types").Attribute
     >
       <Icon size={15} style={{ color: meta.color }} />
       <span className="text-muted">
-        <span className="font-semibold" style={{ color: meta.color }}>{meta.label}</span> is only{" "}
-        <span className="tabnum font-semibold text-ink">{best.left} XP</span> from Lv {best.a.level + 1} — one quest away.
+        <span className="font-semibold" style={{ color: meta.color }}>{meta.label}</span>
+        {t("dash.nearGoal1")}
+        <span className="tabnum font-semibold text-ink">{t("dash.nearGoalXp", { xp: best.left })}</span>
+        {t("dash.nearGoal2", { level: best.a.level + 1 })}
       </span>
     </div>
   );

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ShieldCheck } from "lucide-react";
+import { useI18n } from "./i18n";
 
 // One-time opt-in before any AI assist touches private content (e.g. mood-log
 // text). Consent is remembered in localStorage; requestConsent() resolves true
@@ -18,6 +19,7 @@ export function useAiConsent() {
 }
 
 export function AiConsentProvider({ children }: { children: ReactNode }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const resolver = useRef<(v: boolean) => void>(() => {});
 
@@ -62,18 +64,20 @@ export function AiConsentProvider({ children }: { children: ReactNode }) {
               >
                 <ShieldCheck size={20} />
               </div>
-              <h2 className="font-display text-base font-bold text-ink">Use AI help?</h2>
+              <h2 className="font-display text-base font-bold text-ink">{t("consent.title")}</h2>
               <p className="mt-2 text-sm text-muted">
-                AI help sends this thought to <strong className="text-ink">your own</strong> ChatGPT account to
-                suggest distortions and responses. It's a supportive coach, <strong className="text-ink">not
-                therapy</strong>. Your entries otherwise stay on your device.
+                {t("consent.body1")}
+                <strong className="text-ink">{t("consent.yourOwn")}</strong>
+                {t("consent.body2")}
+                <strong className="text-ink">{t("consent.notTherapy")}</strong>
+                {t("consent.body3")}
               </p>
               <div className="mt-5 flex justify-end gap-2">
                 <button
                   onClick={() => decide(false)}
                   className="rounded-lg px-3 py-2 text-sm text-muted hover:text-ink"
                 >
-                  Not now
+                  {t("consent.notNow")}
                 </button>
                 <button
                   onClick={() => decide(true)}
@@ -81,7 +85,7 @@ export function AiConsentProvider({ children }: { children: ReactNode }) {
                   className="rounded-lg px-3.5 py-2 text-sm font-medium text-[#0c1a17]"
                   style={{ background: "var(--color-spirituality)" }}
                 >
-                  Allow AI help
+                  {t("consent.allow")}
                 </button>
               </div>
             </motion.div>

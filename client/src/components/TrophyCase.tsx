@@ -2,11 +2,13 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Trophy, X } from "lucide-react";
 import { useAchievements } from "../lib/queries";
+import { useI18n } from "../lib/i18n";
 
 // TrophyCase: a compact badge row on the dashboard (earned count + icons)
 // that opens the full hall as a modal grid. Hidden achievements only appear
 // once earned — permanent open loops, cheap to glance at.
 export function TrophyCase() {
+  const { t } = useI18n();
   const { data: hall } = useAchievements();
   const [open, setOpen] = useState(false);
   if (!hall || hall.length === 0) return null;
@@ -22,13 +24,13 @@ export function TrophyCase() {
         <div className="flex min-w-0 items-center gap-2.5">
           <Trophy size={16} style={{ color: "var(--color-gold)" }} />
           <span className="font-display text-[11px] uppercase tracking-[0.18em] text-muted">
-            Trophies {earned.length}/{hall.length}
+            {t("trophy.trophies", { earned: earned.length, total: hall.length })}
           </span>
           <span className="truncate text-base">
             {earned.slice(-8).map((a) => a.icon).join(" ")}
           </span>
         </div>
-        <span className="shrink-0 text-[11px] text-faint">view hall →</span>
+        <span className="shrink-0 text-[11px] text-faint">{t("trophy.viewHall")}</span>
       </button>
 
       <AnimatePresence>
@@ -50,9 +52,9 @@ export function TrophyCase() {
             >
               <div className="flex items-center justify-between border-b border-edge px-5 py-3.5">
                 <h2 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-ink">
-                  Trophy Hall
+                  {t("trophy.hall")}
                 </h2>
-                <button onClick={() => setOpen(false)} className="text-faint hover:text-ink" aria-label="Close">
+                <button onClick={() => setOpen(false)} className="text-faint hover:text-ink" aria-label={t("common.close")}>
                   <X size={18} />
                 </button>
               </div>
@@ -76,7 +78,7 @@ export function TrophyCase() {
                         <div className="text-[11px] leading-snug text-muted">{a.desc}</div>
                         {a.title && (
                           <div className="text-[10px]" style={{ color: "var(--color-goldhi)" }}>
-                            grants title: {a.title}
+                            {t("trophy.grantsTitle", { title: a.title })}
                           </div>
                         )}
                       </div>

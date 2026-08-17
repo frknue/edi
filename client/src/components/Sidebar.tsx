@@ -16,28 +16,31 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { CSSProperties } from "react";
+import { LOCALES, localeLabel, useI18n } from "../lib/i18n";
+import type { MessageKey } from "../lib/locales/en";
 
 export type View = "dashboard" | "quests" | "shop" | "moodlog" | "journal" | "agent";
 
-type NavItem = { id: View; label: string; Icon: LucideIcon };
+type NavItem = { id: View; labelKey: MessageKey; Icon: LucideIcon };
 
 // "Tools" is not a page — in the expanded sidebar it's a collapsible group whose
 // children (Daily Mood Log, Journal) are the actual destinations. In the
 // collapsed rail the children render as direct icons and the group disappears.
 export const TOOL_CHILDREN: NavItem[] = [
-  { id: "moodlog", label: "Daily Mood Log", Icon: BrainCircuit },
-  { id: "journal", label: "Journal", Icon: BookHeart },
+  { id: "moodlog", labelKey: "nav.moodlog", Icon: BrainCircuit },
+  { id: "journal", labelKey: "nav.journal", Icon: BookHeart },
 ];
 
 const TOP_ITEMS: NavItem[] = [
-  { id: "dashboard", label: "Dashboard", Icon: LayoutDashboard },
-  { id: "quests", label: "Quests", Icon: ScrollText },
-  { id: "shop", label: "Shop", Icon: Store },
+  { id: "dashboard", labelKey: "nav.dashboard", Icon: LayoutDashboard },
+  { id: "quests", labelKey: "nav.quests", Icon: ScrollText },
+  { id: "shop", labelKey: "nav.shop", Icon: Store },
 ];
 
-const AGENT_ITEM: NavItem = { id: "agent", label: "Agent", Icon: Bot };
+const AGENT_ITEM: NavItem = { id: "agent", labelKey: "nav.agent", Icon: Bot };
 
 export function Logo({ collapsed = false }: { collapsed?: boolean }) {
+  const { t } = useI18n();
   return (
     <div className="flex items-center gap-2.5">
       <div
@@ -58,7 +61,7 @@ export function Logo({ collapsed = false }: { collapsed?: boolean }) {
           >
             edi
           </div>
-          <div className="text-[9px] uppercase tracking-[0.3em] text-faint">life-rpg terminal</div>
+          <div className="text-[9px] uppercase tracking-[0.3em] text-faint">{t("app.tagline")}</div>
         </div>
       )}
     </div>
@@ -86,16 +89,18 @@ export function Sidebar({
   collapsed: boolean;
   onToggle: () => void;
 }) {
+  const { t } = useI18n();
   const inToolsGroup = view === "moodlog" || view === "journal";
   const [toolsOpen, setToolsOpen] = useState(false);
   const showChildren = toolsOpen || inToolsGroup;
 
   const navBtn = (
-    { id, label, Icon }: NavItem,
+    { id, labelKey, Icon }: NavItem,
     styleFor: (active: boolean) => CSSProperties,
     testId: string,
   ) => {
     const active = view === id;
+    const label = t(labelKey);
     return (
       <button
         key={id}
@@ -152,7 +157,7 @@ export function Sidebar({
                 />
               )}
               <Wrench size={18} className="transition-transform group-hover:scale-110" />
-              Tools
+              {t("nav.tools")}
               <ChevronDown
                 size={14}
                 className="ml-auto transition-transform"
@@ -161,8 +166,9 @@ export function Sidebar({
             </button>
             {showChildren && (
               <div className="ml-4 flex flex-col gap-0.5 border-l border-edge pl-3">
-                {TOOL_CHILDREN.map(({ id, label, Icon }) => {
+                {TOOL_CHILDREN.map(({ id, labelKey, Icon }) => {
                   const active = view === id;
+                  const label = t(labelKey);
                   return (
                     <button
                       key={id}
@@ -185,16 +191,19 @@ export function Sidebar({
       </nav>
 
       {!collapsed && <SessionCard />}
-      <button
-        onClick={onToggle}
-        data-testid="sidebar-toggle"
-        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        aria-expanded={!collapsed}
-        className="mt-3 flex w-full items-center justify-center rounded-lg border border-edge py-2 text-faint transition-colors hover:text-muted"
-      >
-        {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
-      </button>
+      <div className={`mt-3 flex items-center gap-2 ${collapsed ? "flex-col" : ""}`}>
+        <LanguageToggle compact={collapsed} />
+        <button
+          onClick={onToggle}
+          data-testid="sidebar-toggle"
+          title={collapsed ? t("nav.expandSidebar") : t("nav.collapseSidebar")}
+          aria-label={collapsed ? t("nav.expandSidebar") : t("nav.collapseSidebar")}
+          aria-expanded={!collapsed}
+          className="flex flex-1 items-center justify-center rounded-lg border border-edge py-2 text-faint transition-colors hover:text-muted"
+        >
+          {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
+        </button>
+      </div>
     </aside>
   );
 }
@@ -203,13 +212,14 @@ export function Sidebar({
 // sign-out that forgets the token on THIS device only) and the plain
 // self-hosted note in tokenless dev mode.
 function SessionCard() {
+  const { t } = useI18n();
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: api.me, enabled: hasToken(), retry: false });
 
   if (!hasToken()) {
     return (
       <div className="rounded-xl border border-edge bg-white/[0.02] p-3">
-        <div className="text-[11px] font-medium text-muted">Dev mode</div>
-        <div className="mt-0.5 text-[10px] text-faint">Self-hosted · tokenless</div>
+        <div className="text-[11px] font-medium text-muted">{t("session.devMode")}</div>
+        <div className="mt-0.5 text-[10px] text-faint">{t("session.devHint")}</div>
       </div>
     );
   }
@@ -217,19 +227,42 @@ function SessionCard() {
     <div className="flex items-center justify-between rounded-xl border border-edge bg-white/[0.02] p-3">
       <div className="min-w-0">
         <div className="truncate text-[11px] font-medium text-muted">{me?.name ?? "…"}</div>
-        <div className="mt-0.5 text-[10px] text-faint">{me?.is_admin ? "admin · " : ""}self-hosted</div>
+        <div className="mt-0.5 text-[10px] text-faint">
+          {me?.is_admin ? `${t("session.admin")} · ` : ""}
+          {t("session.selfHosted")}
+        </div>
       </div>
       <button
         onClick={() => {
           clearToken();
           window.location.reload();
         }}
-        title="Sign out on this device"
-        aria-label="Sign out"
+        title={t("session.signOutTitle")}
+        aria-label={t("session.signOut")}
         className="shrink-0 text-faint hover:text-ink"
       >
         <LogOut size={14} />
       </button>
     </div>
+  );
+}
+
+// LanguageToggle cycles the UI language (a per-device preference). The tree
+// remounts on change (see main.tsx), so every label repaints at once.
+export function LanguageToggle({ compact = false }: { compact?: boolean }) {
+  const { locale, setLocale, t } = useI18n();
+  const next = LOCALES[(LOCALES.indexOf(locale) + 1) % LOCALES.length];
+  return (
+    <button
+      onClick={() => setLocale(next)}
+      data-testid="lang-toggle"
+      title={t("app.langToggleTitle", { lang: localeLabel[locale] })}
+      aria-label={t("app.langToggleTitle", { lang: localeLabel[locale] })}
+      className={`flex items-center justify-center rounded-lg border border-edge font-display text-[11px] uppercase tracking-widest text-faint transition-colors hover:text-muted ${
+        compact ? "w-full py-2" : "px-3 py-2"
+      }`}
+    >
+      {locale}
+    </button>
   );
 }

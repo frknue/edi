@@ -6,6 +6,7 @@ import { attributeMeta, difficultyMeta, getType, typeMeta } from "../lib/theme";
 import { useDraftQuest, useOpenAIStatus } from "../lib/queries";
 import { pushToast } from "../lib/toast";
 import { Btn, RewardChips } from "./ui";
+import { useI18n } from "../lib/i18n";
 
 const TYPES = Object.keys(typeMeta) as QuestType[];
 const DIFFICULTIES = Object.keys(difficultyMeta) as Difficulty[];
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export function QuestFormModal({ open, initial, mode = "quest", busy, error, onClose, onSubmit }: Props) {
+  const { t } = useI18n();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<QuestType>("daily");
@@ -39,7 +41,7 @@ export function QuestFormModal({ open, initial, mode = "quest", busy, error, onC
 
   const runDraft = () => {
     if (title.trim() === "") {
-      pushToast("Write a title first", "info");
+      pushToast(t("qf.writeTitleFirst"), "info");
       return;
     }
     // A draft takes a few seconds; if the form was reopened meanwhile (a
@@ -147,9 +149,9 @@ export function QuestFormModal({ open, initial, mode = "quest", busy, error, onC
           >
             <div className="flex items-center justify-between border-b border-edge px-5 py-3.5">
               <h2 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-ink">
-                {initial ? "Edit quest" : mode === "spontaneous" ? "Claim a win" : "New quest"}
+                {initial ? t("qf.editQuest") : mode === "spontaneous" ? t("qf.claimWin") : t("qf.newQuest")}
               </h2>
-              <button onClick={onClose} className="text-faint hover:text-ink" aria-label="Close">
+              <button onClick={onClose} className="text-faint hover:text-ink" aria-label={t("common.close")}>
                 <X size={18} />
               </button>
             </div>
@@ -157,27 +159,27 @@ export function QuestFormModal({ open, initial, mode = "quest", busy, error, onC
             <div className="max-h-[70vh] space-y-4 overflow-y-auto px-5 py-4">
               {mode === "spontaneous" && (
                 <p className="rounded-lg border border-[color-mix(in_srgb,var(--color-gold)_28%,transparent)] bg-[color-mix(in_srgb,var(--color-gold)_7%,transparent)] px-3 py-2 text-xs leading-relaxed text-muted">
-                  Not every victory starts in the quest log. Record something good you already did and claim the XP.
+                  {t("qf.spontaneousHint")}
                 </p>
               )}
               <div>
-                <label className="mb-1 block text-xs font-medium text-muted">Title</label>
+                <label className="mb-1 block text-xs font-medium text-muted">{t("qf.title")}</label>
                 <input
                   autoFocus
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder={mode === "spontaneous" ? "e.g. Helped a stranger" : "e.g. 30 minute workout"}
+                  placeholder={mode === "spontaneous" ? t("qf.titlePlaceholderWin") : t("qf.titlePlaceholder")}
                   className="w-full rounded-lg border border-edge bg-white/[0.03] px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-[var(--color-gold)] focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-medium text-muted">Description</label>
+                <label className="mb-1 block text-xs font-medium text-muted">{t("qf.description")}</label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={2}
-                  placeholder="Optional details…"
+                  placeholder={t("qf.descriptionPlaceholder")}
                   className="w-full resize-none rounded-lg border border-edge bg-white/[0.03] px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-[var(--color-gold)] focus:outline-none"
                 />
               </div>
@@ -196,19 +198,19 @@ export function QuestFormModal({ open, initial, mode = "quest", busy, error, onC
                     }}
                   >
                     {draft.isPending ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                    {draft.isPending ? "Thinking…" : "Suggest type, difficulty & XP"}
+                    {draft.isPending ? t("qf.thinking") : t("qf.suggest")}
                   </button>
                   {draftReason && (
                     <p className="text-[11px] leading-snug text-faint" data-testid="draft-reason">
-                      <span style={{ color: "var(--color-spirituality)" }}>AI</span> — {draftReason} Everything below
-                      stays editable.
+                      <span style={{ color: "var(--color-spirituality)" }}>{t("qf.ai")}</span> — {draftReason}{" "}
+                      {t("qf.staysEditable")}
                     </p>
                   )}
                 </div>
               )}
 
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-muted">Type</label>
+                <label className="mb-1.5 block text-xs font-medium text-muted">{t("qf.type")}</label>
                 <div className="flex flex-wrap gap-1.5">
                   {TYPES.map((t) => {
                     const m = getType(t);
@@ -234,7 +236,7 @@ export function QuestFormModal({ open, initial, mode = "quest", busy, error, onC
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-muted">Difficulty</label>
+                <label className="mb-1.5 block text-xs font-medium text-muted">{t("qf.difficulty")}</label>
                 <div className="flex flex-wrap gap-1.5">
                   {DIFFICULTIES.map((d) => {
                     const m = difficultyMeta[d];
@@ -259,7 +261,7 @@ export function QuestFormModal({ open, initial, mode = "quest", busy, error, onC
 
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-muted">
-                  Attribute rewards (XP)
+                  {t("qf.rewards")}
                 </label>
                 <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                   {Object.entries(attributeMeta).map(([key, meta]) => {
@@ -300,7 +302,7 @@ export function QuestFormModal({ open, initial, mode = "quest", busy, error, onC
                 <div>
                   <div className="mb-1.5 flex items-center justify-between">
                     <label className="block text-xs font-medium text-muted">
-                      Bonus objectives <span className="text-faint">(optional subtasks — extra XP if checked)</span>
+                      {t("qf.bonus")} <span className="text-faint">{t("qf.bonusHint")}</span>
                     </label>
                     <button
                       onClick={() => {
@@ -310,7 +312,7 @@ export function QuestFormModal({ open, initial, mode = "quest", busy, error, onC
                       data-testid="add-subtask"
                       className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--color-spirituality)]"
                     >
-                      <Plus size={12} /> Add
+                      <Plus size={12} /> {t("common.add")}
                     </button>
                   </div>
                   {subtasks.length > 0 && (
@@ -323,7 +325,7 @@ export function QuestFormModal({ open, initial, mode = "quest", busy, error, onC
                             <input
                               value={st.title}
                               onChange={(e) => setSubtask(i, { title: e.target.value })}
-                              placeholder="e.g. Bike there instead of driving"
+                              placeholder={t("qf.subtaskPlaceholder")}
                               data-testid={`subtask-title-${i}`}
                               className="min-w-0 flex-1 bg-transparent text-xs text-ink placeholder:text-faint focus:outline-none"
                             />
@@ -331,7 +333,7 @@ export function QuestFormModal({ open, initial, mode = "quest", busy, error, onC
                             <button
                               onClick={() => setExpandedSub(expanded ? null : i)}
                               className="text-faint hover:text-ink"
-                              aria-label="Edit bonus rewards"
+                              aria-label={t("qf.editBonusRewards")}
                               data-testid={`subtask-expand-${i}`}
                             >
                               {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -342,7 +344,7 @@ export function QuestFormModal({ open, initial, mode = "quest", busy, error, onC
                                 setExpandedSub(null);
                               }}
                               className="text-faint hover:text-[#ff8a80]"
-                              aria-label="Remove subtask"
+                              aria-label={t("qf.removeSubtask")}
                             >
                               <Trash2 size={13} />
                             </button>
@@ -395,10 +397,10 @@ export function QuestFormModal({ open, initial, mode = "quest", busy, error, onC
 
             <div className="flex items-center justify-end gap-2 border-t border-edge px-5 py-3.5">
               <Btn variant="ghost" onClick={onClose}>
-                Cancel
+                {t("common.cancel")}
               </Btn>
               <Btn variant="primary" disabled={busy || title.trim() === ""} onClick={submit}>
-                {initial ? "Save changes" : mode === "spontaneous" ? "Claim XP" : "Create quest"}
+                {initial ? t("common.saveChanges") : mode === "spontaneous" ? t("qf.claimXp") : t("qf.create")}
               </Btn>
             </div>
           </motion.div>

@@ -11,14 +11,9 @@ import {
 } from "../lib/queries";
 import { pushToast } from "../lib/toast";
 import { Btn, EmptyState, SectionTitle, Spinner } from "../components/ui";
-import { relativeTime } from "../lib/format";
+import { formatDateTime, relativeTime } from "../lib/format";
 import type { ShopItem } from "../lib/types";
-
-function formatDateTime(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "Unknown";
-  return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-}
+import { useI18n } from "../lib/i18n";
 
 function ShopItemModal({
   item,
@@ -29,6 +24,7 @@ function ShopItemModal({
   balance: number;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const purchase = usePurchaseShopItem();
   const [arming, setArming] = useState(false);
   const closeButton = useRef<HTMLButtonElement>(null);
@@ -80,7 +76,7 @@ function ShopItemModal({
     setArming(false);
     purchase.mutate(item.id, {
       onSuccess: (res) => {
-        pushToast(`Purchased "${res.item.name}" for ${res.item.price}g — enjoy it, you earned it.`, "success");
+        pushToast(t("shop.purchased", { name: res.item.name, price: res.item.price }), "success");
         onClose();
       },
     });
@@ -114,14 +110,14 @@ function ShopItemModal({
             id="shop-item-modal-title"
             className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-ink"
           >
-            Reward details
+            {t("shop.details")}
           </h2>
           <button
             ref={closeButton}
             type="button"
             onClick={onClose}
             className="rounded-sm text-faint hover:text-ink focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-phos)]"
-            aria-label="Close reward details"
+            aria-label={t("shop.closeDetails")}
             data-testid="shop-item-modal-close"
           >
             <X size={18} />
@@ -130,7 +126,7 @@ function ShopItemModal({
 
         <div className="space-y-5 px-5 py-5">
           <div>
-            <p className="mb-1 font-display text-xs uppercase tracking-[0.14em] text-faint">Reward</p>
+            <p className="mb-1 font-display text-xs uppercase tracking-[0.14em] text-faint">{t("shop.reward")}</p>
             <p className="break-words text-lg font-semibold leading-snug text-ink">{item.name}</p>
           </div>
 
@@ -138,14 +134,14 @@ function ShopItemModal({
             <div className="rounded-sm border border-edge bg-white/[0.02] p-3">
               <dt className="mb-1 flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-faint">
                 <Coins size={13} />
-                Price
+                {t("shop.price")}
               </dt>
               <dd className="tabnum text-lg font-bold text-[var(--color-goldhi)]">{item.price}g</dd>
             </div>
             <div className="rounded-sm border border-edge bg-white/[0.02] p-3">
               <dt className="mb-1 flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-faint">
                 <Coins size={13} />
-                Balance
+                {t("shop.balance")}
               </dt>
               <dd className="tabnum text-lg font-bold text-ink">{balance}g</dd>
             </div>
@@ -154,7 +150,7 @@ function ShopItemModal({
           <div className="flex items-start gap-2.5 text-xs text-muted">
             <CalendarDays size={15} className="mt-0.5 shrink-0 text-faint" />
             <div>
-              <p className="text-faint">Added to your wares</p>
+              <p className="text-faint">{t("shop.addedOn")}</p>
               <p>
                 {formatDateTime(item.created_at)} · {relativeTime(item.created_at)}
               </p>
@@ -170,15 +166,13 @@ function ShopItemModal({
               color: affordable ? "var(--color-muted)" : "var(--color-gold)",
             }}
           >
-            {affordable
-              ? "You have enough gold for this reward."
-              : `You need ${shortfall}g more before you can claim this reward.`}
+            {affordable ? t("shop.enough") : t("shop.short", { n: shortfall })}
           </div>
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-edge px-5 py-3.5">
           <Btn variant="ghost" onClick={onClose}>
-            Close
+            {t("common.close")}
           </Btn>
           <Btn
             variant={affordable ? "primary" : "ghost"}
@@ -187,7 +181,7 @@ function ShopItemModal({
             data-testid="shop-item-modal-buy"
           >
             <ShoppingCart size={14} />
-            {arming ? "Confirm?" : affordable ? "Buy reward" : "Too costly"}
+            {arming ? t("shop.confirm") : affordable ? t("shop.buyReward") : t("shop.tooCostly")}
           </Btn>
         </div>
       </motion.div>
@@ -204,6 +198,7 @@ function ItemRow({
   balance: number;
   onOpen: (item: ShopItem) => void;
 }) {
+  const { t } = useI18n();
   const purchase = usePurchaseShopItem();
   const archive = useArchiveShopItem();
   const [arming, setArming] = useState(false);
@@ -218,7 +213,7 @@ function ItemRow({
     setArming(false);
     purchase.mutate(item.id, {
       onSuccess: (res) =>
-        pushToast(`Purchased "${res.item.name}" for ${res.item.price}g — enjoy it, you earned it.`, "success"),
+        pushToast(t("shop.purchased", { name: res.item.name, price: res.item.price }), "success"),
     });
   };
 
@@ -228,7 +223,7 @@ function ItemRow({
         type="button"
         onClick={() => onOpen(item)}
         className="min-w-0 flex-1 cursor-pointer rounded-sm text-left focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-phos)]"
-        aria-label={`View details for ${item.name}`}
+        aria-label={t("shop.viewDetails", { name: item.name })}
         aria-haspopup="dialog"
         data-testid={`shop-item-details-${item.id}`}
       >
@@ -244,13 +239,13 @@ function ItemRow({
         data-testid={`buy-${item.id}`}
       >
         <ShoppingCart size={14} />
-        {arming ? "Confirm?" : affordable ? "Buy" : "Too costly"}
+        {arming ? t("shop.confirm") : affordable ? t("shop.buy") : t("shop.tooCostly")}
       </Btn>
       <button
         onClick={() => archive.mutate(item.id)}
         className="text-faint transition-colors hover:text-ink"
-        aria-label={`Archive ${item.name}`}
-        title="Archive (remove from shop)"
+        aria-label={t("shop.archiveItem", { name: item.name })}
+        title={t("shop.archiveTitle")}
       >
         <Archive size={16} />
       </button>
@@ -259,6 +254,7 @@ function ItemRow({
 }
 
 function AddItemForm() {
+  const { t } = useI18n();
   const create = useCreateShopItem();
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
@@ -266,7 +262,7 @@ function AddItemForm() {
   const submit = () => {
     const p = parseInt(price, 10);
     if (!name.trim() || !p || p <= 0) {
-      pushToast("A reward needs a name and a price above 0.", "error");
+      pushToast(t("shop.needNamePrice"), "error");
       return;
     }
     create.mutate(
@@ -285,38 +281,39 @@ function AddItemForm() {
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder='Reward, e.g. "Guilt-free gaming evening"'
+        placeholder={t("shop.namePlaceholder")}
         className="flex-1 rounded-md border border-edge bg-transparent px-3 py-2 text-sm text-ink outline-none placeholder:text-faint"
         data-testid="shop-name"
       />
       <input
         value={price}
         onChange={(e) => setPrice(e.target.value.replace(/\D/g, ""))}
-        placeholder="Price (g)"
+        placeholder={t("shop.pricePlaceholder")}
         inputMode="numeric"
         className="w-full rounded-md border border-edge bg-transparent px-3 py-2 text-sm text-ink outline-none placeholder:text-faint sm:w-28"
         data-testid="shop-price"
       />
       <Btn variant="primary" onClick={submit} disabled={create.isPending} data-testid="shop-add">
         <Plus size={14} />
-        Add
+        {t("common.add")}
       </Btn>
     </div>
   );
 }
 
 export function ShopPage() {
+  const { t } = useI18n();
   const dashboard = useDashboard();
   const items = useShopItems();
   const ledger = useGoldEvents(30, "purchase");
   const [selectedItem, setSelectedItem] = useState<ShopItem | null>(null);
 
-  if (dashboard.isLoading || items.isLoading) return <Spinner label="Opening the shop…" />;
+  if (dashboard.isLoading || items.isLoading) return <Spinner label={t("shop.opening")} />;
   if (dashboard.isError || items.isError || !dashboard.data || !items.data) {
     return (
       <EmptyState
-        title="Couldn't reach the backend"
-        hint={((dashboard.error ?? items.error) as Error)?.message ?? "Is the Go server running on :8080?"}
+        title={t("common.backendUnreachable")}
+        hint={((dashboard.error ?? items.error) as Error)?.message ?? t("common.backendHint")}
       />
     );
   }
@@ -328,8 +325,8 @@ export function ShopPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-xl font-bold tracking-tight text-ink">Reward Shop</h1>
-          <p className="text-sm text-faint">XP is progress. Gold is permission — spend it guilt-free.</p>
+          <h1 className="font-display text-xl font-bold tracking-tight text-ink">{t("shop.title")}</h1>
+          <p className="text-sm text-faint">{t("shop.subtitle")}</p>
         </div>
         <div className="flex items-center gap-2" data-testid="gold-balance">
           <Coins size={20} style={{ color: "var(--color-gold)" }} />
@@ -342,12 +339,12 @@ export function ShopPage() {
       <AddItemForm />
 
       <section>
-        <SectionTitle hint="Define your own rewards; buy them with earned gold.">Wares</SectionTitle>
+        <SectionTitle hint={t("shop.waresHint")}>{t("shop.wares")}</SectionTitle>
         {items.data.length === 0 ? (
           <EmptyState
             icon={<ShoppingCart size={20} />}
-            title="The shop is empty"
-            hint="Add real-life rewards above — a takeout night, a lazy morning, that gadget."
+            title={t("shop.empty")}
+            hint={t("shop.emptyHint")}
           />
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -359,16 +356,14 @@ export function ShopPage() {
       </section>
 
       <section>
-        <SectionTitle hint="Every purchase is a ledger entry — same audit trail as XP.">
-          Recent purchases
-        </SectionTitle>
+        <SectionTitle hint={t("shop.ledgerHint")}>{t("shop.recentPurchases")}</SectionTitle>
         {ledger.isError ? (
           <EmptyState
-            title="Couldn't load purchase history"
-            hint={(ledger.error as Error)?.message ?? "Is the Go server running on :8080?"}
+            title={t("shop.ledgerError")}
+            hint={(ledger.error as Error)?.message ?? t("common.backendHint")}
           />
         ) : purchases.length === 0 ? (
-          <EmptyState title="No purchases yet" hint="Earn gold by completing quests, then treat yourself." />
+          <EmptyState title={t("shop.noPurchases")} hint={t("shop.noPurchasesHint")} />
         ) : (
           <div className="space-y-1.5">
             {purchases.map((e) => (

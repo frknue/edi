@@ -4,6 +4,7 @@ import type { Quest } from "../lib/types";
 import { getType } from "../lib/theme";
 import { useToggleSubtask } from "../lib/queries";
 import { Btn, DifficultyPips, RewardChips, TypeBadge } from "./ui";
+import { useI18n } from "../lib/i18n";
 
 interface QuestCardProps {
   quest: Quest;
@@ -26,6 +27,7 @@ export function QuestCard({
   onEdit,
   busy,
 }: QuestCardProps) {
+  const { t } = useI18n();
   const meta = getType(quest.type);
   const isBoss = quest.type === "boss";
   const isRecovery = quest.type === "recovery";
@@ -58,12 +60,12 @@ export function QuestCard({
               <TypeBadge type={quest.type} />
               {isRecovery && (
                 <span className="text-[10px] italic text-[var(--color-spirituality)]">
-                  rest counts too
+                  {t("quest.restCounts")}
                 </span>
               )}
               {isDone && (
                 <span className="inline-flex items-center gap-1 text-[10px] text-[var(--color-health)]">
-                  <CheckCircle2 size={11} /> done
+                  <CheckCircle2 size={11} /> {t("quest.done")}
                 </span>
               )}
             </div>
@@ -99,21 +101,21 @@ export function QuestCard({
                 data-testid={`complete-${quest.id}`}
               >
                 <Check size={16} />
-                Complete
+                {t("common.complete")}
               </Btn>
             )}
             {onEdit && (
-              <Btn variant="ghost" className="!px-2" onClick={() => onEdit(quest)} aria-label="Edit quest">
+              <Btn variant="ghost" className="!px-2" onClick={() => onEdit(quest)} aria-label={t("quest.edit")}>
                 <Pencil size={15} />
               </Btn>
             )}
             {onSkip && (
-              <Btn variant="soft" className="!px-2" disabled={busy} onClick={() => onSkip(quest.id)} aria-label="Skip quest">
+              <Btn variant="soft" className="!px-2" disabled={busy} onClick={() => onSkip(quest.id)} aria-label={t("quest.skip")}>
                 <SkipForward size={15} />
               </Btn>
             )}
             {onArchive && (
-              <Btn variant="soft" className="!px-2" disabled={busy} onClick={() => onArchive(quest.id)} aria-label="Archive quest">
+              <Btn variant="soft" className="!px-2" disabled={busy} onClick={() => onArchive(quest.id)} aria-label={t("quest.archive")}>
                 <Archive size={15} />
               </Btn>
             )}
@@ -131,7 +133,7 @@ export function QuestCard({
               data-testid={`restore-${quest.id}`}
             >
               <RotateCcw size={15} />
-              Restore quest
+              {t("quest.restore")}
             </Btn>
           </div>
         )}
@@ -143,11 +145,12 @@ export function QuestCard({
 // SubtaskList renders a quest's bonus objectives. While the quest is active the
 // checkboxes toggle via the API; afterwards they show frozen state.
 function SubtaskList({ quest, interactive }: { quest: Quest; interactive: boolean }) {
+  const { t } = useI18n();
   const toggle = useToggleSubtask();
   return (
     <div className="mt-3 space-y-1 rounded-lg border border-edge/70 bg-white/[0.015] p-2">
       <div className="px-1 font-display text-[9px] uppercase tracking-[0.18em] text-faint">
-        Bonus objectives
+        {t("quest.bonusObjectives")}
       </div>
       {quest.subtasks.map((st) => {
         const Icon = st.done ? SquareCheckBig : Square;

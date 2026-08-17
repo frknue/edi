@@ -2,12 +2,19 @@ import { motion } from "framer-motion";
 import { Check, Sparkles, X } from "lucide-react";
 import type { AgentSuggestion } from "../lib/types";
 import { Btn, RewardChips, TypeBadge } from "./ui";
+import { useI18n } from "../lib/i18n";
+import type { MessageKey } from "../lib/locales/en";
 
-const typeLabel: Record<string, string> = {
-  low_attribute: "Rebalance",
-  level_up_focus: "Level Up",
-  make_easier: "Make Easier",
-  recovery: "Recovery",
+const TYPE_KEYS: Record<string, MessageKey> = {
+  low_attribute: "sug.type.low_attribute",
+  level_up_focus: "sug.type.level_up_focus",
+  make_easier: "sug.type.make_easier",
+  recovery: "sug.type.recovery",
+};
+const STATUS_KEYS: Record<string, MessageKey> = {
+  pending: "status.pending",
+  accepted: "status.accepted",
+  dismissed: "status.dismissed",
 };
 
 export function SuggestionCard({
@@ -23,6 +30,7 @@ export function SuggestionCard({
   onDismiss?: (id: number) => void;
   busy?: boolean;
 }) {
+  const { t } = useI18n();
   const q = suggestion.suggested_quest;
   const resolved = suggestion.status !== "pending";
   return (
@@ -43,10 +51,12 @@ export function SuggestionCard({
             style={{ background: "rgba(185,138,255,0.14)", color: "#b98aff" }}
           >
             <Sparkles size={11} />
-            {typeLabel[suggestion.type] ?? "Agent"}
+            {t(TYPE_KEYS[suggestion.type] ?? "sug.type.agent")}
           </span>
           {resolved && (
-            <span className="text-[10px] uppercase tracking-wide text-faint">{suggestion.status}</span>
+            <span className="text-[10px] uppercase tracking-wide text-faint">
+              {STATUS_KEYS[suggestion.status] ? t(STATUS_KEYS[suggestion.status]) : suggestion.status}
+            </span>
           )}
         </div>
 
@@ -71,12 +81,12 @@ export function SuggestionCard({
                 onClick={() => onAccept(suggestion.id)}
                 data-testid={`accept-suggestion-${suggestion.id}`}
               >
-                <Check size={15} /> Accept &amp; add quest
+                <Check size={15} /> {t("sug.accept")}
               </Btn>
             )}
             {onDismiss && (
               <Btn variant="soft" disabled={busy} onClick={() => onDismiss(suggestion.id)}>
-                <X size={15} /> Dismiss
+                <X size={15} /> {t("sug.dismiss")}
               </Btn>
             )}
           </div>

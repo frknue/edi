@@ -4,10 +4,12 @@ import { getAttr } from "../lib/theme";
 import { relativeTime } from "../lib/format";
 import { EmptyState } from "./ui";
 import { Activity } from "lucide-react";
+import { useI18n } from "../lib/i18n";
 
 export function XPFeed({ events }: { events: XPEvent[] }) {
+  const { t } = useI18n();
   if (events.length === 0) {
-    return <EmptyState icon={<Activity size={20} />} title="No XP yet" hint="Complete a quest to start earning." />;
+    return <EmptyState icon={<Activity size={20} />} title={t("feed.noXp")} hint={t("feed.noXpHint")} />;
   }
   return (
     <ul className="space-y-1.5">
@@ -30,12 +32,12 @@ export function XPFeed({ events }: { events: XPEvent[] }) {
             </div>
             <div className="min-w-0 flex-1">
               <div className="truncate text-[13px] text-ink">
-                {e.note || (e.source === "seed" ? "Starting progress" : meta.label)}
+                {e.note || (e.source === "seed" ? t("feed.startingProgress") : meta.label)}
               </div>
               <div className="text-[10px] uppercase tracking-wide text-faint">
                 {meta.label}
-                {e.source === "seed" && " · seed"}
-                {e.source === "decay" && " · decay"}
+                {e.source === "seed" && ` · ${t("feed.seed")}`}
+                {e.source === "decay" && ` · ${t("feed.decay")}`}
               </div>
             </div>
             <div className="text-right">

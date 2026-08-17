@@ -5,32 +5,35 @@ import { getAttr } from "../lib/theme";
 import { useWardAttribute } from "../lib/queries";
 import { pushToast } from "../lib/toast";
 import { ProgressBar } from "./ui";
+import { formatDate, formatNumber } from "../lib/format";
+import { useI18n } from "../lib/i18n";
 
 const RUST = "#ff6a3d";
 const WARD_COST = 30;
 
 function DecayBadge({ attribute }: { attribute: Attribute }) {
+  const { t } = useI18n();
   const d = attribute.decay;
   if (!d || d.state === "fresh" || d.state === "rest") return null;
   if (d.state === "warded") {
     return (
       <div className="mt-2 flex items-center gap-1.5 text-[10px] uppercase tracking-wider" style={{ color: "var(--color-gold)" }}>
         <Shield size={11} />
-        warded until {d.warded_until ? new Date(d.warded_until).toLocaleDateString() : "?"}
+        {t("attrCard.wardedUntil", { date: d.warded_until ? formatDate(d.warded_until) : "?" })}
       </div>
     );
   }
   if (d.state === "grace") {
     return (
       <div className="mt-2 text-[10px] uppercase tracking-wider text-faint">
-        idle {d.idle_days}d — decays in {4 - d.idle_days}d
+        {t("attrCard.grace", { idle: d.idle_days, left: 4 - d.idle_days })}
       </div>
     );
   }
   return (
     <div className="mt-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: RUST }}>
       <TrendingDown size={11} />
-      rusting · {d.idle_days}d idle · -{d.projected_daily_loss} XP/day
+      {t("attrCard.rusting", { idle: d.idle_days, loss: d.projected_daily_loss })}
     </div>
   );
 }
@@ -44,6 +47,7 @@ export function AttributeCard({
   index?: number;
   goldBalance?: number;
 }) {
+  const { t } = useI18n();
   const meta = getAttr(attribute.key);
   const Icon = meta.Icon;
   const ward = useWardAttribute();
@@ -75,7 +79,7 @@ export function AttributeCard({
           </div>
           <div>
             <div className="text-sm font-semibold text-ink">{meta.label}</div>
-            <div className="tabnum text-[11px] text-faint">{attribute.total_xp.toLocaleString()} XP</div>
+            <div className="tabnum text-[11px] text-faint">{formatNumber(attribute.total_xp)} XP</div>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
@@ -84,12 +88,15 @@ export function AttributeCard({
               onClick={() =>
                 ward.mutate(attribute.key, {
                   onSuccess: (res) =>
-                    pushToast(`${meta.label} warded for 7 days (-${WARD_COST}g, ${res.balance}g left).`, "success"),
+                    pushToast(
+                      t("attrCard.wardedToast", { attr: meta.label, cost: WARD_COST, balance: res.balance }),
+                      "success",
+                    ),
                 })
               }
               disabled={ward.isPending}
-              title={`Ward for 7 days (${WARD_COST}g)`}
-              aria-label={`Ward ${meta.label}`}
+              title={t("attrCard.wardTitle", { cost: WARD_COST })}
+              aria-label={t("attrCard.wardLabel", { attr: meta.label })}
               className="grid h-8 w-8 place-items-center rounded-md transition-colors hover:bg-white/[0.06]"
               style={{ color: "var(--color-gold)" }}
               data-testid={`ward-${attribute.key}`}

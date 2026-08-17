@@ -7,10 +7,12 @@ import { JournalPage } from "./pages/Journal";
 import { SuggestionsPage } from "./pages/Suggestions";
 import { ShopPage } from "./pages/Shop";
 import { DailyMoodLog } from "./components/DailyMoodLog";
-import { Logo, Sidebar } from "./components/Sidebar";
+import { LanguageToggle, Logo, Sidebar } from "./components/Sidebar";
+import { useI18n } from "./lib/i18n";
 import type { View } from "./components/Sidebar";
 
 export default function App() {
+  const { t } = useI18n();
   const [view, setView] = useState<View>("dashboard");
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try {
@@ -60,6 +62,7 @@ export default function App() {
         style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top))" }}
       >
         <Logo />
+        <LanguageToggle />
       </header>
 
       {/* Main content */}
@@ -81,12 +84,12 @@ export default function App() {
       >
         {(
           [
-            { id: "dashboard", label: "Dashboard", Icon: LayoutDashboard },
-            { id: "quests", label: "Quests", Icon: ScrollText },
-            { id: "shop", label: "Shop", Icon: Store },
-            { id: "moodlog", label: "Mood Log", Icon: BrainCircuit },
-            { id: "journal", label: "Journal", Icon: BookHeart },
-            { id: "agent", label: "Agent", Icon: Bot },
+            { id: "dashboard", label: t("nav.dashboard"), Icon: LayoutDashboard },
+            { id: "quests", label: t("nav.quests"), Icon: ScrollText },
+            { id: "shop", label: t("nav.shop"), Icon: Store },
+            { id: "moodlog", label: t("nav.moodlogShort"), Icon: BrainCircuit },
+            { id: "journal", label: t("nav.journal"), Icon: BookHeart },
+            { id: "agent", label: t("nav.agent"), Icon: Bot },
           ] as { id: View; label: string; Icon: LucideIcon }[]
         ).map(({ id, label, Icon }) => (
           <button

@@ -270,6 +270,18 @@ break a shell prompt on server errors).
 - **No mock state.** The UI must read real backend data and surface real loading/error
   states (`Spinner`, `EmptyState`, `ErrorBoundary`, toasts). Don't hide backend failures.
 - Strict TS (`noUnusedLocals`/`noUnusedParameters`); the build fails on unused symbols.
+- **i18n (EN/DE):** no hardcoded UI strings. Every user-visible string goes
+  through `lib/i18n.tsx` — `useI18n().t("key", {vars})` in components,
+  `t()`/`tp()` (plural pairs `key.one`/`key.other`) anywhere else. Keys live in
+  `lib/locales/en.ts` (source) and `de.ts`, which is typed
+  `Record<MessageKey, string>` so a missing German string fails `tsc`. Labels
+  that used to be module constants (attributes/types/difficulty in `theme.ts`,
+  CBT vocab in `cbt.ts`, nav items) resolve lazily via `t()`. Locale is a
+  per-device preference (`localStorage edi.locale`, default from
+  `navigator.language`); switching remounts the tree (`key={locale}` in
+  `main.tsx`). Dates/numbers go through `lib/format.ts` (locale-aware). Keep
+  `data-testid`s independent of display text. Server-generated content
+  (achievements, loot, titles, AI text, error messages) is not localized here.
 
 ## Users & auth (multi-tenant)
 

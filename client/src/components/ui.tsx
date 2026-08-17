@@ -2,6 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { getAttr, getType, difficultyMeta } from "../lib/theme";
 import type { Difficulty, QuestType } from "../lib/types";
 import { pct } from "../lib/format";
+import { t } from "../lib/i18n";
 
 // --- progress bar -----------------------------------------------------------
 
@@ -87,7 +88,7 @@ export function TypeBadge({ type }: { type: QuestType }) {
 export function DifficultyPips({ difficulty }: { difficulty: Difficulty }) {
   const meta = difficultyMeta[difficulty];
   return (
-    <span className="inline-flex items-center gap-1.5" title={`Difficulty: ${meta.label}`}>
+    <span className="inline-flex items-center gap-1.5" title={t("common.difficulty", { level: meta.label })}>
       <span className="flex gap-0.5">
         {Array.from({ length: 5 }).map((_, i) => (
           <span

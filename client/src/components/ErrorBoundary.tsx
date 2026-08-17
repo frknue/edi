@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { t } from "../lib/i18n";
 
 interface Props {
   children: ReactNode;
@@ -24,7 +25,7 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="flex min-h-screen items-center justify-center p-6">
           <div className="hud-panel max-w-md p-6" data-testid="error-boundary">
-            <h1 className="font-display text-lg font-bold text-[#ff8a80]">Something broke</h1>
+            <h1 className="font-display text-lg font-bold text-[#ff8a80]">{t("error.title")}</h1>
             <p className="mt-2 text-sm text-muted">{this.state.error.message}</p>
             <pre className="mt-3 max-h-40 overflow-auto rounded-lg bg-black/40 p-3 text-[11px] text-faint">
               {this.state.error.stack}
@@ -33,7 +34,7 @@ export class ErrorBoundary extends Component<Props, State> {
               className="mt-4 rounded-lg border border-edge px-3 py-2 text-sm text-ink hover:bg-white/5"
               onClick={() => window.location.reload()}
             >
-              Reload
+              {t("common.reload")}
             </button>
           </div>
         </div>
