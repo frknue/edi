@@ -34,7 +34,8 @@ func New(token string) *Client {
 type UpdateMessage struct {
 	Text string `json:"text"`
 	Chat struct {
-		ID int64 `json:"id"`
+		ID   int64  `json:"id"`
+		Type string `json:"type"` // "private" | "group" | "supergroup" | "channel"
 	} `json:"chat"`
 }
 
@@ -108,4 +109,14 @@ func (c *Client) SendMessage(chatID int64, html string) error {
 		"parse_mode": {"HTML"},
 	}
 	return c.call("sendMessage", params, nil)
+}
+
+// SendTyping shows the "typing…" indicator in a chat for ~5s (best effort —
+// used while a slow reply is being prepared).
+func (c *Client) SendTyping(chatID int64) error {
+	params := url.Values{
+		"chat_id": {strconv.FormatInt(chatID, 10)},
+		"action":  {"typing"},
+	}
+	return c.call("sendChatAction", params, nil)
 }

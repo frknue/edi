@@ -2,6 +2,7 @@ package presence
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"edi/internal/agent"
 	"edi/internal/services"
 	"edi/internal/telegram"
 )
@@ -19,6 +21,12 @@ import (
 type Runner struct {
 	svc *services.Service // base service; per-chat work runs on svc.ForUser
 	tg  *telegram.Client
+
+	// Free-text chat: the user's ChatGPT model acting through the shared tool
+	// registry (internal/agent). llmFor is swappable for offline tests.
+	registry *agent.Registry
+	sessions *agent.Sessions
+	llmFor   func(*services.Service) agent.LLM
 
 	defaultBriefing string // HH:MM fallbacks when a user hasn't set their own
 	defaultNudge    string
@@ -33,8 +41,12 @@ type fireKey struct {
 }
 
 // New builds a runner. defaultBriefing/defaultNudge must be valid HH:MM.
-func New(svc *services.Service, tg *telegram.Client, defaultBriefing, defaultNudge string) *Runner {
-	return &Runner{svc: svc, tg: tg, defaultBriefing: defaultBriefing, defaultNudge: defaultNudge, fires: map[fireKey]time.Time{}}
+func New(svc *services.Service, tg *telegram.Client, registry *agent.Registry, defaultBriefing, defaultNudge string) *Runner {
+	return &Runner{
+		svc: svc, tg: tg, registry: registry, sessions: agent.NewSessions(),
+		llmFor:          func(s *services.Service) agent.LLM { return s.OpenAIConverse },
+		defaultBriefing: defaultBriefing, defaultNudge: defaultNudge, fires: map[fireKey]time.Time{},
+	}
 }
 
 // Run starts the channel: resolves the bot identity, then long-polls updates
@@ -79,16 +91,87 @@ func (r *Runner) pollLoop(ctx context.Context) {
 			if u.Message == nil {
 				continue
 			}
-			reply := r.handleMessage(u.Message.Chat.ID, u.Message.Text)
+			msg := u.Message
+			if isFreeText(msg.Text) && isPrivateChat(msg.Chat.Type) {
+				// Chat replies take seconds (LLM + tools): answer off the poll
+				// loop so one slow conversation never stalls the other users'
+				// commands. Turns of the same chat are serialized in Sessions.
+				go r.answerChat(msg.Chat.ID, msg.Text)
+				continue
+			}
+			reply := r.handleMessage(msg.Chat.ID, msg.Text)
 			if reply == "" {
 				continue
 			}
-			if err := r.tg.SendMessage(u.Message.Chat.ID, reply); err != nil {
+			if err := r.tg.SendMessage(msg.Chat.ID, reply); err != nil {
 				log.Printf("telegram sendMessage: %v", err)
 			}
 		}
 	}
 }
+
+// isFreeText reports whether a message is conversation rather than a slash
+// command (which parseCommand handles).
+func isFreeText(text string) bool {
+	text = strings.TrimSpace(text)
+	return text != "" && !strings.HasPrefix(text, "/")
+}
+
+// isPrivateChat gates free-text chat to 1:1 chats: in a group (privacy mode
+// off) every member's chatter would spend the paired user's ChatGPT quota and
+// act on THEIR account. Group free text falls through to the command path
+// (help), like before. "" (older payloads, tests) counts as private.
+func isPrivateChat(chatType string) bool { return chatType == "" || chatType == "private" }
+
+// answerChat sends one free-text message through the agent and replies,
+// keeping Telegram's ~5s typing indicator alive while the model works.
+func (r *Runner) answerChat(chatID int64, text string) {
+	done := make(chan struct{})
+	go func() {
+		t := time.NewTicker(4 * time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-t.C:
+				_ = r.tg.SendTyping(chatID)
+			case <-done:
+				return
+			}
+		}
+	}()
+	reply := r.chatReply(chatID, text)
+	close(done)
+	if err := r.tg.SendMessage(chatID, reply); err != nil {
+		log.Printf("telegram sendMessage: %v", err)
+	}
+}
+
+// chatReply produces the HTML reply for a free-text message: pairing help
+// for unknown chats, the AI-connection hint when no ChatGPT account is
+// linked, otherwise the agent's answer. Model text is escaped whole — it may
+// quote user-derived titles and SendMessage speaks HTML.
+func (r *Runner) chatReply(chatID int64, text string) string {
+	userID, err := r.svc.UserIDForTelegramChat(chatID)
+	if err != nil {
+		return notLinkedText
+	}
+	svc := r.svc.ForUser(userID)
+	if r.registry == nil {
+		return helpText
+	}
+	_ = r.tg.SendTyping(chatID)
+	res, err := r.registry.Chat(svc, r.llmFor(svc), r.sessions, sessionKey(chatID), text)
+	if err != nil {
+		if errors.Is(err, services.ErrOpenAINotConnected) {
+			return "💬 Free-text chat needs your ChatGPT account: open edi → AI → <b>Connect ChatGPT</b>. Slash commands work without it — /help"
+		}
+		log.Printf("telegram chat for user %d: %v", userID, err)
+		return "⚠ " + html.EscapeString(userMessage(err))
+	}
+	return html.EscapeString(res.Reply)
+}
+
+func sessionKey(chatID int64) string { return "telegram:" + strconv.FormatInt(chatID, 10) }
 
 // handleMessage routes one incoming message. Unpaired chats only get pairing
 // help — every account action requires a link.
@@ -229,6 +312,10 @@ func (r *Runner) handleCommand(svc *services.Service, chatID int64, cmd, arg str
 		}
 		return fmt.Sprintf("⚔️ <b>A boss has been forged:</b>\n%s\n<i>%s</i>\n\n/done %d when you bring it down.",
 			questLine(q), html.EscapeString(q.Description), q.ID)
+
+	case "new", "forget":
+		r.sessions.Reset(sessionKey(chatID))
+		return "🧹 Conversation cleared — fresh start."
 
 	case "unpair":
 		if err := svc.UnlinkTelegramChat(chatID); err != nil {

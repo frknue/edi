@@ -215,7 +215,8 @@ Telegram runs **in-process** (`internal/presence`, enabled by
 code (web UI → `POST /api/telegram/pair-code`) and sends `/pair <code>` (or the
 `t.me/<bot>?start=<code>` deep link) to the bot; `telegram_links` maps chat ↔
 user, and every command runs on `svc.ForUser(linked)`. Commands: /status
-/quests /done /ward /rest /briefing /nudge /unpair. Pushes: per-user briefing +
+/quests /done /ward /rest /briefing /nudge /new /unpair — plus free-text
+chat (below). Pushes: per-user briefing +
 conditional nudge at per-user times (app_settings) falling back to
 `EDI_BRIEFING_TIME`/`EDI_NUDGE_TIME`; the scheduler re-checks the wall clock
 (suspend/DST-safe), skips pushes >10 min late, never replays. **Only ONE
@@ -225,6 +226,28 @@ regression: `TestPresenceMultiUserIsolation`. Live-tested against a real bot
 (@edi_rpg_bot): deep-link pairing verified end-to-end on the deployed server.
 `edi-cli status` prints a fail-silent stats block for shell startup (never
 break a shell prompt on server errors).
+
+**Free-text chat** (any message without a leading `/`) goes to the
+conversational agent: `internal/agent` `Registry.Chat` runs the user's own
+ChatGPT model (`openai.Converse`, native function calling, `store=false` —
+the history is replayed each round, including the model's raw output items)
+over the SAME tool registry, so "add X as a daily" / "I finished X" / "how's
+my streak" become `create_quest` / `list_quests`+`complete_quest` (or
+`record_spontaneous_quest`) / `get_dashboard`. Rules: the model never touches
+data except through `registry.Invoke` on the user-bound Service; tool errors
+are fed back for self-correction (cap: 3 consecutive failures, 8 rounds,
+90s); tool results are truncated; conversation history is **in-memory per
+chat** (`agent.Sessions`, 2h idle TTL, `/new` clears; a redeploy forgets it —
+every action already landed via the service). Presence answers chat off the
+poll loop (goroutine, per-session lock, typing indicator kept alive),
+**private chats only** (group chatter would spend/act on the paired user's
+account — it falls through to help) and escapes the
+model text whole (`SendMessage` is HTML). No connection → the connect hint;
+slash commands keep working without AI. The same loop is exposed as
+`POST /api/agent/chat {message, session?, reset?}` (`edi-cli chat`), gated
+like every AI feature (`ErrOpenAINotConnected` → 400). Offline tests inject a
+scripted `agent.LLM` (`chat_test.go`, `TestPresenceFreeTextChat`); the wire
+contract is checked by `TestLiveConverseToolCall` (`EDI_LIVE_TEST=1`).
 
 ## Conventions
 

@@ -73,7 +73,7 @@ func main() {
 				log.Fatalf("EDI_BRIEFING_TIME/EDI_NUDGE_TIME %q is not HH:MM", hhmm)
 			}
 		}
-		go presence.New(svc, telegram.New(botToken), briefing, nudge).Run(presenceCtx)
+		go presence.New(svc, telegram.New(botToken), registry, briefing, nudge).Run(presenceCtx)
 	}
 
 	srv := &http.Server{

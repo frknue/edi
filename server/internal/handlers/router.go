@@ -100,6 +100,7 @@ func NewRouter(h *Handlers, clientDir string, tokenMode bool) http.Handler {
 	// Agent-ready tool interface (discovery + invocation).
 	mux.HandleFunc("GET /api/agent/tools", h.listTools)
 	mux.HandleFunc("POST /api/agent/tools/{name}/invoke", h.invokeTool)
+	mux.HandleFunc("POST /api/agent/chat", h.chat)
 
 	// Optional: serve the built SPA.
 	if clientDir != "" {

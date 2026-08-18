@@ -332,9 +332,15 @@ bot with @BotFather) and every user can link their own chat:
 ⚠ Only **one** environment may set `TELEGRAM_BOT_TOKEN` per bot — two pollers
 fight over Telegram's update queue. Use a second throwaway bot for local dev.
 
-Commands once paired:
+Once paired you can **just talk to the bot** (with your ChatGPT account
+connected in the app): *"add a 20 min run as a daily"*, *"I finished the tax
+return"*, *"how's my streak?"* — the AI acts through the same tools as every
+other client (creates/completes quests, records spontaneous wins, reads your
+dashboard) and answers with the real numbers. `/new` clears the conversation.
+Slash commands work with or without AI:
 
 ```
+/new — clear our conversation
 /status — level, streak, gold, quests, decay
 /quests — active quests with IDs
 /done <id> — complete a quest

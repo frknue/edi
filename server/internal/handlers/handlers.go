@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -16,10 +17,11 @@ import (
 type Handlers struct {
 	svc      *services.Service
 	registry *agent.Registry
+	sessions *agent.Sessions // in-memory chat history for /api/agent/chat
 }
 
 func New(svc *services.Service, registry *agent.Registry) *Handlers {
-	return &Handlers{svc: svc, registry: registry}
+	return &Handlers{svc: svc, registry: registry, sessions: agent.NewSessions()}
 }
 
 func (h *Handlers) health(w http.ResponseWriter, _ *http.Request) {
@@ -572,6 +574,32 @@ func (h *Handlers) invokeTool(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"tool": name, "result": result})
+}
+
+// chat is the conversational agent over HTTP: one free-text message in, the
+// model's reply (after acting through the tool registry) out. History is
+// per user + optional session name, in memory; reset=true clears it first.
+func (h *Handlers) chat(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Message string `json:"message"`
+		Session string `json:"session"`
+		Reset   bool   `json:"reset"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		writeError(w, err)
+		return
+	}
+	svc := h.forUser(r)
+	key := fmt.Sprintf("http:%d:%s", svc.UserID(), body.Session)
+	if body.Reset {
+		h.sessions.Reset(key)
+	}
+	res, err := h.registry.Chat(svc, svc.OpenAIConverse, h.sessions, key, body.Message)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
 }
 
 // --- decay & stakes -----------------------------------------------------------

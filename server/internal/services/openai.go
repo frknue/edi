@@ -439,32 +439,59 @@ func (s *Service) accessToken() (token, accountID string, err error) {
 // completeWithOpenAI runs one prompt through the subscription model, refreshing
 // the token once on a 401.
 func (s *Service) completeWithOpenAI(instructions, prompt string) (string, error) {
+	var out string
+	err := s.withOpenAI(func(token, accountID, model, effort string) error {
+		var err error
+		out, err = openai.Complete(token, accountID, model, effort, instructions, prompt)
+		return err
+	})
+	return out, err
+}
+
+// OpenAIConverse runs one tool-calling round of a stateful conversation on
+// the user's connected account (model/effort from their settings). Exported
+// for the agent loop in internal/agent, which cannot live here (it imports
+// this package). Gated like every AI feature: ErrOpenAINotConnected when no
+// account is linked.
+func (s *Service) OpenAIConverse(instructions string, history []openai.Item, tools []openai.ToolDef) (openai.Turn, error) {
+	var turn openai.Turn
+	err := s.withOpenAI(func(token, accountID, model, effort string) error {
+		var err error
+		turn, err = openai.Converse(token, accountID, model, effort, instructions, history, tools)
+		return err
+	})
+	return turn, err
+}
+
+// withOpenAI resolves credentials + settings and runs call, refreshing the
+// token and retrying ONCE on an unauthorized response.
+func (s *Service) withOpenAI(call func(token, accountID, model, effort string) error) error {
 	token, accountID, err := s.accessToken()
 	if err != nil {
-		return "", err
+		return err
 	}
 	model, effort := s.openAIModel(), s.openAIEffort()
-	out, err := openai.Complete(token, accountID, model, effort, instructions, prompt)
+	err = call(token, accountID, model, effort)
 	var unauth openai.ErrUnauthorized
 	if errors.As(err, &unauth) {
 		// Force a refresh and retry once.
 		creds, e := s.store.GetOpenAICredentials(s.userID)
 		if e != nil || creds == nil {
-			return "", ErrOpenAINotConnected
+			return ErrOpenAINotConnected
 		}
 		refreshed, e := openai.Refresh(creds.RefreshToken)
 		if e != nil {
-			return "", fmt.Errorf("%w: OpenAI session expired, please reconnect", ErrValidation)
+			return fmt.Errorf("%w: OpenAI session expired, please reconnect", ErrValidation)
 		}
 		if refreshed.AccountID == "" {
 			refreshed.AccountID = creds.AccountID
 		}
 		if e := s.saveTokens(refreshed); e != nil {
-			return "", e
+			return e
 		}
-		out, err = openai.Complete(refreshed.AccessToken, refreshed.AccountID, model, effort, instructions, prompt)
+		err = call(refreshed.AccessToken, refreshed.AccountID, model, effort)
 	}
-	return out, err
+	return err
 }
 
 func callbackHTML(title, message string, ok bool) string {

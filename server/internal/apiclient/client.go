@@ -261,3 +261,18 @@ func (c *Client) InvokeTool(name string, args json.RawMessage) (json.RawMessage,
 	}
 	return out.Result, nil
 }
+
+// ChatResult is the agent's answer to one free-text message.
+type ChatResult struct {
+	Reply     string   `json:"reply"`
+	ToolsUsed []string `json:"tools_used"`
+}
+
+// Chat sends a free-text message to the conversational agent (the user's
+// ChatGPT model acting through the tool registry). session names a
+// server-side conversation; reset clears it first.
+func (c *Client) Chat(message, session string, reset bool) (ChatResult, error) {
+	var out ChatResult
+	err := c.do(http.MethodPost, "/api/agent/chat", map[string]any{"message": message, "session": session, "reset": reset}, &out)
+	return out, err
+}

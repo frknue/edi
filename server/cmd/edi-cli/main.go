@@ -27,6 +27,7 @@
 //	rest on|off                     Pause/resume all attribute decay
 //	status                          Compact stats block for shell startup (fail-silent)
 //	tools                           List the agent tool catalog
+//	chat [--new] <message>          Talk to the AI agent (needs ChatGPT connected)
 package main
 
 import (
@@ -113,6 +114,8 @@ func run(c *apiclient.Client, cmd string, args []string) error {
 		return cmdStatus(c)
 	case "tools":
 		return cmdTools(c)
+	case "chat":
+		return cmdChat(c, args)
 	case "help", "-h", "--help":
 		usage()
 		return nil
@@ -407,6 +410,33 @@ func cmdSuggestDismiss(c *apiclient.Client, args []string) error {
 	return nil
 }
 
+// cmdChat talks to the conversational agent: `edi-cli chat "I finished the run"`.
+// The conversation continues across invocations (session "cli"); --new starts over.
+func cmdChat(c *apiclient.Client, args []string) error {
+	reset := false
+	var words []string
+	for _, a := range args {
+		if a == "--new" {
+			reset = true
+			continue
+		}
+		words = append(words, a)
+	}
+	msg := strings.TrimSpace(strings.Join(words, " "))
+	if msg == "" {
+		return fmt.Errorf("usage: chat [--new] <message>")
+	}
+	res, err := c.Chat(msg, "cli", reset)
+	if err != nil {
+		return err
+	}
+	if len(res.ToolsUsed) > 0 {
+		fmt.Println(dim("⚙ " + strings.Join(res.ToolsUsed, ", ")))
+	}
+	fmt.Println(res.Reply)
+	return nil
+}
+
 func cmdTools(c *apiclient.Client) error {
 	tools, err := c.ListTools()
 	if err != nil {
@@ -638,6 +668,7 @@ commands:
   rest on|off                        pause/resume all attribute decay
   status                             compact stats block for .zshrc (prints nothing if server is down)
   tools                              list the agent tool catalog
+  chat [--new] <message>             talk to the AI agent ("add a run as a daily", "I finished X")
 `)
 }
 

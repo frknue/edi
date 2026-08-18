@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -69,5 +70,29 @@ func TestUnknownAppRouteServesSPA(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "<!doctype html>") {
 		t.Errorf("GET /quests should serve index.html, got: %s", rec.Body.String())
+	}
+}
+
+// POST /api/agent/chat is gated like every AI feature: without a ChatGPT
+// connection it is a clean 400, and an empty message is 400 too.
+func TestAgentChatEndpointGates(t *testing.T) {
+	srv := httptest.NewServer(newTestRouter(t, ""))
+	defer srv.Close()
+	resp, err := http.Post(srv.URL+"/api/agent/chat", "application/json", strings.NewReader(`{"message":"add a run"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusBadRequest || !strings.Contains(string(body), "not connected") {
+		t.Fatalf("chat without OpenAI = %d %s, want 400 not-connected", resp.StatusCode, body)
+	}
+	resp2, err := http.Post(srv.URL+"/api/agent/chat", "application/json", strings.NewReader(`{"message":""}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode != http.StatusBadRequest {
+		t.Fatalf("empty message = %d, want 400", resp2.StatusCode)
 	}
 }

@@ -17,6 +17,8 @@ import (
 
 const helpText = `<b>edi</b> — your Life RPG, in your pocket
 
+Just talk to me — "add a 20 min run as a daily", "I finished the tax return", "how's my streak?" (needs your ChatGPT connection).
+/new — clear our conversation
 /status — level, streak, gold, quests, decay
 /quests — active quests with IDs
 /done &lt;id&gt; — complete a quest

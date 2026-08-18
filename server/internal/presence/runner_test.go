@@ -1,14 +1,17 @@
 package presence
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
 
+	"edi/internal/agent"
 	"edi/internal/db/dbtest"
 	"edi/internal/models"
+	"edi/internal/openai"
 	"edi/internal/services"
 	"edi/internal/telegram"
 )
@@ -46,7 +49,7 @@ func newTestRunner(t *testing.T) (*Runner, *services.Service, *[]string) {
 	svc := services.New(store, 1)
 	svc.SetTelegramBotInfo("edi_test_bot")
 	tg, sent := stubTelegram(t)
-	return New(svc, tg, "08:00", "20:00"), svc, sent
+	return New(svc, tg, agent.NewRegistry(), "08:00", "20:00"), svc, sent
 }
 
 // The Telegram sibling of TestTenantIsolation: two users, two chats — each
@@ -219,5 +222,60 @@ func TestPresenceOnDemandPushes(t *testing.T) {
 	// Setting times still works with an argument.
 	if got := r.handleMessage(chat, "/briefing 06:45"); !strings.Contains(got, "06:45") {
 		t.Fatalf("/briefing HH:MM = %q", got)
+	}
+}
+
+// Free text (no leading slash) is conversation, not a command: unpaired chats
+// get pairing help, paired chats without a ChatGPT connection get the connect
+// hint, and with a (faked) model the reply is the agent's text — HTML-escaped
+// whole, since it may quote user-derived titles.
+func TestPresenceFreeTextChat(t *testing.T) {
+	r, svc, _ := newTestRunner(t)
+	const chat = int64(7007)
+
+	if !isFreeText("hey add a run") || isFreeText("/status") || isFreeText("  ") {
+		t.Fatal("isFreeText misclassifies")
+	}
+	if !isPrivateChat("private") || !isPrivateChat("") || isPrivateChat("group") || isPrivateChat("supergroup") {
+		t.Fatal("free-text chat must be private-chat only")
+	}
+	if got := r.chatReply(chat, "hey add a run"); !strings.Contains(got, "isn't linked") {
+		t.Fatalf("unlinked chat = %q, want pairing help", got)
+	}
+	code, _ := svc.CreateTelegramPairCode()
+	r.handleMessage(chat, "/pair "+code.Code)
+
+	// No ChatGPT connection → clear hint, not an internal error.
+	if got := r.chatReply(chat, "hey add a run"); !strings.Contains(got, "Connect ChatGPT") {
+		t.Fatalf("not-connected reply = %q", got)
+	}
+
+	// Fake model: creates a quest with a title containing HTML, then answers
+	// with the model text (which quotes that title).
+	r.llmFor = func(*services.Service) agent.LLM {
+		calls := 0
+		return func(_ string, _ []openai.Item, _ []openai.ToolDef) (openai.Turn, error) {
+			calls++
+			if calls == 1 {
+				item, _ := json.Marshal(map[string]any{"type": "function_call", "call_id": "c1", "name": "create_quest", "arguments": `{"title":"<b>Run</b> & stretch"}`})
+				return openai.Turn{ToolCalls: []openai.ToolCall{{CallID: "c1", Name: "create_quest", Arguments: json.RawMessage(`{"title":"<b>Run</b> & stretch"}`)}}, Output: []openai.Item{item}}, nil
+			}
+			return openai.Turn{Text: "Added <b>Run</b> & stretch as a daily."}, nil
+		}
+	}
+	got := r.chatReply(chat, "add run & stretch as a daily")
+	if !strings.Contains(got, "&lt;b&gt;Run&lt;/b&gt; &amp; stretch") || strings.Contains(got, "<b>") {
+		t.Fatalf("model text must be escaped whole, got %q", got)
+	}
+	quests, _ := svc.ListQuests("daily", "active")
+	found := false
+	for _, q := range quests {
+		found = found || q.Title == "<b>Run</b> & stretch"
+	}
+	if !found {
+		t.Fatal("chat did not create the quest through the registry")
+	}
+	if got := r.handleMessage(chat, "/new"); !strings.Contains(got, "cleared") {
+		t.Fatalf("/new = %q", got)
 	}
 }
