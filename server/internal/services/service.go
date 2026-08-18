@@ -214,10 +214,17 @@ func (s *Service) validateRewards(rewards map[string]int64) error {
 
 func knownKey(m map[string]string, k string) bool { _, ok := m[k]; return ok }
 
+func (s *Service) rollOverDailyQuests() error {
+	return s.store.RollOverDailyQuests(s.userID, time.Now())
+}
+
 // ListQuests returns quests filtered by optional type and status.
 func (s *Service) ListQuests(questType, status string) ([]models.Quest, error) {
 	if questType != "" && !validTypes[questType] {
 		return nil, validationErr("invalid type filter %q", questType)
+	}
+	if err := s.rollOverDailyQuests(); err != nil {
+		return nil, err
 	}
 	quests, err := s.store.ListQuests(s.userID, questType, status)
 	return orEmpty(quests), err
@@ -269,6 +276,9 @@ func (s *Service) UpdateQuest(id int64, p models.QuestPatch) (models.Quest, erro
 
 // CompleteQuest completes a quest and returns rich feedback + a refreshed dashboard.
 func (s *Service) CompleteQuest(id int64) (models.CompletionResult, error) {
+	if err := s.rollOverDailyQuests(); err != nil {
+		return models.CompletionResult{}, err
+	}
 	if _, err := s.ApplyDecay(); err != nil {
 		return models.CompletionResult{}, err
 	}
@@ -444,6 +454,9 @@ func (s *Service) ListJournalEntries(limit int, search string) ([]models.Journal
 
 // GetDashboard assembles the full main-screen payload in one call.
 func (s *Service) GetDashboard() (models.Dashboard, error) {
+	if err := s.rollOverDailyQuests(); err != nil {
+		return models.Dashboard{}, err
+	}
 	decayed, err := s.ApplyDecay()
 	if err != nil {
 		return models.Dashboard{}, err

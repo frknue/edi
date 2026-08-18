@@ -250,6 +250,38 @@ func (s *Store) ListQuests(userID int64, questType, status string) ([]models.Que
 	return out, nil
 }
 
+// RollOverDailyQuests makes completed daily quests available again once the
+// next local day begins. Completion history remains in quest_completions; only
+// the reusable quest definition is reactivated. Checked bonus objectives are
+// reset with it so each day's rewards are based on that day's work.
+//
+// The update uses the same per-user advisory lock as completion. That keeps a
+// rollover racing with a completion from reopening a quest on the same day.
+func (s *Store) RollOverDailyQuests(userID int64, now time.Time) error {
+	dayStart, _ := localDayBounds(now)
+	tx, err := s.beginUserTx(userID)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck — no-op after a successful Commit
+
+	if _, err := tx.Exec(
+		`WITH rolled_over AS (
+			UPDATE quests
+			SET status = 'active', completed_at = NULL
+			WHERE user_id = $1 AND type = 'daily' AND status = 'completed'
+			  AND completed_at < $2
+			RETURNING id
+		)
+		UPDATE quest_subtasks
+		SET done = 0
+		WHERE user_id = $1 AND quest_id IN (SELECT id FROM rolled_over)`,
+		userID, dayStart); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (s *Store) InsertQuest(userID int64, in models.QuestInput, sourceSuggestionID *int64) (models.Quest, error) {
 	var id int64
 	err := s.db.QueryRow(

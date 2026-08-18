@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"edi/internal/db/dbtest"
 	"edi/internal/models"
@@ -159,6 +160,77 @@ func TestCompleteQuestConcurrentNoDoubleAward(t *testing.T) {
 	}
 	if questEvents != 2 {
 		t.Errorf("xp_events for quest = %d, want 2 (single completion)", questEvents)
+	}
+}
+
+func TestCompletedDailyQuestReturnsNextLocalDay(t *testing.T) {
+	svc := newTestService(t)
+	q, err := svc.CreateQuest(models.QuestInput{
+		Title:            "Morning routine",
+		Type:             models.QuestTypeDaily,
+		Difficulty:       "easy",
+		AttributeRewards: map[string]int64{"discipline": 10},
+		Subtasks: []models.SubtaskInput{{
+			Title:            "Make the bed",
+			AttributeRewards: map[string]int64{"discipline": 5},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("create daily quest: %v", err)
+	}
+	if _, err := svc.ToggleSubtask(q.ID, q.Subtasks[0].ID); err != nil {
+		t.Fatalf("check subtask: %v", err)
+	}
+	if _, err := svc.CompleteQuest(q.ID); err != nil {
+		t.Fatalf("complete daily quest: %v", err)
+	}
+
+	// Move the completion to yesterday to exercise the lazy local-day rollover
+	// without making the test depend on the wall clock reaching midnight.
+	yesterday := time.Now().AddDate(0, 0, -1)
+	if _, err := svc.store.DB().Exec(
+		`UPDATE quests SET completed_at = $1 WHERE user_id = $2 AND id = $3`,
+		yesterday, svc.userID, q.ID); err != nil {
+		t.Fatalf("backdate quest completion: %v", err)
+	}
+	if _, err := svc.store.DB().Exec(
+		`UPDATE quest_completions SET completed_at = $1 WHERE user_id = $2 AND quest_id = $3`,
+		yesterday, svc.userID, q.ID); err != nil {
+		t.Fatalf("backdate completion history: %v", err)
+	}
+
+	dashboard, err := svc.GetDashboard()
+	if err != nil {
+		t.Fatalf("get dashboard after day change: %v", err)
+	}
+	var rolledOver *models.Quest
+	for i := range dashboard.TodayQuests {
+		if dashboard.TodayQuests[i].ID == q.ID {
+			rolledOver = &dashboard.TodayQuests[i]
+			break
+		}
+	}
+	if rolledOver == nil {
+		t.Fatal("completed daily quest did not return on the next local day")
+	}
+	if rolledOver.CompletedAt != nil {
+		t.Errorf("completed_at = %v, want nil after rollover", rolledOver.CompletedAt)
+	}
+	if rolledOver.Subtasks[0].Done {
+		t.Error("checked subtask remained checked after daily rollover")
+	}
+
+	if _, err := svc.CompleteQuest(q.ID); err != nil {
+		t.Fatalf("complete rolled-over daily quest: %v", err)
+	}
+	var completions int
+	if err := svc.store.DB().QueryRow(
+		`SELECT COUNT(1) FROM quest_completions WHERE user_id = $1 AND quest_id = $2`,
+		svc.userID, q.ID).Scan(&completions); err != nil {
+		t.Fatalf("count completion history: %v", err)
+	}
+	if completions != 2 {
+		t.Errorf("completion history count = %d, want 2", completions)
 	}
 }
 
