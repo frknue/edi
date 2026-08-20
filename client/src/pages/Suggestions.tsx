@@ -391,17 +391,20 @@ function PushTimes() {
   const { t } = useI18n();
   const { data } = useTelegramPushTimes();
   const save = useSetTelegramPushTimes();
+  // The reset control lives NEXT TO the label, not inside it — a button nested
+  // in a <label> gets its click re-targeted to the input and never fires.
   const field = (kind: "briefing" | "nudge") => (
-    <label className="flex items-center gap-2 text-xs text-muted">
-      <span className="w-16">{t(kind === "briefing" ? "tg.briefing" : "tg.nudge")}</span>
-      <input
-        type="time"
-        value={data?.[kind] ?? ""}
-        placeholder={t("tg.serverDefault")}
-        onChange={(e) => save.mutate({ [kind]: e.target.value })}
-        className="rounded border border-edge bg-transparent px-2 py-1 text-ink tabnum"
-        data-testid={`tg-time-${kind}`}
-      />
+    <span className="flex items-center gap-2 text-xs text-muted">
+      <label className="flex items-center gap-2">
+        <span className="w-16">{t(kind === "briefing" ? "tg.briefing" : "tg.nudge")}</span>
+        <input
+          type="time"
+          value={data?.[kind] ?? ""}
+          onChange={(e) => save.mutate({ [kind]: e.target.value })}
+          className="rounded border border-edge bg-transparent px-2 py-1 text-ink tabnum"
+          data-testid={`tg-time-${kind}`}
+        />
+      </label>
       {data?.[kind] ? (
         <button
           type="button"
@@ -414,7 +417,7 @@ function PushTimes() {
       ) : (
         <span className="text-faint">{t("tg.serverDefault")}</span>
       )}
-    </label>
+    </span>
   );
   return (
     <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1" data-testid="tg-push-times">
