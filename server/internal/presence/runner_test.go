@@ -2,11 +2,13 @@ package presence
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"edi/internal/agent"
 	"edi/internal/db/dbtest"
@@ -277,5 +279,50 @@ func TestPresenceFreeTextChat(t *testing.T) {
 	}
 	if got := r.handleMessage(chat, "/new"); !strings.Contains(got, "cleared") {
 		t.Fatalf("/new = %q", got)
+	}
+}
+
+// The scheduler re-anchors when the push time changes through the service —
+// whichever client wrote it (web/CLI/agent via POST /api/telegram/push-times,
+// or /briefing in chat). Clearing ("") falls back to the server default.
+func TestPresenceScheduleFollowsServiceSetting(t *testing.T) {
+	r, svc, sent := newTestRunner(t)
+	const chat = int64(9009)
+	code, _ := svc.CreateTelegramPairCode()
+	r.handleMessage(chat, "/pair "+code.Code)
+	user := svc.UserID()
+	now := time.Date(2026, 8, 20, 9, 0, 0, 0, time.Local)
+	noop := func(*services.Service) (string, error) { return "", nil }
+
+	r.tick(now, user, chat, "briefing", "08:00", noop) // anchors on default
+	if f := r.fires[fireKey{user, "briefing"}]; f.hhmm != "08:00" || f.at.Hour() != 8 {
+		t.Fatalf("initial anchor = %+v, want default 08:00", f)
+	}
+
+	hh := "10:30"
+	if _, err := svc.SetTelegramPushTimes(models.TelegramPushTimesPatch{Briefing: &hh}); err != nil {
+		t.Fatal(err)
+	}
+	r.tick(now.Add(time.Minute), user, chat, "briefing", "08:00", noop)
+	f := r.fires[fireKey{user, "briefing"}]
+	if f.hhmm != "10:30" || f.at.Hour() != 10 || f.at.Minute() != 30 || f.at.Day() != now.Day() {
+		t.Fatalf("after change = %+v, want re-anchored to today 10:30", f)
+	}
+	if len(*sent) != 0 {
+		t.Fatalf("re-anchoring must never fire: %v", *sent)
+	}
+
+	empty := ""
+	got, err := svc.SetTelegramPushTimes(models.TelegramPushTimesPatch{Briefing: &empty})
+	if err != nil || got.Briefing != "" {
+		t.Fatalf("clear: got %+v err %v", got, err)
+	}
+	r.tick(now.Add(2*time.Minute), user, chat, "briefing", "08:00", noop)
+	if f := r.fires[fireKey{user, "briefing"}]; f.hhmm != "08:00" {
+		t.Fatalf("after clear = %+v, want default 08:00", f)
+	}
+	bad := "25:99"
+	if _, err := svc.SetTelegramPushTimes(models.TelegramPushTimesPatch{Nudge: &bad}); !errors.Is(err, services.ErrValidation) {
+		t.Fatalf("bad time err = %v, want ErrValidation", err)
 	}
 }

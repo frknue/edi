@@ -96,6 +96,8 @@ func NewRouter(h *Handlers, clientDir string, tokenMode bool) http.Handler {
 	mux.HandleFunc("GET /api/telegram/status", h.telegramStatus)
 	mux.HandleFunc("POST /api/telegram/pair-code", h.telegramPairCode)
 	mux.HandleFunc("DELETE /api/telegram/link", h.telegramUnlink)
+	mux.HandleFunc("GET /api/telegram/push-times", h.telegramPushTimes)
+	mux.HandleFunc("POST /api/telegram/push-times", h.setTelegramPushTimes)
 
 	// Agent-ready tool interface (discovery + invocation).
 	mux.HandleFunc("GET /api/agent/tools", h.listTools)

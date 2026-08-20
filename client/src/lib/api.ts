@@ -3,6 +3,7 @@ import type {
   AuthConfig,
   ItemDrop,
   TelegramPairCode,
+  TelegramPushTimes,
   TelegramStatus,
   CreatedUser,
   User,
@@ -182,6 +183,13 @@ export const api = {
   telegramStatus: () => request<TelegramStatus>("/telegram/status"),
   telegramPairCode: () => request<TelegramPairCode>("/telegram/pair-code", { method: "POST" }),
   telegramUnlink: () => request<{ linked: boolean }>("/telegram/link", { method: "DELETE" }),
+  telegramPushTimes: () => request<TelegramPushTimes>("/telegram/push-times"),
+  setTelegramPushTimes: (patch: Partial<TelegramPushTimes>) =>
+    request<TelegramPushTimes>("/telegram/push-times", { method: "POST", body: JSON.stringify(patch) }),
+
+  // story mode (AI-gated, like suggestions)
+  story: () => request<{ story: string }>("/story", { method: "POST" }),
+  forgeBoss: () => request<Quest>("/quests/forge-boss", { method: "POST" }),
 
   openaiStatus: () => request<OpenAIStatus>("/openai/status"),
   openaiConnect: () => request<{ auth_url: string }>("/openai/connect", { method: "POST" }),

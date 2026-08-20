@@ -138,10 +138,22 @@ func (c *Client) ArchiveQuest(id int64) (models.Quest, error) {
 	return qst, err
 }
 
-func (c *Client) ListJournal(limit int) ([]models.JournalEntry, error) {
+// ListJournal returns recent reflections; q filters by free text when set.
+func (c *Client) ListJournal(limit int, q string) ([]models.JournalEntry, error) {
 	var out []models.JournalEntry
-	err := c.do(http.MethodGet, fmt.Sprintf("/api/journal?limit=%d", limit), nil, &out)
+	path := fmt.Sprintf("/api/journal?limit=%d", limit)
+	if q != "" {
+		path += "&q=" + url.QueryEscape(q)
+	}
+	err := c.do(http.MethodGet, path, nil, &out)
 	return out, err
+}
+
+// UpdateJournal edits a reflection (only non-nil patch fields change).
+func (c *Client) UpdateJournal(id int64, p models.JournalPatch) (models.JournalEntry, error) {
+	var e models.JournalEntry
+	err := c.do(http.MethodPatch, fmt.Sprintf("/api/journal/%d", id), p, &e)
+	return e, err
 }
 
 func (c *Client) CreateJournal(in models.JournalInput) (models.JournalCreateResult, error) {
@@ -225,6 +237,44 @@ func (c *Client) SetRestMode(on bool) (models.RestState, error) {
 	var r models.RestState
 	err := c.do(http.MethodPost, "/api/rest", map[string]bool{"on": on}, &r)
 	return r, err
+}
+
+func (c *Client) RestState() (models.RestState, error) {
+	var r models.RestState
+	err := c.do(http.MethodGet, "/api/rest", nil, &r)
+	return r, err
+}
+
+// --- story mode ---------------------------------------------------------------
+
+// Story returns a narrated chapter of recent progress (needs ChatGPT connected).
+func (c *Client) Story() (string, error) {
+	var out struct {
+		Story string `json:"story"`
+	}
+	err := c.do(http.MethodPost, "/api/story", nil, &out)
+	return out.Story, err
+}
+
+// ForgeBoss asks the AI to forge a boss quest from the weakest attribute.
+func (c *Client) ForgeBoss() (models.Quest, error) {
+	var q models.Quest
+	err := c.do(http.MethodPost, "/api/quests/forge-boss", nil, &q)
+	return q, err
+}
+
+// --- telegram presence -------------------------------------------------------
+
+func (c *Client) TelegramPushTimes() (models.TelegramPushTimes, error) {
+	var out models.TelegramPushTimes
+	err := c.do(http.MethodGet, "/api/telegram/push-times", nil, &out)
+	return out, err
+}
+
+func (c *Client) SetTelegramPushTimes(p models.TelegramPushTimesPatch) (models.TelegramPushTimes, error) {
+	var out models.TelegramPushTimes
+	err := c.do(http.MethodPost, "/api/telegram/push-times", p, &out)
+	return out, err
 }
 
 // --- agent tool surface (used by the MCP bridge) ----------------------------

@@ -342,6 +342,15 @@ export const en = {
   "tg.openBot": "…or tap to open @{bot} and press Start",
   "tg.unlink": "Unlink",
   "tg.link": "Link Telegram",
+  "tg.briefing": "Briefing",
+  "tg.nudge": "Nudge",
+  "tg.serverDefault": "server default",
+  "tg.reset": "reset",
+  "oracle.title": "Story mode",
+  "oracle.hint": "Narrate your current chapter, or let the oracle forge a boss quest for your weakest attribute.",
+  "oracle.story": "Tell the story",
+  "oracle.boss": "Forge boss",
+  "oracle.bossForged": "Boss forged: {title}",
 
   // --- journal ------------------------------------------------------------
   "journal.mood": "Mood",

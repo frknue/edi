@@ -32,7 +32,15 @@ type Runner struct {
 	defaultNudge    string
 
 	mu    sync.Mutex
-	fires map[fireKey]time.Time // next scheduled fire per (user, kind)
+	fires map[fireKey]fire // next scheduled fire per (user, kind)
+}
+
+// fire is one scheduled push plus the HH:MM it was derived from — when the
+// setting changes (from ANY client: web, CLI, agent tool, /briefing), the
+// next tick sees the mismatch and re-anchors.
+type fire struct {
+	at   time.Time
+	hhmm string
 }
 
 type fireKey struct {
@@ -45,7 +53,7 @@ func New(svc *services.Service, tg *telegram.Client, registry *agent.Registry, d
 	return &Runner{
 		svc: svc, tg: tg, registry: registry, sessions: agent.NewSessions(),
 		llmFor:          func(s *services.Service) agent.LLM { return s.OpenAIConverse },
-		defaultBriefing: defaultBriefing, defaultNudge: defaultNudge, fires: map[fireKey]time.Time{},
+		defaultBriefing: defaultBriefing, defaultNudge: defaultNudge, fires: map[fireKey]fire{},
 	}
 }
 
@@ -295,7 +303,6 @@ func (r *Runner) handleCommand(svc *services.Service, chatID int64, cmd, arg str
 		if err := svc.SetTelegramPushTime(cmd, arg); err != nil {
 			return "⚠ " + html.EscapeString(userMessage(err))
 		}
-		r.resetFire(chatOwner(svc), cmd)
 		return fmt.Sprintf("✓ %s time set to %s (your local server time)", cmd, html.EscapeString(arg))
 
 	case "story":
@@ -355,9 +362,6 @@ func (r *Runner) narrate(svc *services.Service) (string, error) {
 	}
 }
 
-// chatOwner extracts the bound user id (svc is always a ForUser copy here).
-func chatOwner(svc *services.Service) int64 { return svc.UserID() }
-
 // userMessage strips the internal "validation error: " prefix for chat display.
 func userMessage(err error) string {
 	msg := err.Error()
@@ -411,23 +415,22 @@ func (r *Runner) tick(now time.Time, userID, chatID int64, kind, defaultHHMM str
 
 	key := fireKey{userID, kind}
 	r.mu.Lock()
-	fire, seen := r.fires[key]
-	if !seen {
-		fire = nextFire(now, hhmm)
-		r.fires[key] = fire
-	}
-	r.mu.Unlock()
-	if !seen {
+	f, seen := r.fires[key]
+	if !seen || f.hhmm != hhmm {
+		// First sight, or the time was changed since we anchored — re-derive
+		// from now, never firing retroactively.
+		r.fires[key] = fire{at: nextFire(now, hhmm), hhmm: hhmm}
+		r.mu.Unlock()
 		return
 	}
+	r.mu.Unlock()
 
-	due, stale := fireDue(now, fire)
+	due, stale := fireDue(now, f.at)
 	if !due {
-		// A changed time setting re-anchors via resetFire; otherwise wait.
 		return
 	}
 	if stale {
-		log.Printf("telegram %s for user %d skipped: woke %s past fire time", kind, userID, now.Sub(fire).Round(time.Second))
+		log.Printf("telegram %s for user %d skipped: woke %s past fire time", kind, userID, now.Sub(f.at).Round(time.Second))
 	} else if msg, err := build(svc); err != nil {
 		log.Printf("telegram %s for user %d failed to build: %v", kind, userID, err)
 	} else if msg != "" { // "" = nothing to push (e.g. nudge stands down)
@@ -446,15 +449,7 @@ func (r *Runner) tick(now time.Time, userID, chatID int64, kind, defaultHHMM str
 		}
 	}
 	r.mu.Lock()
-	r.fires[key] = nextFire(time.Now(), hhmm)
-	r.mu.Unlock()
-}
-
-// resetFire clears a schedule so the next tick re-derives it (after /briefing
-// or /nudge changes the time).
-func (r *Runner) resetFire(userID int64, kind string) {
-	r.mu.Lock()
-	delete(r.fires, fireKey{userID, kind})
+	r.fires[key] = fire{at: nextFire(time.Now(), hhmm), hhmm: hhmm}
 	r.mu.Unlock()
 }
 

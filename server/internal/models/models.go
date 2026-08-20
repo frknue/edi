@@ -205,6 +205,19 @@ type TelegramStatus struct {
 	BotUsername string `json:"bot_username"` // for the t.me deep link
 }
 
+// TelegramPushTimes are the per-user HH:MM (server-local) push times; "" means
+// the server default (EDI_BRIEFING_TIME / EDI_NUDGE_TIME) applies.
+type TelegramPushTimes struct {
+	Briefing string `json:"briefing"`
+	Nudge    string `json:"nudge"`
+}
+
+// TelegramPushTimesPatch is a partial update; "" clears an override.
+type TelegramPushTimesPatch struct {
+	Briefing *string `json:"briefing,omitempty"`
+	Nudge    *string `json:"nudge,omitempty"`
+}
+
 // TelegramPairCode is a short-lived, single-use code that links a Telegram
 // chat to this account (shown once, like tokens).
 type TelegramPairCode struct {

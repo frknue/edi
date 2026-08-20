@@ -306,6 +306,114 @@ func NewRegistry() *Registry {
 			return svc.SetRestMode(p.On)
 		})
 
+	add("search_journal_entries", "Search journal reflections by free text (matches notes).",
+		`{"type":"object","required":["query"],"properties":{"query":{"type":"string"},"limit":{"type":"integer"}}}`,
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			var p struct {
+				Query string `json:"query"`
+				Limit int    `json:"limit"`
+			}
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			return svc.ListJournalEntries(p.Limit, p.Query)
+		})
+
+	add("update_journal_entry", "Edit a journal reflection by id (mood, energy, notes — only the given fields change).",
+		`{"type":"object","required":["id"],"properties":{"id":{"type":"integer"},"mood":{"type":"integer","minimum":1,"maximum":10},"energy":{"type":"integer","minimum":1,"maximum":10},"notes":{"type":"string"}}}`,
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			id, err := decodeID(in, "id")
+			if err != nil {
+				return nil, err
+			}
+			var p models.JournalPatch
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			return svc.UpdateJournalEntry(id, p)
+		})
+
+	add("delete_journal_entry", "Delete a journal reflection by id (XP already awarded is never clawed back).",
+		idSchema("id"), func(svc *services.Service, in json.RawMessage) (any, error) {
+			id, err := decodeID(in, "id")
+			if err != nil {
+				return nil, err
+			}
+			if err := svc.DeleteJournalEntry(id); err != nil {
+				return nil, err
+			}
+			return map[string]any{"deleted": true, "id": id}, nil
+		})
+
+	add("list_xp_events", "List the most recent XP ledger entries (every award and decay, newest first).",
+		`{"type":"object","properties":{"limit":{"type":"integer"}}}`,
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			var p struct {
+				Limit int `json:"limit"`
+			}
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			return svc.ListXPEvents(p.Limit)
+		})
+
+	add("list_guided_tools", "List the guided instruments (e.g. the Daily Mood Log) with their keys, descriptions and XP rewards. Complete one with complete_tool.",
+		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) { return svc.ListTools(), nil })
+
+	add("complete_tool", "Complete a guided instrument by key with its structured payload (awards XP). Validation errors describe the expected fields — fix the payload and retry.",
+		`{"type":"object","required":["key","payload"],"properties":{"key":{"type":"string"},"payload":{"type":"object"}}}`,
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			var p struct {
+				Key     string          `json:"key"`
+				Payload json.RawMessage `json:"payload"`
+			}
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			if p.Key == "" {
+				return nil, fmt.Errorf("%w: key is required", services.ErrValidation)
+			}
+			return svc.CompleteTool(p.Key, p.Payload)
+		})
+
+	add("list_tool_entries", "List recent completions of a guided instrument by key.",
+		`{"type":"object","required":["key"],"properties":{"key":{"type":"string"},"limit":{"type":"integer"}}}`,
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			var p struct {
+				Key   string `json:"key"`
+				Limit int    `json:"limit"`
+			}
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			return svc.ListToolEntries(p.Key, p.Limit)
+		})
+
+	add("tell_story", "Narrate the hero's current chapter: a short in-world story of recent progress (uses the connected ChatGPT model).",
+		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) {
+			story, err := svc.StoryNarration()
+			if err != nil {
+				return nil, err
+			}
+			return map[string]string{"story": story}, nil
+		})
+
+	add("get_rest_state", "Report whether rest mode is on (all decay paused) and since when.",
+		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) { return svc.RestState() })
+
+	add("get_push_times", "Read the user's Telegram push times (HH:MM server-local) for the morning briefing and evening nudge; \"\" means the server default.",
+		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) { return svc.TelegramPushTimes() })
+
+	add("set_push_times", "Set the Telegram morning briefing and/or evening nudge time (HH:MM, server-local). Pass \"\" to reset one to the server default.",
+		`{"type":"object","properties":{"briefing":{"type":"string"},"nudge":{"type":"string"}}}`,
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			var p models.TelegramPushTimesPatch
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			return svc.SetTelegramPushTimes(p)
+		})
+
 	for i, t := range r.tools {
 		r.index[t.Name] = i
 	}

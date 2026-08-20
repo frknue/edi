@@ -156,6 +156,29 @@ func (h *Handlers) telegramPairCode(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, code)
 }
 
+func (h *Handlers) telegramPushTimes(w http.ResponseWriter, r *http.Request) {
+	out, err := h.forUser(r).TelegramPushTimes()
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (h *Handlers) setTelegramPushTimes(w http.ResponseWriter, r *http.Request) {
+	var p models.TelegramPushTimesPatch
+	if err := decodeBody(r, &p); err != nil {
+		writeError(w, err)
+		return
+	}
+	out, err := h.forUser(r).SetTelegramPushTimes(p)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 func (h *Handlers) telegramUnlink(w http.ResponseWriter, r *http.Request) {
 	if err := h.forUser(r).UnlinkTelegram(); err != nil {
 		writeError(w, err)

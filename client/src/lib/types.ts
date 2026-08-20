@@ -173,6 +173,12 @@ export interface TelegramStatus {
   bot_username: string;
 }
 
+// Per-user push times (HH:MM, server-local); "" = server default.
+export interface TelegramPushTimes {
+  briefing: string;
+  nudge: string;
+}
+
 export interface TelegramPairCode {
   code: string;
   bot_username: string;

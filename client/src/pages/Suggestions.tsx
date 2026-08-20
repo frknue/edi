@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bot, Check, Download, RefreshCw, Send, Sparkles, Unplug } from "lucide-react";
+import { Bot, Check, Clock, Download, RefreshCw, ScrollText, Send, Sparkles, Swords, Unplug } from "lucide-react";
 import {
   useSuggestions,
   useGenerateSuggestions,
@@ -15,6 +15,10 @@ import {
   useTelegramPairCode,
   useTelegramStatus,
   useTelegramUnlink,
+  useTelegramPushTimes,
+  useSetTelegramPushTimes,
+  useStory,
+  useForgeBoss,
 } from "../lib/queries";
 import { SuggestionCard } from "../components/SuggestionCard";
 import { Btn, EmptyState, SectionTitle, Spinner } from "../components/ui";
@@ -79,6 +83,8 @@ export function SuggestionsPage() {
       ) : (
         <>
           {status && <ConnectedBar status={status} />}
+
+          <OracleCard />
 
           {isLoading ? (
             <Spinner />
@@ -331,6 +337,94 @@ function ConnectedBar({ status }: { status: OpenAIStatus }) {
   );
 }
 
+// OracleCard exposes the two AI "story mode" actions that Telegram has had
+// all along (/story, /boss) — same service methods, same gating.
+function OracleCard() {
+  const { t } = useI18n();
+  const story = useStory();
+  const forge = useForgeBoss();
+  const [text, setText] = useState<string | null>(null);
+
+  return (
+    <div className="hud-panel space-y-3 p-4" data-testid="oracle-card">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-medium text-ink">
+            <ScrollText size={15} style={{ color: "#b98aff" }} /> {t("oracle.title")}
+          </div>
+          <p className="mt-0.5 text-xs text-faint">{t("oracle.hint")}</p>
+        </div>
+        <div className="flex gap-2">
+          <Btn
+            disabled={story.isPending}
+            onClick={() => story.mutate(undefined, { onSuccess: (r) => setText(r.story) })}
+            data-testid="oracle-story"
+          >
+            <ScrollText size={14} className={story.isPending ? "animate-pulse" : ""} /> {t("oracle.story")}
+          </Btn>
+          <Btn
+            variant="primary"
+            disabled={forge.isPending}
+            onClick={() =>
+              forge.mutate(undefined, {
+                onSuccess: (q) => pushToast(t("oracle.bossForged", { title: q.title }), "success"),
+              })
+            }
+            data-testid="oracle-boss"
+          >
+            <Swords size={14} className={forge.isPending ? "animate-pulse" : ""} /> {t("oracle.boss")}
+          </Btn>
+        </div>
+      </div>
+      {text && (
+        <p className="border-l-2 border-[#b98aff]/50 pl-3 text-sm italic leading-relaxed text-muted" data-testid="oracle-text">
+          {text}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// PushTimes lets a linked user set the briefing/nudge clock from the web —
+// the same setting /briefing HH:MM writes in chat (empty = server default).
+function PushTimes() {
+  const { t } = useI18n();
+  const { data } = useTelegramPushTimes();
+  const save = useSetTelegramPushTimes();
+  const field = (kind: "briefing" | "nudge") => (
+    <label className="flex items-center gap-2 text-xs text-muted">
+      <span className="w-16">{t(kind === "briefing" ? "tg.briefing" : "tg.nudge")}</span>
+      <input
+        type="time"
+        value={data?.[kind] ?? ""}
+        placeholder={t("tg.serverDefault")}
+        onChange={(e) => save.mutate({ [kind]: e.target.value })}
+        className="rounded border border-edge bg-transparent px-2 py-1 text-ink tabnum"
+        data-testid={`tg-time-${kind}`}
+      />
+      {data?.[kind] ? (
+        <button
+          type="button"
+          className="text-faint underline"
+          onClick={() => save.mutate({ [kind]: "" })}
+          data-testid={`tg-time-${kind}-reset`}
+        >
+          {t("tg.reset")}
+        </button>
+      ) : (
+        <span className="text-faint">{t("tg.serverDefault")}</span>
+      )}
+    </label>
+  );
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1" data-testid="tg-push-times">
+      <Clock size={13} className="text-faint" />
+      {field("briefing")}
+      {field("nudge")}
+    </div>
+  );
+}
+
 // TelegramCard pairs this account with the Telegram bot: pushes (briefing,
 // nudge) and chat commands (/status, /done). Hidden when the server has no
 // bot configured. The pair code is shown once and burns on use.
@@ -371,6 +465,7 @@ function TelegramCard() {
         <p className="mt-0.5 text-xs text-faint">
           {tg.linked ? t("tg.linkedHint") : t("tg.unlinkedHint")}
         </p>
+        {tg.linked && <PushTimes />}
         {code && (
           <div className="mt-2 space-y-1">
             <p className="text-xs text-muted">

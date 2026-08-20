@@ -38,6 +38,45 @@ like the HTTP handlers: `internal/presence` parses messages, calls
 needs per-user action without impersonation credentials, which only works
 in-process). No business logic in presence, ever.
 
+### Client parity checklist (run it for EVERY new service method)
+
+The rule above drifted once anyway: push times were settable only from
+Telegram (no HTTP route), story narration only from Telegram, the mood log only
+from the web. To stop that recurring, every new `services.Service` method gets
+an explicit decision per client — "not applicable" is fine, "forgot" is not:
+
+| Client | What "exposed" means | Where |
+|---|---|---|
+| HTTP API | a thin handler + route (`h.forUser(r)`, never `h.svc`) | `handlers/router.go` |
+| Agent / MCP / chat | a named tool wrapping the same method | `agent/agent.go` `NewRegistry` |
+| CLI | typed `apiclient` method + a command (or at least reachable via `edi-cli invoke <tool>`) | `apiclient/client.go`, `cmd/edi-cli` |
+| Web | `api.ts` method + query/mutation hook + UI, shape mirrored in `types.ts` | `client/src/lib` |
+| Telegram | a slash command only when it's a frequent pocket action; otherwise free-text chat already reaches it through the agent tool | `presence/runner.go` |
+
+Rules of thumb:
+- **A setting the scheduler/UI reads must be writable over HTTP**, not just
+  from the transport that happens to use it (`POST /api/telegram/push-times`
+  is the precedent; the scheduler re-anchors from the stored value, so it
+  does not care which client wrote it).
+- **If Telegram can do it, the web and the agent can do it** (`/story` ↔
+  `POST /api/story` ↔ `tell_story`; `/boss` ↔ `forge_boss`).
+- **If it awards XP, the agent can do it** (`complete_tool` for guided
+  instruments) — through the same auditable store path.
+- `edi-cli invoke <tool> [json]` is the generic escape hatch: a new agent tool
+  is instantly reachable from the shell and from MCP, so register the tool
+  first and add a bespoke CLI command only when the output deserves formatting.
+
+Deliberately NOT in the agent registry (keep it that way, and say so here if
+you add to the list): user/admin management and tokens, OpenAI connect/config,
+Telegram pairing/unlinking (identity + credentials stay UI/CLI-only), and
+`POST /api/tools/{key}/assist` (the chat model already *is* the coach; the
+consent + crisis gating is a UI-path concern). Free-text chat is CLI +
+Telegram (the web has no chat box yet — an open gap, not a rule).
+
+Quick audit: `grep -oE 'add\("[a-z_]+"' server/internal/agent/agent.go`,
+`grep HandleFunc server/internal/handlers/router.go`, `edi-cli help`, and
+`grep -oE 'request<[^(]*\("/[^"]*' client/src/lib/api.ts` — diff them.
+
 ## Commands
 
 ```bash
@@ -215,10 +254,14 @@ Telegram runs **in-process** (`internal/presence`, enabled by
 code (web UI → `POST /api/telegram/pair-code`) and sends `/pair <code>` (or the
 `t.me/<bot>?start=<code>` deep link) to the bot; `telegram_links` maps chat ↔
 user, and every command runs on `svc.ForUser(linked)`. Commands: /status
-/quests /done /ward /rest /briefing /nudge /new /unpair — plus free-text
-chat (below). Pushes: per-user briefing +
-conditional nudge at per-user times (app_settings) falling back to
-`EDI_BRIEFING_TIME`/`EDI_NUDGE_TIME`; the scheduler re-checks the wall clock
+/quests /done /ward /rest /briefing /nudge /story /boss /new /unpair — plus
+free-text chat (below). Pushes: per-user briefing + conditional nudge at
+per-user times (app_settings, read/written by every client through
+`GET|POST /api/telegram/push-times` / `edi-cli push-times` / the
+`set_push_times` tool / `/briefing HH:MM`; `""` = server default) falling
+back to `EDI_BRIEFING_TIME`/`EDI_NUDGE_TIME`. The scheduler stores the HH:MM
+it anchored on and re-anchors when the setting changes
+(`TestPresenceScheduleFollowsServiceSetting`), re-checks the wall clock
 (suspend/DST-safe), skips pushes >10 min late, never replays. **Only ONE
 environment may set TELEGRAM_BOT_TOKEN per bot** — concurrent getUpdates
 pollers 409; local live-testing needs a second throwaway bot. Isolation

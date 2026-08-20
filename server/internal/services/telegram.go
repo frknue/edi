@@ -154,9 +154,40 @@ func (s *Service) TelegramPushTime(kind string) (string, error) {
 	return "", validationErr("unknown push kind %q", kind)
 }
 
+// TelegramPushTimes returns both per-user push times ("" = server default).
+func (s *Service) TelegramPushTimes() (models.TelegramPushTimes, error) {
+	b, err := s.TelegramPushTime("briefing")
+	if err != nil {
+		return models.TelegramPushTimes{}, err
+	}
+	n, err := s.TelegramPushTime("nudge")
+	if err != nil {
+		return models.TelegramPushTimes{}, err
+	}
+	return models.TelegramPushTimes{Briefing: b, Nudge: n}, nil
+}
+
+// SetTelegramPushTimes applies a partial update (nil = leave unchanged).
+// Every client — web, CLI, agent, Telegram — lands here; the scheduler picks
+// the change up on its next tick, whoever wrote it.
+func (s *Service) SetTelegramPushTimes(p models.TelegramPushTimesPatch) (models.TelegramPushTimes, error) {
+	if p.Briefing != nil {
+		if err := s.SetTelegramPushTime("briefing", *p.Briefing); err != nil {
+			return models.TelegramPushTimes{}, err
+		}
+	}
+	if p.Nudge != nil {
+		if err := s.SetTelegramPushTime("nudge", *p.Nudge); err != nil {
+			return models.TelegramPushTimes{}, err
+		}
+	}
+	return s.TelegramPushTimes()
+}
+
 // SetTelegramPushTime stores a per-user HH:MM for "briefing" or "nudge".
+// An empty string clears the override (back to the server default).
 func (s *Service) SetTelegramPushTime(kind, hhmm string) error {
-	if _, err := time.Parse("15:04", hhmm); err != nil {
+	if _, err := time.Parse("15:04", hhmm); hhmm != "" && err != nil {
 		return validationErr("%q is not a valid time — use HH:MM (e.g. 07:30)", hhmm)
 	}
 	switch kind {

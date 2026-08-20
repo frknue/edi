@@ -344,6 +344,15 @@ export const de: Record<MessageKey, string> = {
   "tg.openBot": "…oder tippe, um @{bot} zu öffnen und Start zu drücken",
   "tg.unlink": "Trennen",
   "tg.link": "Telegram verknüpfen",
+  "tg.briefing": "Briefing",
+  "tg.nudge": "Erinnerung",
+  "tg.serverDefault": "Server-Standard",
+  "tg.reset": "zurücksetzen",
+  "oracle.title": "Story-Modus",
+  "oracle.hint": "Lass dein aktuelles Kapitel erzählen oder vom Orakel eine Boss-Quest für dein schwächstes Attribut schmieden.",
+  "oracle.story": "Geschichte erzählen",
+  "oracle.boss": "Boss schmieden",
+  "oracle.bossForged": "Boss geschmiedet: {title}",
 
   // --- journal ------------------------------------------------------------
   "journal.mood": "Stimmung",

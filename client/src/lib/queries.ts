@@ -4,7 +4,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { api } from "./api";
-import type { MoodLog, QuestInput, ShopItemInput } from "./types";
+import type { MoodLog, QuestInput, ShopItemInput, TelegramPushTimes } from "./types";
 
 export const keys = {
   dashboard: ["dashboard"] as const,
@@ -223,6 +223,29 @@ export function useTelegramStatus() {
 
 export function useTelegramPairCode() {
   return useMutation({ mutationFn: () => api.telegramPairCode() });
+}
+
+export function useTelegramPushTimes(enabled = true) {
+  return useQuery({ queryKey: ["telegram-push-times"], queryFn: api.telegramPushTimes, enabled });
+}
+
+export function useSetTelegramPushTimes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: Partial<TelegramPushTimes>) => api.setTelegramPushTimes(patch),
+    onSuccess: (data) => qc.setQueryData(["telegram-push-times"], data),
+  });
+}
+
+// --- story mode ----------------------------------------------------------------
+
+export function useStory() {
+  return useMutation({ mutationFn: () => api.story() });
+}
+
+export function useForgeBoss() {
+  const invalidate = useInvalidateAll();
+  return useMutation({ mutationFn: () => api.forgeBoss(), onSuccess: invalidate });
 }
 
 export function useTelegramUnlink() {

@@ -15,7 +15,9 @@
 //	complete <id>                   Complete a quest (shows XP + level-ups)
 //	skip <id> | archive <id>        Skip / archive a quest
 //	journal                         List recent reflections
+//	journal [--q text]              List / search reflections
 //	journal-add --mood N --energy N [--notes "..."]
+//	journal-edit <id> [--mood N] [--energy N] [--notes "..."]
 //	suggest                         List pending agent suggestions
 //	suggest-gen                     Generate rule-based suggestions
 //	suggest-accept <id> | suggest-dismiss <id>
@@ -24,13 +26,18 @@
 //	buy <id>                        Purchase a shop item (spends gold)
 //	gold                            Gold balance + recent ledger
 //	ward <attribute>                Buy a 7-day decay ward for an attribute (30g)
-//	rest on|off                     Pause/resume all attribute decay
+//	rest [on|off]                   Show / pause / resume all attribute decay
+//	story | boss                    AI story narration / forge a boss quest
+//	push-times [--briefing HH:MM] [--nudge HH:MM]   Show / set Telegram push times
 //	status                          Compact stats block for shell startup (fail-silent)
 //	tools                           List the agent tool catalog
+//	invoke <tool> [json]            Call any agent tool directly
 //	chat [--new] <message>          Talk to the AI agent (needs ChatGPT connected)
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
@@ -85,7 +92,9 @@ func run(c *apiclient.Client, cmd string, args []string) error {
 	case "archive":
 		return cmdSimpleQuest(c, args, c.ArchiveQuest, "archived")
 	case "journal":
-		return cmdJournal(c)
+		return cmdJournal(c, args)
+	case "journal-edit":
+		return cmdJournalEdit(c, args)
 	case "journal-add":
 		return cmdJournalAdd(c, args)
 	case "journal-rm":
@@ -110,10 +119,18 @@ func run(c *apiclient.Client, cmd string, args []string) error {
 		return cmdWard(c, args)
 	case "rest":
 		return cmdRest(c, args)
+	case "story":
+		return cmdStory(c)
+	case "boss":
+		return cmdBoss(c)
+	case "push-times":
+		return cmdPushTimes(c, args)
 	case "status":
 		return cmdStatus(c)
 	case "tools":
 		return cmdTools(c)
+	case "invoke":
+		return cmdInvoke(c, args)
 	case "chat":
 		return cmdChat(c, args)
 	case "help", "-h", "--help":
@@ -310,8 +327,14 @@ func cmdSimpleQuest(c *apiclient.Client, args []string, fn func(int64) (models.Q
 	return nil
 }
 
-func cmdJournal(c *apiclient.Client) error {
-	entries, err := c.ListJournal(20)
+func cmdJournal(c *apiclient.Client, args []string) error {
+	fs := flag.NewFlagSet("journal", flag.ContinueOnError)
+	q := fs.String("q", "", "search notes")
+	limit := fs.Int("limit", 20, "max entries")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	entries, err := c.ListJournal(*limit, *q)
 	if err != nil {
 		return err
 	}
@@ -320,8 +343,42 @@ func cmdJournal(c *apiclient.Client) error {
 		return nil
 	}
 	for _, e := range entries {
-		fmt.Printf("  %s mood %d energy %d  %s\n", dim(e.CreatedAt.Format("Jan 2 15:04")), e.Mood, e.Energy, e.Notes)
+		fmt.Printf("  %s %s mood %d energy %d  %s\n", dim("#"+strconv.FormatInt(e.ID, 10)), dim(e.CreatedAt.Format("Jan 2 15:04")), e.Mood, e.Energy, e.Notes)
 	}
+	return nil
+}
+
+func cmdJournalEdit(c *apiclient.Client, args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: journal-edit <id> [--mood N] [--energy N] [--notes \"...\"]")
+	}
+	id, err := argID(args[:1])
+	if err != nil {
+		return err
+	}
+	fs := flag.NewFlagSet("journal-edit", flag.ContinueOnError)
+	mood := fs.Int("mood", 0, "mood 1-10")
+	energy := fs.Int("energy", 0, "energy 1-10")
+	notes := fs.String("notes", "", "free-text notes")
+	if err := fs.Parse(args[1:]); err != nil {
+		return err
+	}
+	var p models.JournalPatch
+	fs.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "mood":
+			p.Mood = mood
+		case "energy":
+			p.Energy = energy
+		case "notes":
+			p.Notes = notes
+		}
+	})
+	e, err := c.UpdateJournal(id, p)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s updated reflection #%d (mood %d, energy %d)\n", green("✓"), e.ID, e.Mood, e.Energy)
 	return nil
 }
 
@@ -535,8 +592,20 @@ func cmdWard(c *apiclient.Client, args []string) error {
 }
 
 func cmdRest(c *apiclient.Client, args []string) error {
+	if len(args) == 0 {
+		state, err := c.RestState()
+		if err != nil {
+			return err
+		}
+		if state.On {
+			fmt.Println("Rest mode ON — decay paused.")
+		} else {
+			fmt.Println("Rest mode OFF.")
+		}
+		return nil
+	}
 	if len(args) != 1 || (args[0] != "on" && args[0] != "off") {
-		return fmt.Errorf("usage: rest on|off")
+		return fmt.Errorf("usage: rest [on|off]")
 	}
 	state, err := c.SetRestMode(args[0] == "on")
 	if err != nil {
@@ -644,6 +713,91 @@ func envOr(k, def string) string {
 	return def
 }
 
+func cmdStory(c *apiclient.Client) error {
+	story, err := c.Story()
+	if err != nil {
+		return err
+	}
+	fmt.Println(story)
+	return nil
+}
+
+func cmdBoss(c *apiclient.Client) error {
+	q, err := c.ForgeBoss()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s boss forged: #%d %s\n  %s\n", green("⚔"), q.ID, bold(q.Title), dim(q.Description))
+	return nil
+}
+
+// push-times [--briefing HH:MM] [--nudge HH:MM] — no flags prints the current
+// values; an empty string ("") resets one to the server default.
+func cmdPushTimes(c *apiclient.Client, args []string) error {
+	fs := flag.NewFlagSet("push-times", flag.ContinueOnError)
+	briefing := fs.String("briefing", "", "morning briefing HH:MM (\"\" = server default)")
+	nudge := fs.String("nudge", "", "evening nudge HH:MM (\"\" = server default)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	var p models.TelegramPushTimesPatch
+	fs.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "briefing":
+			p.Briefing = briefing
+		case "nudge":
+			p.Nudge = nudge
+		}
+	})
+	var (
+		t   models.TelegramPushTimes
+		err error
+	)
+	if p.Briefing != nil || p.Nudge != nil {
+		t, err = c.SetTelegramPushTimes(p)
+	} else {
+		t, err = c.TelegramPushTimes()
+	}
+	if err != nil {
+		return err
+	}
+	show := func(v string) string {
+		if v == "" {
+			return dim("server default")
+		}
+		return v
+	}
+	fmt.Printf("  briefing  %s\n  nudge     %s\n", show(t.Briefing), show(t.Nudge))
+	return nil
+}
+
+// invoke <tool> [json] — generic escape hatch onto the agent tool registry,
+// so every new tool is reachable from the shell without a bespoke command.
+func cmdInvoke(c *apiclient.Client, args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: invoke <tool> [json-args]  (see: tools)")
+	}
+	var in json.RawMessage
+	if len(args) > 1 {
+		raw := strings.Join(args[1:], " ")
+		if !json.Valid([]byte(raw)) {
+			return fmt.Errorf("arguments must be a JSON object, got %q", raw)
+		}
+		in = json.RawMessage(raw)
+	}
+	out, err := c.InvokeTool(args[0], in)
+	if err != nil {
+		return err
+	}
+	var pretty bytes.Buffer
+	if err := json.Indent(&pretty, out, "", "  "); err != nil {
+		fmt.Println(string(out))
+		return nil
+	}
+	fmt.Println(pretty.String())
+	return nil
+}
+
 func usage() {
 	fmt.Fprint(os.Stderr, `edi-cli — terminal client for the Life RPG API
 
@@ -657,17 +811,23 @@ commands:
   win --title T [--type --difficulty --desc --reward k=v ...]
   complete <id> | skip <id> | archive <id>
   subtask <quest_id> <subtask_id>    toggle a bonus objective
-  journal                            list recent reflections
+  journal [--q text] [--limit N]     list / search reflections
   journal-add --mood N --energy N [--notes "..."]
+  journal-edit <id> [--mood N] [--energy N] [--notes "..."]
+  journal-rm <id>                    delete a reflection
   suggest | suggest-gen | suggest-accept <id> | suggest-dismiss <id>
   shop                            List reward shop items
   shop-add --name N --price P     Add a reward to the shop
   buy <id>                        Purchase a shop item (spends gold)
   gold                            Gold balance + recent ledger
   ward <attribute>                   buy a 7-day decay ward for an attribute (30g)
-  rest on|off                        pause/resume all attribute decay
+  rest [on|off]                      show / pause / resume all attribute decay
+  story                              narrate the current chapter (needs ChatGPT)
+  boss                               forge a boss quest for the weakest attribute (needs ChatGPT)
+  push-times [--briefing HH:MM] [--nudge HH:MM]   show / set Telegram push times ("" = default)
   status                             compact stats block for .zshrc (prints nothing if server is down)
   tools                              list the agent tool catalog
+  invoke <tool> [json]               call any agent tool directly (e.g. invoke list_achievements)
   chat [--new] <message>             talk to the AI agent ("add a run as a daily", "I finished X")
 `)
 }
