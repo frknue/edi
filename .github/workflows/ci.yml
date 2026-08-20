@@ -1,9 +1,15 @@
-# Full test suite on every push/PR. This is the complete gate: the Docker
-# image build (which Railway runs on deploy) can only run the pure Go tests —
-# DB-backed tests skip there because the builder has no Postgres. Here they
-# run for real against a postgres service container, including the -race
-# concurrency regressions.
+# Full test suite on every push/PR, then deploy on main. This is the complete
+# gate: the Docker image build (which Railway runs on deploy) can only run the
+# pure Go tests — DB-backed tests skip there because the builder has no
+# Postgres. Here they run for real against a postgres service container,
+# including the -race concurrency regressions — and only a green run on main
+# ships (the `deploy` job below runs `railway up`, the same thing as
+# `make deploy`, so a red suite never reaches production).
 name: ci
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
 
 on:
   push:
@@ -57,3 +63,49 @@ jobs:
         run: |
           npm ci
           npm run build
+
+  # Push-to-deploy, gated on the job above. Needs the RAILWAY_TOKEN repo
+  # secret (a Railway *project* token for the production environment:
+  # Railway → project → Settings → Tokens). Without it the job fails loudly
+  # instead of silently skipping, and `make deploy` stays the manual path.
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require RAILWAY_TOKEN
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "::error::RAILWAY_TOKEN secret is not set — add a Railway project token (see .github/workflows/ci.yml)"; exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Deploy to Railway (edi-server, production)
+        run: |
+          npm i -g @railway/cli
+          # Stamp the commit for /api/health (a tarball upload has no git
+          # metadata); --skip-deploys so the variable change itself does not
+          # redeploy the OLD image before `up` ships the new one.
+          railway variable set "EDI_COMMIT=${GITHUB_SHA}" --service edi-server --environment production --skip-deploys
+          railway up --ci --service edi-server --environment production
+
+      - name: Wait for the new build to be live
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS --max-time 10 https://edi-server-production.up.railway.app/api/health | grep -q "\"commit\":\"${GITHUB_SHA}\""; then
+              echo "live: ${GITHUB_SHA}"; exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::new commit never reported healthy on /api/health"; exit 1

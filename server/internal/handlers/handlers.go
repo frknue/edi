@@ -25,12 +25,15 @@ func New(svc *services.Service, registry *agent.Registry) *Handlers {
 }
 
 func (h *Handlers) health(w http.ResponseWriter, _ *http.Request) {
-	// Commit comes from the platform env (Railway injects RAILWAY_GIT_COMMIT_SHA
-	// on GitHub-triggered deploys) — the honest way to verify what's live.
-	writeJSON(w, http.StatusOK, map[string]string{
-		"status": "ok",
-		"commit": os.Getenv("RAILWAY_GIT_COMMIT_SHA"),
-	})
+	// Commit is the honest way to verify what's live: EDI_COMMIT is set by the
+	// CI deploy job right before `railway up` (a tarball upload carries no git
+	// metadata); RAILWAY_GIT_COMMIT_SHA is what Railway injects on its own
+	// GitHub-triggered deploys.
+	commit := os.Getenv("EDI_COMMIT")
+	if commit == "" {
+		commit = os.Getenv("RAILWAY_GIT_COMMIT_SHA")
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "commit": commit})
 }
 
 // --- dashboard / attributes -------------------------------------------------

@@ -387,11 +387,17 @@ not a reason to loosen it.
 
 ## Deployment (Railway) — the live instance is real
 
-**Push to `main` deploys.** The `edi-server` Railway service builds this repo's
-`Dockerfile` on every push to `frknue/edi@main` (health check `/api/health`;
-`PORT` honored; `TZ` must stay set — local-day math depends on it). The image
-build gates on vet + pure tests only; the full suite (Postgres-backed, `-race`)
-runs in GitHub Actions. `make deploy` (`railway up`) is the out-of-band path.
+**A green CI run on `main` deploys.** `.github/workflows/ci.yml` runs the full
+suite (Postgres-backed, `-race`, tsc) and then its `deploy` job runs
+`railway up` against the `edi-server` service — the Railway service is NOT
+connected to GitHub on purpose, so nothing ships before the real suite has
+passed (the Docker image build alone only gates on vet + pure tests). The
+job needs the `RAILWAY_TOKEN` repo secret (a Railway project token) and
+fails loudly without it. It stamps `EDI_COMMIT` so `/api/health` reports the
+live SHA and waits until that SHA answers. `make deploy` does the same from
+a laptop (out-of-band path). Railway config: `railway.json` (Dockerfile
+build, health check `/api/health`; `PORT` honored; `TZ` must stay set —
+local-day math depends on it).
 
 Data lives in the Railway **Postgres service** (`DATABASE_URL` reference on
 edi-server) and is the ONLY copy of the real characters. Rules that keep it

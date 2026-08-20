@@ -82,4 +82,5 @@ backup-prod:
 
 # Deploy the working tree out of band (normally: just push to main).
 deploy:
-	railway up --ci
+	railway variable set "EDI_COMMIT=$$(git rev-parse HEAD)" --service edi-server --skip-deploys
+	railway up --ci --service edi-server
