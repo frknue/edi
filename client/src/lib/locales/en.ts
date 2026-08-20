@@ -1,4 +1,4 @@
-// English source strings. Every key here MUST exist in de.ts (the type
+// English source strings. Every key here MUST exist in de.ts and tr.ts (the type
 // `Record<MessageKey, string>` enforces it at build time). Placeholders are
 // `{name}`; plural pairs end in `.one` / `.other` and go through `tp()`.
 export const en = {

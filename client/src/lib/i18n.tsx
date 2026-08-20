@@ -1,10 +1,11 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { en, type MessageKey } from "./locales/en";
 import { de } from "./locales/de";
+import { tr } from "./locales/tr";
 
 // Tiny, dependency-free i18n. Messages are flat keyed strings with `{name}`
-// placeholders; the German table is typed against the English keys so a
-// missing translation fails `tsc`, not the user. The active locale is a
+// placeholders; the German and Turkish tables are typed against the English
+// keys so a missing translation fails `tsc`, not the user. The active locale is a
 // per-device preference (localStorage), defaulting to the browser language.
 //
 // `t()` is safe to call from anywhere (module code, MutationCache callbacks,
@@ -12,22 +13,25 @@ import { de } from "./locales/de";
 // on a switch uses `useI18n()`; the provider also remounts the tree via
 // `key={locale}` in main.tsx, so a language change is a clean full repaint.
 
-export type Locale = "en" | "de";
-export const LOCALES: Locale[] = ["en", "de"];
-export const localeLabel: Record<Locale, string> = { en: "English", de: "Deutsch" };
+export type Locale = "en" | "de" | "tr";
+export const LOCALES: Locale[] = ["en", "de", "tr"];
+export const localeLabel: Record<Locale, string> = { en: "English", de: "Deutsch", tr: "Türkçe" };
 
 const STORAGE_KEY = "edi.locale";
-const tables: Record<Locale, Record<MessageKey, string>> = { en, de };
+const tables: Record<Locale, Record<MessageKey, string>> = { en, de, tr };
 
 function detect(): Locale {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === "en" || saved === "de") return saved;
+    if (saved && (LOCALES as string[]).includes(saved)) return saved as Locale;
   } catch {
     /* private mode — fall through */
   }
   const lang = (typeof navigator !== "undefined" ? navigator.language : "en") || "en";
-  return lang.toLowerCase().startsWith("de") ? "de" : "en";
+  const lower = lang.toLowerCase();
+  if (lower.startsWith("de")) return "de";
+  if (lower.startsWith("tr")) return "tr";
+  return "en";
 }
 
 let current: Locale = detect();

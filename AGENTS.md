@@ -336,11 +336,13 @@ contract is checked by `TestLiveConverseToolCall` (`EDI_LIVE_TEST=1`).
 - **No mock state.** The UI must read real backend data and surface real loading/error
   states (`Spinner`, `EmptyState`, `ErrorBoundary`, toasts). Don't hide backend failures.
 - Strict TS (`noUnusedLocals`/`noUnusedParameters`); the build fails on unused symbols.
-- **i18n (EN/DE):** no hardcoded UI strings. Every user-visible string goes
+- **i18n (EN/DE/TR):** no hardcoded UI strings. Every user-visible string goes
   through `lib/i18n.tsx` — `useI18n().t("key", {vars})` in components,
   `t()`/`tp()` (plural pairs `key.one`/`key.other`) anywhere else. Keys live in
-  `lib/locales/en.ts` (source) and `de.ts`, which is typed
-  `Record<MessageKey, string>` so a missing German string fails `tsc`. Labels
+  `lib/locales/en.ts` (source), `de.ts` and `tr.ts`, which are typed
+  `Record<MessageKey, string>` so a missing translation fails `tsc`. Adding
+  a locale = new table + the `Locale` union/`LOCALES`/`localeLabel`/`detect`
+  in `i18n.tsx`; the sidebar toggle cycles `LOCALES`. Labels
   that used to be module constants (attributes/types/difficulty in `theme.ts`,
   CBT vocab in `cbt.ts`, nav items) resolve lazily via `t()`. Locale is a
   per-device preference (`localStorage edi.locale`, default from
