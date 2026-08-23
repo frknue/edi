@@ -131,6 +131,7 @@ export const tr: Record<MessageKey, string> = {
   "quest.archive": "Görevi arşivle",
   "quest.restore": "Görevi geri getir",
   "quest.bonusObjectives": "Bonus hedefler",
+  "quest.missedPenalty": "Bir günü kaçır: temel XP'nin %25'ini kaybet (özellik başına en az 5)",
 
   // --- xp feed ------------------------------------------------------------
   "feed.noXp": "Henüz XP yok",
@@ -138,6 +139,7 @@ export const tr: Record<MessageKey, string> = {
   "feed.startingProgress": "Başlangıç ilerlemesi",
   "feed.seed": "başlangıç",
   "feed.decay": "erime",
+  "feed.dailyPenalty": "günlük görev kaçırıldı",
 
   // --- suggestion card ----------------------------------------------------
   "sug.type.low_attribute": "Dengele",
@@ -189,12 +191,13 @@ export const tr: Record<MessageKey, string> = {
   "dash.buffUntil": "{time} saatine kadar",
   "dash.buff": "✨ Gece yarısına kadar +%{percent} {attr} XP",
   "dash.buffAll": "TÜMÜ",
-  "dash.restOn": "Dinlenme modu AÇIK — tüm erime duraklatıldı. İyi dinlen.",
+  "dash.restOn": "Dinlenme modu AÇIK — erime ve günlük görev cezaları duraklatıldı. İyi dinlen.",
   "dash.wakeUp": "Uyan",
   "dash.degradation":
     "SİSTEM BOZULMASI — son ziyaretinden beri erimeyle {xp} XP kaybedildi. Paslanan özellikleri çalıştır ya da koru.",
+  "dash.dailyPenalty": "GÜNLÜK GÖREV BAŞARISIZ — tamamlanmayan günlük görevler için {xp} XP kaybedildi.",
   "dash.attributesHint": "Her eylem gerçek hayattan bir özelliği geliştirir.",
-  "dash.restTitle": "Tüm erimeyi duraklat (tatil/hastalık)",
+  "dash.restTitle": "Erimeyi ve günlük görev cezalarını duraklat (tatil/hastalık)",
   "dash.restMode": "dinlenme modu",
   "dash.attributes": "Özellikler",
   "dash.recommended": "Sıradaki öneri",

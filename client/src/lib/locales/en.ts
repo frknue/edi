@@ -129,6 +129,7 @@ export const en = {
   "quest.archive": "Archive quest",
   "quest.restore": "Restore quest",
   "quest.bonusObjectives": "Bonus objectives",
+  "quest.missedPenalty": "Miss a day: lose 25% base XP (min 5 per stat)",
 
   // --- xp feed ------------------------------------------------------------
   "feed.noXp": "No XP yet",
@@ -136,6 +137,7 @@ export const en = {
   "feed.startingProgress": "Starting progress",
   "feed.seed": "seed",
   "feed.decay": "decay",
+  "feed.dailyPenalty": "missed daily",
 
   // --- suggestion card ----------------------------------------------------
   "sug.type.low_attribute": "Rebalance",
@@ -187,12 +189,13 @@ export const en = {
   "dash.buffUntil": "until {time}",
   "dash.buff": "✨ +{percent}% {attr} XP until midnight",
   "dash.buffAll": "ALL",
-  "dash.restOn": "Rest mode is ON — all decay is paused. Recover well.",
+  "dash.restOn": "Rest mode is ON — decay and daily penalties are paused. Recover well.",
   "dash.wakeUp": "Wake up",
   "dash.degradation":
     "SYSTEM DEGRADATION — {xp} XP lost to decay since your last visit. Train the rusting attributes or ward them.",
+  "dash.dailyPenalty": "DAILY QUEST FAILED — {xp} XP lost for unfinished daily quests.",
   "dash.attributesHint": "Every action trains a real-life stat.",
-  "dash.restTitle": "Pause all decay (vacation/sick)",
+  "dash.restTitle": "Pause decay and daily penalties (vacation/sick)",
   "dash.restMode": "rest mode",
   "dash.attributes": "Attributes",
   "dash.recommended": "Recommended next",

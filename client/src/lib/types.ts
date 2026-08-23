@@ -232,6 +232,7 @@ export interface Dashboard {
   rest_mode: boolean;
   rest_since?: string;
   decayed_today: number;
+  daily_penalty_xp: number;
   recent_xp_events: XPEvent[];
   recommended_quest: Quest | null;
   daily_progress: DailyProgress;

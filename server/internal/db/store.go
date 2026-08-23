@@ -250,20 +250,158 @@ func (s *Store) ListQuests(userID int64, questType, status string) ([]models.Que
 	return out, nil
 }
 
-// RollOverDailyQuests makes completed daily quests available again once the
-// next local day begins. Completion history remains in quest_completions; only
-// the reusable quest definition is reactivated. Checked bonus objectives are
-// reset with it so each day's rewards are based on that day's work.
+// RollOverDailyQuests settles every local day since the last check, charging
+// active daily quests that were not completed and then making old completed
+// dailies available again. Each penalty is an auditable negative xp_event and
+// the matching attribute decrement in the same transaction. The per-user
+// app_settings cursor is advanced atomically with the ledger writes, making
+// catch-up idempotent without a second data path or a schema-only penalty log.
+//
+// On the first call the cursor is initialized through yesterday without
+// charging anything. That is deliberate: enabling this mechanic must not
+// retroactively punish existing users for the entire age of their quests.
+// Days on or after restSince are waived while rest mode is active.
 //
 // The update uses the same per-user advisory lock as completion. That keeps a
-// rollover racing with a completion from reopening a quest on the same day.
-func (s *Store) RollOverDailyQuests(userID int64, now time.Time) error {
+// rollover racing with a completion from double-charging or reopening a quest
+// on the same day. It returns the XP removed during this call.
+func (s *Store) RollOverDailyQuests(userID int64, now time.Time, restSince *time.Time) (int64, error) {
 	dayStart, _ := localDayBounds(now)
 	tx, err := s.beginUserTx(userID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer tx.Rollback() //nolint:errcheck — no-op after a successful Commit
+
+	const cursorKey = "daily_penalty_through"
+	yesterday := dayStart.AddDate(0, 0, -1)
+	var cursorRaw string
+	err = tx.QueryRow(`SELECT value FROM app_settings WHERE user_id = $1 AND key = $2`, userID, cursorKey).Scan(&cursorRaw)
+	if err == sql.ErrNoRows {
+		cursorRaw = ""
+	} else if err != nil {
+		return 0, err
+	}
+	cursor, parseErr := time.ParseInLocation(dayFormat, cursorRaw, time.Local)
+	if cursorRaw == "" || parseErr != nil {
+		cursor = yesterday
+		if _, err := tx.Exec(
+			`INSERT INTO app_settings(user_id, key, value) VALUES($1, $2, $3)
+			 ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value`,
+			userID, cursorKey, cursor.Format(dayFormat)); err != nil {
+			return 0, err
+		}
+	}
+
+	type missedQuest struct {
+		id      int64
+		title   string
+		rewards map[string]int64
+	}
+	var totalRemoved int64
+	var restStart time.Time
+	if restSince != nil {
+		restStart = localDate(*restSince)
+	}
+	for day := cursor.AddDate(0, 0, 1); !day.After(yesterday); day = day.AddDate(0, 0, 1) {
+		// Rest mode is an explicit vacation/sick-day pause. Advance the cursor so
+		// waived days cannot become payable after the user wakes up.
+		if !restStart.IsZero() && !day.Before(restStart) {
+			continue
+		}
+		dayEnd := day.AddDate(0, 0, 1)
+		rows, err := tx.Query(
+			`SELECT q.id, q.title, q.attribute_rewards
+			 FROM quests q
+			 WHERE q.user_id = $1 AND q.type = 'daily' AND q.status IN ('active','completed')
+			   AND q.created_at < $3
+			   AND NOT EXISTS (
+			       SELECT 1 FROM quest_completions c
+			       WHERE c.user_id = q.user_id AND c.quest_id = q.id
+			         AND c.completed_at >= $2 AND c.completed_at < $3
+			   )
+			 ORDER BY q.id`,
+			userID, day, dayEnd)
+		if err != nil {
+			return 0, err
+		}
+		var missed []missedQuest
+		for rows.Next() {
+			var q missedQuest
+			var rewardsJSON string
+			if err := rows.Scan(&q.id, &q.title, &rewardsJSON); err != nil {
+				rows.Close()
+				return 0, err
+			}
+			q.rewards = unmarshalRewards(rewardsJSON)
+			missed = append(missed, q)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return 0, err
+		}
+
+		for _, q := range missed {
+			if _, err := tx.Exec(
+				`UPDATE quests SET skip_count = skip_count + 1 WHERE user_id = $1 AND id = $2`,
+				userID, q.id); err != nil {
+				return 0, err
+			}
+			for _, key := range orderedKeys(q.rewards) {
+				owed := dailyQuestPenalty(q.rewards[key])
+				if owed == 0 {
+					continue
+				}
+				var current int64
+				if err := tx.QueryRow(
+					`SELECT total_xp FROM attributes WHERE user_id = $1 AND key = $2`,
+					userID, key).Scan(&current); err != nil {
+					if err == sql.ErrNoRows {
+						continue
+					}
+					return 0, err
+				}
+				if owed > current {
+					owed = current
+				}
+				if owed == 0 {
+					continue
+				}
+				note := fmt.Sprintf("missed daily · %s · %s", day.Format(dayFormat), q.title)
+				if _, err := tx.Exec(
+					`INSERT INTO xp_events(user_id, attribute_key, amount, source, source_id, note, created_at)
+					 VALUES($1, $2, $3, 'daily_penalty', $4, $5, $6)`,
+					userID, key, -owed, q.id, note, now); err != nil {
+					return 0, err
+				}
+				if _, err := tx.Exec(
+					`UPDATE attributes SET total_xp = total_xp - $1 WHERE user_id = $2 AND key = $3`,
+					owed, userID, key); err != nil {
+					return 0, err
+				}
+				totalRemoved += owed
+			}
+		}
+	}
+
+	if cursor.Before(yesterday) {
+		// Checked bonus objectives belong to one local day's attempt. Clear them
+		// for still-active dailies as soon as at least one day is settled; old
+		// completed dailies are cleared by the rollover CTE below.
+		if _, err := tx.Exec(
+			`UPDATE quest_subtasks SET done = 0
+			 WHERE user_id = $1 AND quest_id IN (
+			   SELECT id FROM quests WHERE user_id = $1 AND type = 'daily' AND status = 'active'
+			 )`, userID); err != nil {
+			return 0, err
+		}
+		if _, err := tx.Exec(
+			`INSERT INTO app_settings(user_id, key, value) VALUES($1, $2, $3)
+			 ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value`,
+			userID, cursorKey, yesterday.Format(dayFormat)); err != nil {
+			return 0, err
+		}
+	}
 
 	if _, err := tx.Exec(
 		`WITH rolled_over AS (
@@ -277,9 +415,25 @@ func (s *Store) RollOverDailyQuests(userID int64, now time.Time) error {
 		SET done = 0
 		WHERE user_id = $1 AND quest_id IN (SELECT id FROM rolled_over)`,
 		userID, dayStart); err != nil {
-		return err
+		return 0, err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return totalRemoved, nil
+}
+
+// DailyQuestPenaltyToday returns the positive amount removed by missed-daily
+// penalty events written today. Querying the ledger keeps the dashboard notice
+// visible even when another client triggered the lazy catch-up first.
+func (s *Store) DailyQuestPenaltyToday(userID int64, now time.Time) (int64, error) {
+	start, end := localDayBounds(now)
+	var removed int64
+	err := s.db.QueryRow(
+		`SELECT COALESCE(-SUM(amount), 0) FROM xp_events
+		 WHERE user_id = $1 AND source = 'daily_penalty' AND created_at >= $2 AND created_at < $3`,
+		userID, start, end).Scan(&removed)
+	return removed, err
 }
 
 func (s *Store) InsertQuest(userID int64, in models.QuestInput, sourceSuggestionID *int64) (models.Quest, error) {

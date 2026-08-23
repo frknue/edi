@@ -131,6 +131,7 @@ export const de: Record<MessageKey, string> = {
   "quest.archive": "Quest archivieren",
   "quest.restore": "Quest wiederherstellen",
   "quest.bonusObjectives": "Bonusziele",
+  "quest.missedPenalty": "Tag verpasst: 25 % Basis-XP verlieren (min. 5 je Wert)",
 
   // --- xp feed ------------------------------------------------------------
   "feed.noXp": "Noch keine XP",
@@ -138,6 +139,7 @@ export const de: Record<MessageKey, string> = {
   "feed.startingProgress": "Startfortschritt",
   "feed.seed": "Start",
   "feed.decay": "Verfall",
+  "feed.dailyPenalty": "Tagesquest verpasst",
 
   // --- suggestion card ----------------------------------------------------
   "sug.type.low_attribute": "Ausgleich",
@@ -189,12 +191,13 @@ export const de: Record<MessageKey, string> = {
   "dash.buffUntil": "bis {time}",
   "dash.buff": "✨ +{percent}% {attr} XP bis Mitternacht",
   "dash.buffAll": "ALLE",
-  "dash.restOn": "Ruhemodus ist AN — jeder Verfall pausiert. Erhol dich gut.",
+  "dash.restOn": "Ruhemodus ist AN — Verfall und Tagesquest-Strafen pausieren. Erhol dich gut.",
   "dash.wakeUp": "Aufwachen",
   "dash.degradation":
     "SYSTEMVERFALL — {xp} XP seit deinem letzten Besuch durch Verfall verloren. Trainiere die rostenden Attribute oder schütze sie.",
+  "dash.dailyPenalty": "TAGESQUEST GESCHEITERT — {xp} XP durch nicht erledigte Tagesquests verloren.",
   "dash.attributesHint": "Jede Aktion trainiert einen echten Wert.",
-  "dash.restTitle": "Verfall pausieren (Urlaub/krank)",
+  "dash.restTitle": "Verfall und Tagesquest-Strafen pausieren (Urlaub/krank)",
   "dash.restMode": "Ruhemodus",
   "dash.attributes": "Attribute",
   "dash.recommended": "Empfohlen als Nächstes",

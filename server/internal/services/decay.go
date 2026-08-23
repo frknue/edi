@@ -50,6 +50,9 @@ func DecayFloor(peakXP int64) int64 {
 // decay is always applied before new state is read or awarded. Returns the
 // XP removed by this call (0 when nothing was owed).
 func (s *Service) ApplyDecay() (int64, error) {
+	if err := s.rollOverDailyQuests(); err != nil {
+		return 0, err
+	}
 	rest, err := s.RestState()
 	if err != nil {
 		return 0, err

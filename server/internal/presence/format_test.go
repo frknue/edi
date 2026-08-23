@@ -10,9 +10,10 @@ import (
 
 func sampleDashboard() models.Dashboard {
 	return models.Dashboard{
-		Character:   models.CharacterSummary{Name: "Hero", Level: 6},
-		Streak:      models.Streak{Current: 4},
-		GoldBalance: 213,
+		Character:      models.CharacterSummary{Name: "Hero", Level: 6},
+		Streak:         models.Streak{Current: 4},
+		GoldBalance:    213,
+		DailyPenaltyXP: 15,
 		TodayQuests: []models.Quest{
 			{ID: 7, Title: "30 minute <workout>", Difficulty: "medium", AttributeRewards: map[string]int64{"strength": 40, "discipline": 10}},
 			{ID: 9, Title: "Read 15 pages", Difficulty: "easy", AttributeRewards: map[string]int64{"learning": 30}},
@@ -27,7 +28,7 @@ func sampleDashboard() models.Dashboard {
 
 func TestFormatBriefingContent(t *testing.T) {
 	out := formatBriefing(sampleDashboard())
-	for _, want := range []string{"Lv 6", "4", "213g", "#7", "#9", "Read 15 pages", "Focus", "-6"} {
+	for _, want := range []string{"Lv 6", "4", "213g", "#7", "#9", "Read 15 pages", "Focus", "-6", "missed dailies", "-15"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("briefing missing %q:\n%s", want, out)
 		}

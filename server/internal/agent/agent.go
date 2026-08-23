@@ -47,7 +47,7 @@ func NewRegistry() *Registry {
 		r.tools = append(r.tools, Tool{Name: name, Description: desc, InputSchema: raw(schema), handler: h})
 	}
 
-	add("get_dashboard", "Return the full dashboard: character level, attributes, today's quests, streak, recent XP, recommended quest, and pending suggestions.",
+	add("get_dashboard", "Return the full dashboard: character level, attributes, today's quests, streak, recent XP, missed-daily penalty XP, recommended quest, and pending suggestions.",
 		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) { return svc.GetDashboard() })
 
 	add("list_quests", "List quests, optionally filtered by type and status.",

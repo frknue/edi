@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Archive, Check, CheckCircle2, Pencil, RotateCcw, SkipForward, Square, SquareCheckBig } from "lucide-react";
+import { Archive, Check, CheckCircle2, Pencil, RotateCcw, SkipForward, Square, SquareCheckBig, TriangleAlert } from "lucide-react";
 import type { Quest } from "../lib/types";
 import { getType } from "../lib/theme";
 import { useToggleSubtask } from "../lib/queries";
@@ -87,6 +87,13 @@ export function QuestCard({
           <DifficultyPips difficulty={quest.difficulty} />
           <RewardChips rewards={quest.attribute_rewards} />
         </div>
+
+        {quest.type === "daily" && isActive && Object.values(quest.attribute_rewards).some((xp) => xp > 0) && (
+          <div className="mt-2 flex items-center gap-1.5 text-[10px] text-[var(--color-boss)]" data-testid={`daily-penalty-${quest.id}`}>
+            <TriangleAlert size={11} />
+            {t("quest.missedPenalty")}
+          </div>
+        )}
 
         {quest.subtasks.length > 0 && <SubtaskList quest={quest} interactive={isActive} />}
 

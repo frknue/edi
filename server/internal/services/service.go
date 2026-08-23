@@ -180,6 +180,9 @@ func (s *Service) validateSubtasks(subtasks []models.SubtaskInput) error {
 // ToggleSubtask flips a bonus objective's done state (only while the quest is
 // still completable).
 func (s *Service) ToggleSubtask(questID, subtaskID int64) (models.Subtask, error) {
+	if err := s.rollOverDailyQuests(); err != nil {
+		return models.Subtask{}, err
+	}
 	st, err := s.store.ToggleSubtask(s.userID, questID, subtaskID)
 	switch {
 	case errors.Is(err, db.ErrNotFound):
@@ -215,7 +218,16 @@ func (s *Service) validateRewards(rewards map[string]int64) error {
 func knownKey(m map[string]string, k string) bool { _, ok := m[k]; return ok }
 
 func (s *Service) rollOverDailyQuests() error {
-	return s.store.RollOverDailyQuests(s.userID, time.Now())
+	rest, err := s.RestState()
+	if err != nil {
+		return err
+	}
+	var restSince *time.Time
+	if rest.On {
+		restSince = rest.Since
+	}
+	_, err = s.store.RollOverDailyQuests(s.userID, time.Now(), restSince)
+	return err
 }
 
 // ListQuests returns quests filtered by optional type and status.
@@ -235,11 +247,17 @@ func (s *Service) CreateQuest(in models.QuestInput) (models.Quest, error) {
 	if err := s.validateQuestInput(&in); err != nil {
 		return models.Quest{}, err
 	}
+	if err := s.rollOverDailyQuests(); err != nil {
+		return models.Quest{}, err
+	}
 	return s.store.InsertQuest(s.userID, in, nil)
 }
 
 // UpdateQuest applies a partial patch (validating any provided fields).
 func (s *Service) UpdateQuest(id int64, p models.QuestPatch) (models.Quest, error) {
+	if err := s.rollOverDailyQuests(); err != nil {
+		return models.Quest{}, err
+	}
 	if _, err := s.store.GetQuest(s.userID, id); err != nil {
 		return models.Quest{}, ErrNotFound
 	}
@@ -344,6 +362,9 @@ func (s *Service) completionResult(quest models.Quest, events []models.XPEvent, 
 
 // SkipQuest marks a quest skipped (increments its skip counter).
 func (s *Service) SkipQuest(id int64) (models.Quest, error) {
+	if err := s.rollOverDailyQuests(); err != nil {
+		return models.Quest{}, err
+	}
 	if _, err := s.store.GetQuest(s.userID, id); err != nil {
 		return models.Quest{}, ErrNotFound
 	}
@@ -352,6 +373,9 @@ func (s *Service) SkipQuest(id int64) (models.Quest, error) {
 
 // ArchiveQuest marks a quest archived.
 func (s *Service) ArchiveQuest(id int64) (models.Quest, error) {
+	if err := s.rollOverDailyQuests(); err != nil {
+		return models.Quest{}, err
+	}
 	if _, err := s.store.GetQuest(s.userID, id); err != nil {
 		return models.Quest{}, ErrNotFound
 	}
@@ -501,6 +525,10 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 	if err != nil {
 		return models.Dashboard{}, err
 	}
+	dailyPenaltyXP, err := s.store.DailyQuestPenaltyToday(s.userID, time.Now())
+	if err != nil {
+		return models.Dashboard{}, err
+	}
 
 	var totalXP int64
 	for _, a := range attrs {
@@ -529,6 +557,7 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 		GoldBalance:      goldBalance,
 		RestMode:         rest.On,
 		RestSince:        rest.Since,
+		DailyPenaltyXP:   dailyPenaltyXP,
 		RecentXPEvents:   orEmpty(events),
 		RecommendedQuest: recommended,
 		DailyProgress:    models.DailyProgress{CompletedToday: completedToday, Goal: goal, Ratio: dailyRatio, NextComboMultiplier: ComboMultiplier(completedToday + 1)},

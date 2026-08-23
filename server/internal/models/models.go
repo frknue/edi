@@ -310,7 +310,8 @@ type Dashboard struct {
 	GoldBalance      int64             `json:"gold_balance"`
 	RestMode         bool              `json:"rest_mode"`
 	RestSince        *time.Time        `json:"rest_since,omitempty"`
-	DecayedToday     int64             `json:"decayed_today"` // XP removed by this request's decay catch-up
+	DecayedToday     int64             `json:"decayed_today"`    // XP removed by this request's decay catch-up
+	DailyPenaltyXP   int64             `json:"daily_penalty_xp"` // XP removed today for missed daily quests
 	RecentXPEvents   []XPEvent         `json:"recent_xp_events"`
 	RecommendedQuest *Quest            `json:"recommended_quest"`
 	DailyProgress    DailyProgress     `json:"daily_progress"`

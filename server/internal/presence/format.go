@@ -68,7 +68,10 @@ func statusCore(d models.Dashboard) string {
 	fmt.Fprintf(&b, "Lv %d · streak %d🔥 · %dg\n", d.Character.Level, d.Streak.Current, d.GoldBalance)
 	fmt.Fprintf(&b, "%d quests open · %d/%d done today\n", len(d.TodayQuests), d.DailyProgress.CompletedToday, d.DailyProgress.Goal)
 	if d.RestMode {
-		b.WriteString("☾ rest mode ON — decay paused\n")
+		b.WriteString("☾ rest mode ON — decay + daily penalties paused\n")
+	}
+	if d.DailyPenaltyXP > 0 {
+		fmt.Fprintf(&b, "⚠ missed dailies · -%d XP\n", d.DailyPenaltyXP)
 	}
 	for _, line := range decayLines(d.Attributes) {
 		b.WriteString(line + "\n")

@@ -154,6 +154,9 @@ func cmdDashboard(c *apiclient.Client) error {
 		bold(ch.Name), dim("·"), bold(strconv.Itoa(ch.Level)), ch.XPIntoLevel, ch.XPForNextLevel)
 	fmt.Printf("  %s   streak %s  ·  today %d/%d\n\n",
 		bar(ch.Progress, 24), bold(strconv.Itoa(d.Streak.Current)), d.DailyProgress.CompletedToday, d.DailyProgress.Goal)
+	if d.DailyPenaltyXP > 0 {
+		fmt.Printf("  %s\n\n", red(fmt.Sprintf("⚠ missed dailies: -%d XP", d.DailyPenaltyXP)))
+	}
 
 	fmt.Println(dim("  ATTRIBUTES"))
 	for _, a := range d.Attributes {
@@ -640,7 +643,10 @@ func statusBlock(d models.Dashboard) string {
 	fmt.Fprintf(&b, "│ Lv %d · streak %d🔥 · %dg\n", d.Character.Level, d.Streak.Current, d.GoldBalance)
 	fmt.Fprintf(&b, "│ %d quests open · %d done today\n", len(d.TodayQuests), d.DailyProgress.CompletedToday)
 	if d.RestMode {
-		b.WriteString("│ ☾ rest mode ON — decay paused\n")
+		b.WriteString("│ ☾ rest mode ON — decay + daily penalties paused\n")
+	}
+	if d.DailyPenaltyXP > 0 {
+		fmt.Fprintf(&b, "│ ⚠ missed dailies · -%d XP\n", d.DailyPenaltyXP)
 	}
 	for _, a := range d.Attributes {
 		if a.Decay != nil && a.Decay.State == "decaying" {

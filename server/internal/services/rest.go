@@ -31,6 +31,12 @@ func (s *Service) SetRestMode(on bool) (models.RestState, error) {
 	if current.On == on {
 		return current, nil
 	}
+	// Settle through yesterday under the CURRENT rest state before changing it:
+	// entering rest charges any earlier misses, while leaving rest permanently
+	// waives every local day covered by the pause.
+	if err := s.rollOverDailyQuests(); err != nil {
+		return models.RestState{}, err
+	}
 	if on {
 		if err := s.store.SetSetting(s.userID, settingRestMode, "1"); err != nil {
 			return models.RestState{}, err

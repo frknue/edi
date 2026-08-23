@@ -114,6 +114,16 @@ export function DashboardPage({
         </div>
       )}
 
+      {data.daily_penalty_xp > 0 && (
+        <div
+          className="rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: "#ff3d7188", background: "rgba(255,61,113,0.07)", color: "#ff7298" }}
+          data-testid="daily-penalty-alert"
+        >
+          {t("dash.dailyPenalty", { xp: data.daily_penalty_xp })}
+        </div>
+      )}
+
       {/* Attributes */}
       <section>
         <SectionTitle

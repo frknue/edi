@@ -76,7 +76,7 @@ CREATE TABLE xp_events (
     user_id       BIGINT NOT NULL REFERENCES users(id),
     attribute_key TEXT NOT NULL,
     amount        BIGINT NOT NULL,
-    source        TEXT NOT NULL,           -- quest, subtask, tool, journal, decay, seed, manual
+    source        TEXT NOT NULL,           -- quest, subtask, tool, journal, decay, daily_penalty, seed, manual
     source_id     BIGINT,                  -- e.g. quest id
     note          TEXT NOT NULL DEFAULT '',
     created_at    timestamptz NOT NULL

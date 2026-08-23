@@ -38,6 +38,7 @@ export function XPFeed({ events }: { events: XPEvent[] }) {
                 {meta.label}
                 {e.source === "seed" && ` · ${t("feed.seed")}`}
                 {e.source === "decay" && ` · ${t("feed.decay")}`}
+                {e.source === "daily_penalty" && ` · ${t("feed.dailyPenalty")}`}
               </div>
             </div>
             <div className="text-right">

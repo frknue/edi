@@ -149,6 +149,12 @@ docker run -p 8080:8080 -e DATABASE_URL=postgres://... -e EDI_TOKEN=<secret> -e 
 - **Level formula (MVP):** `level = floor(sqrt(total_xp / 100)) + 1`.
 - **Quests** have a type (`daily/weekly/main/side/boss/recovery`), difficulty, status,
   and per-attribute XP rewards, e.g. `{"strength": 40, "discipline": 10}`.
+- **Daily quest stakes:** an active daily left unfinished at local midnight loses
+  25% of its base reward on each rewarded attribute (minimum 5 XP, capped at the
+  reward and current XP). Misses are settled lazily, exactly once per local day,
+  as negative `xp_events` (`source='daily_penalty'`); rest mode waives covered days.
+  The first check after upgrading only starts the clock, so old quests are never
+  charged retroactively.
 - **Subtasks (bonus objectives):** a quest can carry optional subtasks, each with its
   own bonus rewards — "Go to the gym" might have "Bike there instead of driving"
   `{health: 15}`. Check them off while the quest is active
@@ -487,7 +493,8 @@ Makefile                install / dev / build / prod / test / reset
 
 ```bash
 make test   # XP/level math, quest completion + level-ups, CONCURRENT completion
-            # (no double-XP, race-tested), suggestion accept/dismiss, dedup,
+            # and daily penalties (no double application, race-tested),
+            # suggestion accept/dismiss, dedup,
             # journal validation, and the empty-list JSON contract
 ```
 
