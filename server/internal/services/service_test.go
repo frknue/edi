@@ -234,6 +234,84 @@ func TestCompletedDailyQuestReturnsNextLocalDay(t *testing.T) {
 	}
 }
 
+func TestCompletedWeeklyQuestReturnsOnNextLocalMonday(t *testing.T) {
+	svc := newTestService(t)
+	archiveSeedDailies(t, svc)
+	q, err := svc.CreateQuest(models.QuestInput{
+		Title:            "Weekly review",
+		Type:             models.QuestTypeWeekly,
+		Difficulty:       "medium",
+		AttributeRewards: map[string]int64{"discipline": 20},
+		Subtasks: []models.SubtaskInput{{
+			Title:            "Plan next week",
+			AttributeRewards: map[string]int64{"focus": 5},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("create weekly quest: %v", err)
+	}
+	if _, err := svc.ToggleSubtask(q.ID, q.Subtasks[0].ID); err != nil {
+		t.Fatalf("check subtask: %v", err)
+	}
+	if _, err := svc.CompleteQuest(q.ID); err != nil {
+		t.Fatalf("complete weekly quest: %v", err)
+	}
+
+	// This fixed local-calendar boundary makes the behavior independent of the
+	// weekday on which the test suite happens to run.
+	saturday := time.Date(2030, time.January, 5, 12, 0, 0, 0, time.Local)
+	sunday := time.Date(2030, time.January, 6, 23, 59, 0, 0, time.Local)
+	monday := time.Date(2030, time.January, 7, 0, 0, 0, 0, time.Local)
+	if _, err := svc.store.DB().Exec(
+		`UPDATE quests SET completed_at = $1 WHERE user_id = $2 AND id = $3`,
+		saturday, svc.userID, q.ID); err != nil {
+		t.Fatalf("backdate weekly completion: %v", err)
+	}
+
+	if _, err := svc.store.RollOverRecurringQuests(svc.userID, sunday, nil); err != nil {
+		t.Fatalf("Sunday rollover: %v", err)
+	}
+	beforeMonday, err := svc.store.GetQuest(svc.userID, q.ID)
+	if err != nil {
+		t.Fatalf("get weekly quest before Monday: %v", err)
+	}
+	if beforeMonday.Status != models.StatusCompleted || beforeMonday.CompletedAt == nil {
+		t.Fatalf("weekly quest returned before Monday: status %q completed_at %v", beforeMonday.Status, beforeMonday.CompletedAt)
+	}
+	if !beforeMonday.Subtasks[0].Done {
+		t.Fatal("weekly subtask reset before the new week")
+	}
+
+	if _, err := svc.store.RollOverRecurringQuests(svc.userID, monday, nil); err != nil {
+		t.Fatalf("Monday rollover: %v", err)
+	}
+	rolledOver, err := svc.store.GetQuest(svc.userID, q.ID)
+	if err != nil {
+		t.Fatalf("get weekly quest on Monday: %v", err)
+	}
+	if rolledOver.Status != models.StatusActive || rolledOver.CompletedAt != nil {
+		t.Fatalf("weekly quest on Monday = status %q completed_at %v, want active/nil", rolledOver.Status, rolledOver.CompletedAt)
+	}
+	if rolledOver.Subtasks[0].Done {
+		t.Fatal("checked subtask remained checked after weekly rollover")
+	}
+
+	// A reopened weekly is completable again and keeps immutable completion
+	// history, just like a daily recurrence.
+	if _, err := svc.CompleteQuest(q.ID); err != nil {
+		t.Fatalf("complete rolled-over weekly quest: %v", err)
+	}
+	var completions int
+	if err := svc.store.DB().QueryRow(
+		`SELECT COUNT(1) FROM quest_completions WHERE user_id = $1 AND quest_id = $2`,
+		svc.userID, q.ID).Scan(&completions); err != nil {
+		t.Fatalf("count weekly completion history: %v", err)
+	}
+	if completions != 2 {
+		t.Errorf("weekly completion history count = %d, want 2", completions)
+	}
+}
+
 func TestCompleteQuestLevelUp(t *testing.T) {
 	svc := newTestService(t)
 

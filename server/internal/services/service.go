@@ -180,7 +180,7 @@ func (s *Service) validateSubtasks(subtasks []models.SubtaskInput) error {
 // ToggleSubtask flips a bonus objective's done state (only while the quest is
 // still completable).
 func (s *Service) ToggleSubtask(questID, subtaskID int64) (models.Subtask, error) {
-	if err := s.rollOverDailyQuests(); err != nil {
+	if err := s.rollOverRecurringQuests(); err != nil {
 		return models.Subtask{}, err
 	}
 	st, err := s.store.ToggleSubtask(s.userID, questID, subtaskID)
@@ -217,7 +217,7 @@ func (s *Service) validateRewards(rewards map[string]int64) error {
 
 func knownKey(m map[string]string, k string) bool { _, ok := m[k]; return ok }
 
-func (s *Service) rollOverDailyQuests() error {
+func (s *Service) rollOverRecurringQuests() error {
 	rest, err := s.RestState()
 	if err != nil {
 		return err
@@ -226,7 +226,7 @@ func (s *Service) rollOverDailyQuests() error {
 	if rest.On {
 		restSince = rest.Since
 	}
-	_, err = s.store.RollOverDailyQuests(s.userID, time.Now(), restSince)
+	_, err = s.store.RollOverRecurringQuests(s.userID, time.Now(), restSince)
 	return err
 }
 
@@ -235,7 +235,7 @@ func (s *Service) ListQuests(questType, status string) ([]models.Quest, error) {
 	if questType != "" && !validTypes[questType] {
 		return nil, validationErr("invalid type filter %q", questType)
 	}
-	if err := s.rollOverDailyQuests(); err != nil {
+	if err := s.rollOverRecurringQuests(); err != nil {
 		return nil, err
 	}
 	quests, err := s.store.ListQuests(s.userID, questType, status)
@@ -247,7 +247,7 @@ func (s *Service) CreateQuest(in models.QuestInput) (models.Quest, error) {
 	if err := s.validateQuestInput(&in); err != nil {
 		return models.Quest{}, err
 	}
-	if err := s.rollOverDailyQuests(); err != nil {
+	if err := s.rollOverRecurringQuests(); err != nil {
 		return models.Quest{}, err
 	}
 	return s.store.InsertQuest(s.userID, in, nil)
@@ -255,7 +255,7 @@ func (s *Service) CreateQuest(in models.QuestInput) (models.Quest, error) {
 
 // UpdateQuest applies a partial patch (validating any provided fields).
 func (s *Service) UpdateQuest(id int64, p models.QuestPatch) (models.Quest, error) {
-	if err := s.rollOverDailyQuests(); err != nil {
+	if err := s.rollOverRecurringQuests(); err != nil {
 		return models.Quest{}, err
 	}
 	if _, err := s.store.GetQuest(s.userID, id); err != nil {
@@ -294,7 +294,7 @@ func (s *Service) UpdateQuest(id int64, p models.QuestPatch) (models.Quest, erro
 
 // CompleteQuest completes a quest and returns rich feedback + a refreshed dashboard.
 func (s *Service) CompleteQuest(id int64) (models.CompletionResult, error) {
-	if err := s.rollOverDailyQuests(); err != nil {
+	if err := s.rollOverRecurringQuests(); err != nil {
 		return models.CompletionResult{}, err
 	}
 	if _, err := s.ApplyDecay(); err != nil {
@@ -362,7 +362,7 @@ func (s *Service) completionResult(quest models.Quest, events []models.XPEvent, 
 
 // SkipQuest marks a quest skipped (increments its skip counter).
 func (s *Service) SkipQuest(id int64) (models.Quest, error) {
-	if err := s.rollOverDailyQuests(); err != nil {
+	if err := s.rollOverRecurringQuests(); err != nil {
 		return models.Quest{}, err
 	}
 	if _, err := s.store.GetQuest(s.userID, id); err != nil {
@@ -373,7 +373,7 @@ func (s *Service) SkipQuest(id int64) (models.Quest, error) {
 
 // ArchiveQuest marks a quest archived.
 func (s *Service) ArchiveQuest(id int64) (models.Quest, error) {
-	if err := s.rollOverDailyQuests(); err != nil {
+	if err := s.rollOverRecurringQuests(); err != nil {
 		return models.Quest{}, err
 	}
 	if _, err := s.store.GetQuest(s.userID, id); err != nil {
@@ -478,7 +478,7 @@ func (s *Service) ListJournalEntries(limit int, search string) ([]models.Journal
 
 // GetDashboard assembles the full main-screen payload in one call.
 func (s *Service) GetDashboard() (models.Dashboard, error) {
-	if err := s.rollOverDailyQuests(); err != nil {
+	if err := s.rollOverRecurringQuests(); err != nil {
 		return models.Dashboard{}, err
 	}
 	decayed, err := s.ApplyDecay()

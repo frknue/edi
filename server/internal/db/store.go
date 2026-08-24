@@ -250,10 +250,11 @@ func (s *Store) ListQuests(userID int64, questType, status string) ([]models.Que
 	return out, nil
 }
 
-// RollOverDailyQuests settles every local day since the last check, charging
-// active daily quests that were not completed and then making old completed
-// dailies available again. Each penalty is an auditable negative xp_event and
-// the matching attribute decrement in the same transaction. The per-user
+// RollOverRecurringQuests settles every local day since the last check,
+// charging active daily quests that were not completed, then makes completed
+// dailies available on the next local day and completed weeklies available at
+// the next local Monday. Each penalty is an auditable negative xp_event and the
+// matching attribute decrement in the same transaction. The per-user
 // app_settings cursor is advanced atomically with the ledger writes, making
 // catch-up idempotent without a second data path or a schema-only penalty log.
 //
@@ -265,8 +266,9 @@ func (s *Store) ListQuests(userID int64, questType, status string) ([]models.Que
 // The update uses the same per-user advisory lock as completion. That keeps a
 // rollover racing with a completion from double-charging or reopening a quest
 // on the same day. It returns the XP removed during this call.
-func (s *Store) RollOverDailyQuests(userID int64, now time.Time, restSince *time.Time) (int64, error) {
+func (s *Store) RollOverRecurringQuests(userID int64, now time.Time, restSince *time.Time) (int64, error) {
 	dayStart, _ := localDayBounds(now)
+	weekStart := localWeekStart(now)
 	tx, err := s.beginUserTx(userID)
 	if err != nil {
 		return 0, err
@@ -407,14 +409,15 @@ func (s *Store) RollOverDailyQuests(userID int64, now time.Time, restSince *time
 		`WITH rolled_over AS (
 			UPDATE quests
 			SET status = 'active', completed_at = NULL
-			WHERE user_id = $1 AND type = 'daily' AND status = 'completed'
-			  AND completed_at < $2
+			WHERE user_id = $1 AND status = 'completed'
+			  AND ((type = 'daily' AND completed_at < $2)
+			    OR (type = 'weekly' AND completed_at < $3))
 			RETURNING id
 		)
 		UPDATE quest_subtasks
 		SET done = 0
 		WHERE user_id = $1 AND quest_id IN (SELECT id FROM rolled_over)`,
-		userID, dayStart); err != nil {
+		userID, dayStart, weekStart); err != nil {
 		return 0, err
 	}
 	if err := tx.Commit(); err != nil {

@@ -167,3 +167,12 @@ func localDayBounds(t time.Time) (time.Time, time.Time) {
 	start := time.Date(l.Year(), l.Month(), l.Day(), 0, 0, 0, 0, time.Local)
 	return start, start.AddDate(0, 0, 1)
 }
+
+// localWeekStart returns the local midnight that began the Monday-based week
+// containing t. Recurring weekly quests use this boundary so TZ and DST follow
+// the same server-local calendar semantics as daily quests and streaks.
+func localWeekStart(t time.Time) time.Time {
+	start, _ := localDayBounds(t)
+	daysSinceMonday := (int(start.Weekday()) + 6) % 7
+	return start.AddDate(0, 0, -daysSinceMonday)
+}

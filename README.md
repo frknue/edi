@@ -155,6 +155,9 @@ docker run -p 8080:8080 -e DATABASE_URL=postgres://... -e EDI_TOKEN=<secret> -e 
   as negative `xp_events` (`source='daily_penalty'`); rest mode waives covered days.
   The first check after upgrading only starts the clock, so old quests are never
   charged retroactively.
+- **Recurring quests:** a completed daily returns at the next local midnight; a
+  completed weekly returns at local midnight on Monday. Checked bonus objectives
+  reset with each new occurrence.
 - **Subtasks (bonus objectives):** a quest can carry optional subtasks, each with its
   own bonus rewards — "Go to the gym" might have "Bike there instead of driving"
   `{health: 15}`. Check them off while the quest is active
