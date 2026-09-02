@@ -33,6 +33,10 @@
 //	tools                           List the agent tool catalog
 //	invoke <tool> [json]            Call any agent tool directly
 //	chat [--new] <message>          Talk to the AI agent (needs ChatGPT connected)
+//	board                           Show the shared quest board
+//	board-create [--name N]         Create a two-player board
+//	board-invite                    Create a one-time 24-hour invite code
+//	board-join <code>               Join a board with an invite code
 package main
 
 import (
@@ -79,6 +83,14 @@ func run(c *apiclient.Client, cmd string, args []string) error {
 		return cmdDashboard(c)
 	case "quests":
 		return cmdQuests(c, args)
+	case "board":
+		return cmdBoard(c)
+	case "board-create":
+		return cmdBoardCreate(c, args)
+	case "board-invite":
+		return cmdBoardInvite(c)
+	case "board-join":
+		return cmdBoardJoin(c, args)
 	case "add":
 		return cmdAdd(c, args)
 	case "win":
@@ -201,7 +213,15 @@ func cmdQuests(c *apiclient.Client, args []string) error {
 		return nil
 	}
 	for _, q := range qs {
-		fmt.Printf("  %s %-34s %-9s %-9s %s\n", dim(fmt.Sprintf("#%d", q.ID)), q.Title, tag(q.Type), dim(q.Status), dim(rewardStr(q.AttributeRewards)))
+		assignment := ""
+		if q.SharedQuestID != nil {
+			names := make([]string, 0, len(q.Assignees))
+			for _, a := range q.Assignees {
+				names = append(names, a.Name+":"+a.Status)
+			}
+			assignment = "  " + dim("["+strings.Join(names, ", ")+"]")
+		}
+		fmt.Printf("  %s %-34s %-9s %-9s %s%s\n", dim(fmt.Sprintf("#%d", q.ID)), q.Title, tag(q.Type), dim(q.Status), dim(rewardStr(q.AttributeRewards)), assignment)
 		for _, st := range q.Subtasks {
 			box := "☐"
 			if st.Done {
@@ -243,6 +263,7 @@ func cmdAdd(c *apiclient.Client, args []string) error {
 	desc := fs.String("desc", "", "description")
 	typ := fs.String("type", "daily", "type: daily|weekly|main|side|boss|recovery")
 	diff := fs.String("difficulty", "easy", "difficulty: trivial|easy|medium|hard|boss")
+	assignees := fs.String("assignees", "", "comma-separated board member ids; omit for personal")
 	var rewards rewardFlag
 	fs.Var(&rewards, "reward", "attribute reward k=v (repeatable), e.g. --reward strength=40")
 	if err := fs.Parse(args); err != nil {
@@ -255,11 +276,71 @@ func cmdAdd(c *apiclient.Client, args []string) error {
 		Title: *title, Description: *desc, Type: *typ, Difficulty: *diff,
 		AttributeRewards: rewards.m,
 	}
+	if strings.TrimSpace(*assignees) != "" {
+		for _, raw := range strings.Split(*assignees, ",") {
+			id, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+			if err != nil || id <= 0 {
+				return fmt.Errorf("invalid assignee id %q", raw)
+			}
+			in.AssigneeIDs = append(in.AssigneeIDs, id)
+		}
+	}
 	q, err := c.CreateQuest(in)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("%s created quest #%d %q %s\n", green("✓"), q.ID, q.Title, dim(rewardStr(q.AttributeRewards)))
+	return nil
+}
+
+func cmdBoard(c *apiclient.Client) error {
+	status, err := c.MultiplayerStatus()
+	if err != nil {
+		return err
+	}
+	if status.Board == nil {
+		fmt.Println("No shared quest board. Create one with `edi-cli board-create` or join with `edi-cli board-join <code>`.")
+		return nil
+	}
+	fmt.Printf("%s  #%d\n", bold(status.Board.Name), status.Board.ID)
+	for _, member := range status.Board.Members {
+		fmt.Printf("  %s %s\n", dim(fmt.Sprintf("#%d", member.UserID)), member.Name)
+	}
+	return nil
+}
+
+func cmdBoardCreate(c *apiclient.Client, args []string) error {
+	fs := flag.NewFlagSet("board-create", flag.ContinueOnError)
+	name := fs.String("name", "Quest Party", "board name")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	board, err := c.CreateQuestBoard(*name)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s created board #%d %q\n", green("✓"), board.ID, board.Name)
+	return nil
+}
+
+func cmdBoardInvite(c *apiclient.Client) error {
+	invite, err := c.CreateQuestBoardInvite()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Invite code: %s  %s\n", bold(invite.Code), dim("valid for 24 hours, one use"))
+	return nil
+}
+
+func cmdBoardJoin(c *apiclient.Client, args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("usage: board-join <code>")
+	}
+	board, err := c.JoinQuestBoard(args[0])
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s joined %q\n", green("✓"), board.Name)
 	return nil
 }
 
@@ -813,10 +894,11 @@ func usage() {
 commands:
   dashboard                          character, attributes, today's quests, streak
   quests [--type t] [--status s]     list quests
-  add --title T [--type --difficulty --desc --reward k=v ...]
+  add --title T [--type --difficulty --desc --reward k=v ...] [--assignees 2,3]
   win --title T [--type --difficulty --desc --reward k=v ...]
   complete <id> | skip <id> | archive <id>
   subtask <quest_id> <subtask_id>    toggle a bonus objective
+  board | board-create [--name N] | board-invite | board-join <code>
   journal [--q text] [--limit N]     list / search reflections
   journal-add --mood N --energy N [--notes "..."]
   journal-edit <id> [--mood N] [--energy N] [--notes "..."]

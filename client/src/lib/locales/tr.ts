@@ -132,6 +132,22 @@ export const tr: Record<MessageKey, string> = {
   "quest.restore": "Görevi geri getir",
   "quest.bonusObjectives": "Bonus hedefler",
   "quest.missedPenalty": "Bir günü kaçır: temel XP'nin %25'ini kaybet (özellik başına en az 5)",
+  "quest.shared": "paylaşılan",
+  "quest.waitingForOthers": "senin kısmın bitti",
+
+  // --- multiplayer --------------------------------------------------------
+  "multi.title": "Paylaşılan görev panosu",
+  "multi.boardHint": "Panoyu herkes görür; atanan her kişi kendi XP'sini kazanır.",
+  "multi.setupHint": "Özel iki kişilik bir pano oluştur veya davet koduyla katıl.",
+  "multi.defaultName": "Görev Ekibi",
+  "multi.create": "Pano oluştur",
+  "multi.codePlaceholder": "davet kodu",
+  "multi.join": "Katıl",
+  "multi.inviteCode": "Davet kodu",
+  "multi.copyCode": "Davet kodunu kopyala",
+  "multi.copied": "Kopyalandı.",
+  "multi.expires": "tek kullanım · 24 saat",
+  "multi.invite": "İkinci oyuncuyu davet et",
 
   // --- xp feed ------------------------------------------------------------
   "feed.noXp": "Henüz XP yok",
@@ -257,6 +273,11 @@ export const tr: Record<MessageKey, string> = {
   "qf.removeSubtask": "Alt görevi kaldır",
   "qf.claimXp": "XP'yi al",
   "qf.create": "Görev oluştur",
+  "qf.assignment": "Bu görev kimin için?",
+  "qf.assignmentLocked": "Atama, görev oluşturulduktan sonra değişmez.",
+  "qf.personal": "Kişisel",
+  "qf.both": "İkiniz",
+  "qf.assignmentHint": "Paylaşılan görevlerde seçilen her oyuncu kendi kısmını tamamlar ve kendi ödülünü alır.",
 
   // --- shop ---------------------------------------------------------------
   "shop.purchased": '"{name}" {price}a karşılığında satın alındı — tadını çıkar, hak ettin.',

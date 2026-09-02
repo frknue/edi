@@ -16,10 +16,38 @@ export const keys = {
   openaiStatus: ["openai-status"] as const,
   shop: ["shop"] as const,
   goldEvents: ["gold-events"] as const,
+  multiplayer: ["multiplayer"] as const,
 };
 
 export function useDashboard() {
   return useQuery({ queryKey: keys.dashboard, queryFn: api.getDashboard });
+}
+
+export function useMultiplayerStatus() {
+  return useQuery({ queryKey: keys.multiplayer, queryFn: api.multiplayerStatus });
+}
+
+function useInvalidateMultiplayer() {
+  const qc = useQueryClient();
+  return () => {
+    qc.invalidateQueries({ queryKey: keys.multiplayer });
+    qc.invalidateQueries({ queryKey: ["quests"] });
+    qc.invalidateQueries({ queryKey: ["dashboard"] });
+  };
+}
+
+export function useCreateQuestBoard() {
+  const invalidate = useInvalidateMultiplayer();
+  return useMutation({ mutationFn: (name: string) => api.createQuestBoard(name), onSuccess: invalidate });
+}
+
+export function useCreateQuestBoardInvite() {
+  return useMutation({ mutationFn: api.createQuestBoardInvite });
+}
+
+export function useJoinQuestBoard() {
+  const invalidate = useInvalidateMultiplayer();
+  return useMutation({ mutationFn: (code: string) => api.joinQuestBoard(code), onSuccess: invalidate });
 }
 
 export function useQuests(filters?: { type?: string; status?: string }) {

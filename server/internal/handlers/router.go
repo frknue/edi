@@ -33,6 +33,10 @@ func NewRouter(h *Handlers, clientDir string, tokenMode bool) http.Handler {
 
 	mux.HandleFunc("GET /api/dashboard", h.getDashboard)
 	mux.HandleFunc("GET /api/attributes", h.getAttributes)
+	mux.HandleFunc("GET /api/multiplayer", h.multiplayerStatus)
+	mux.HandleFunc("POST /api/multiplayer/board", h.createQuestBoard)
+	mux.HandleFunc("POST /api/multiplayer/invite", h.createQuestBoardInvite)
+	mux.HandleFunc("POST /api/multiplayer/join", h.joinQuestBoard)
 
 	mux.HandleFunc("GET /api/quests", h.listQuests)
 	mux.HandleFunc("POST /api/quests", h.createQuest)

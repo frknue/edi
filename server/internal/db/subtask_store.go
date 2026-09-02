@@ -96,19 +96,37 @@ func (s *Store) replaceSubtasks(userID, questID int64, subtasks []models.Subtask
 // ToggleSubtask flips a subtask's done flag. It refuses when the parent quest is
 // already completed or archived (bonuses are frozen at completion).
 func (s *Store) ToggleSubtask(userID, questID, subtaskID int64) (models.Subtask, error) {
+	tx, err := s.beginUserTx(userID)
+	if err != nil {
+		return models.Subtask{}, err
+	}
+	defer tx.Rollback() //nolint:errcheck
 	var status string
-	switch err := s.db.QueryRow(`SELECT status FROM quests WHERE id = $1 AND user_id = $2`, questID, userID).Scan(&status); err {
+	var sharedQuestID sql.NullInt64
+	switch err := tx.QueryRow(
+		`SELECT status, shared_quest_id FROM quests WHERE id = $1 AND user_id = $2`, questID, userID).
+		Scan(&status, &sharedQuestID); err {
 	case sql.ErrNoRows:
 		return models.Subtask{}, ErrNotFound
 	case nil:
 	default:
 		return models.Subtask{}, err
 	}
+	if sharedQuestID.Valid {
+		if _, err := tx.Exec(`SELECT id FROM shared_quests WHERE id = $1 FOR UPDATE`, sharedQuestID.Int64); err != nil {
+			return models.Subtask{}, err
+		}
+		// Re-read after the shared lock: a concurrent completion may have
+		// changed this assignee's state while we were waiting.
+		if err := tx.QueryRow(`SELECT status FROM quests WHERE id = $1 AND user_id = $2`, questID, userID).Scan(&status); err != nil {
+			return models.Subtask{}, err
+		}
+	}
 	if status == models.StatusCompleted || status == models.StatusArchived {
 		return models.Subtask{}, ErrQuestNotCompletable
 	}
 
-	res, err := s.db.Exec(
+	res, err := tx.Exec(
 		`UPDATE quest_subtasks SET done = 1 - done WHERE id = $1 AND quest_id = $2 AND user_id = $3`,
 		subtaskID, questID, userID)
 	if err != nil {
@@ -117,10 +135,17 @@ func (s *Store) ToggleSubtask(userID, questID, subtaskID int64) (models.Subtask,
 	if n, _ := res.RowsAffected(); n == 0 {
 		return models.Subtask{}, ErrNotFound
 	}
-	row := s.db.QueryRow(
+	row := tx.QueryRow(
 		`SELECT id, quest_id, title, attribute_rewards, done FROM quest_subtasks WHERE id = $1 AND user_id = $2`,
 		subtaskID, userID)
-	return scanSubtask(row)
+	st, err := scanSubtask(row)
+	if err != nil {
+		return models.Subtask{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return models.Subtask{}, err
+	}
+	return st, nil
 }
 
 // doneSubtasksTx returns the checked subtasks of a quest inside a transaction.

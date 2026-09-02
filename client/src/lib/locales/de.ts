@@ -132,6 +132,22 @@ export const de: Record<MessageKey, string> = {
   "quest.restore": "Quest wiederherstellen",
   "quest.bonusObjectives": "Bonusziele",
   "quest.missedPenalty": "Tag verpasst: 25 % Basis-XP verlieren (min. 5 je Wert)",
+  "quest.shared": "geteilt",
+  "quest.waitingForOthers": "dein Teil ist erledigt",
+
+  // --- multiplayer --------------------------------------------------------
+  "multi.title": "Geteiltes Questboard",
+  "multi.boardHint": "Alle sehen das Board; jede zugewiesene Person erhält eigene XP.",
+  "multi.setupHint": "Erstelle ein privates Zweier-Board oder tritt mit einem Einladungscode bei.",
+  "multi.defaultName": "Questgruppe",
+  "multi.create": "Board erstellen",
+  "multi.codePlaceholder": "Einladungscode",
+  "multi.join": "Beitreten",
+  "multi.inviteCode": "Einladungscode",
+  "multi.copyCode": "Einladungscode kopieren",
+  "multi.copied": "Kopiert.",
+  "multi.expires": "einmalig · 24 Stunden",
+  "multi.invite": "Zweite Person einladen",
 
   // --- xp feed ------------------------------------------------------------
   "feed.noXp": "Noch keine XP",
@@ -257,6 +273,11 @@ export const de: Record<MessageKey, string> = {
   "qf.removeSubtask": "Teilaufgabe entfernen",
   "qf.claimXp": "XP holen",
   "qf.create": "Quest erstellen",
+  "qf.assignment": "Für wen ist diese Quest?",
+  "qf.assignmentLocked": "Die Zuweisung steht nach dem Erstellen fest.",
+  "qf.personal": "Persönlich",
+  "qf.both": "Beide",
+  "qf.assignmentHint": "Bei geteilten Quests erledigt jede ausgewählte Person ihren eigenen Teil und erhält eigene Belohnungen.",
 
   // --- shop ---------------------------------------------------------------
   "shop.purchased": "„{name}“ für {price}g gekauft — genieß es, du hast es dir verdient.",

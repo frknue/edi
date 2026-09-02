@@ -10,6 +10,27 @@ export interface User {
   created_at: string;
 }
 
+export interface QuestBoardMember {
+  user_id: number;
+  name: string;
+}
+
+export interface QuestBoard {
+  id: number;
+  name: string;
+  members: QuestBoardMember[];
+  created_at: string;
+}
+
+export interface MultiplayerStatus {
+  board: QuestBoard | null;
+}
+
+export interface QuestBoardInvite {
+  code: string;
+  expires_at: string;
+}
+
 export interface AttributeDecay {
   state: "fresh" | "grace" | "decaying" | "warded" | "rest";
   idle_days: number;
@@ -73,6 +94,18 @@ export interface Quest {
   created_at: string;
   completed_at: string | null;
   due_date: string | null;
+  shared_quest_id?: number;
+  assignees: QuestAssignee[];
+  assigned_to_me: boolean;
+  my_status?: QuestStatus;
+  all_completed: boolean;
+}
+
+export interface QuestAssignee {
+  user_id: number;
+  name: string;
+  status: QuestStatus;
+  completed_at: string | null;
 }
 
 export interface XPEvent {
@@ -144,6 +177,7 @@ export interface QuestInput {
   attribute_rewards: Record<string, number>;
   subtasks?: SubtaskInput[];
   due_date?: string | null;
+  assignee_ids?: number[];
 }
 
 // What the AI proposes for a half-typed quest. A suggestion only — the user

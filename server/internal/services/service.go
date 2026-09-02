@@ -183,6 +183,16 @@ func (s *Service) ToggleSubtask(questID, subtaskID int64) (models.Subtask, error
 	if err := s.rollOverRecurringQuests(); err != nil {
 		return models.Subtask{}, err
 	}
+	visible, visibleErr := s.store.GetVisibleQuest(s.userID, questID)
+	if visibleErr != nil && !errors.Is(visibleErr, db.ErrNotFound) {
+		return models.Subtask{}, visibleErr
+	}
+	if visibleErr == nil && visible.SharedQuestID != nil {
+		if !visible.AssignedToMe {
+			return models.Subtask{}, validationErr("this quest is assigned to another board member")
+		}
+		questID = visible.ID
+	}
 	st, err := s.store.ToggleSubtask(s.userID, questID, subtaskID)
 	switch {
 	case errors.Is(err, db.ErrNotFound):
@@ -238,7 +248,7 @@ func (s *Service) ListQuests(questType, status string) ([]models.Quest, error) {
 	if err := s.rollOverRecurringQuests(); err != nil {
 		return nil, err
 	}
-	quests, err := s.store.ListQuests(s.userID, questType, status)
+	quests, err := s.store.ListVisibleQuests(s.userID, questType, status)
 	return orEmpty(quests), err
 }
 
@@ -250,6 +260,13 @@ func (s *Service) CreateQuest(in models.QuestInput) (models.Quest, error) {
 	if err := s.rollOverRecurringQuests(); err != nil {
 		return models.Quest{}, err
 	}
+	if in.AssigneeIDs != nil {
+		assignees, err := s.validateSharedAssignees(in.AssigneeIDs)
+		if err != nil {
+			return models.Quest{}, err
+		}
+		return s.store.InsertSharedQuest(s.userID, in, assignees)
+	}
 	return s.store.InsertQuest(s.userID, in, nil)
 }
 
@@ -258,8 +275,15 @@ func (s *Service) UpdateQuest(id int64, p models.QuestPatch) (models.Quest, erro
 	if err := s.rollOverRecurringQuests(); err != nil {
 		return models.Quest{}, err
 	}
-	if _, err := s.store.GetQuest(s.userID, id); err != nil {
-		return models.Quest{}, ErrNotFound
+	shared, sharedErr := s.store.SharedQuestAccessForViewer(s.userID, id)
+	isShared := sharedErr == nil
+	if sharedErr != nil && !errors.Is(sharedErr, db.ErrNotFound) {
+		return models.Quest{}, sharedErr
+	}
+	if !isShared {
+		if _, err := s.store.GetQuest(s.userID, id); err != nil {
+			return models.Quest{}, ErrNotFound
+		}
 	}
 	if p.Type != nil && !validTypes[*p.Type] {
 		return models.Quest{}, validationErr("invalid type %q", *p.Type)
@@ -289,7 +313,31 @@ func (s *Service) UpdateQuest(id int64, p models.QuestPatch) (models.Quest, erro
 			return models.Quest{}, err
 		}
 	}
-	return s.store.UpdateQuest(s.userID, id, p)
+	if !isShared {
+		return s.store.UpdateQuest(s.userID, id, p)
+	}
+	contentChange := p.Title != nil || p.Description != nil || p.Type != nil || p.Difficulty != nil || p.AttributeRewards != nil || p.Subtasks != nil || p.DueDate != nil
+	if contentChange {
+		if err := s.store.UpdateSharedQuest(s.userID, id, p); errors.Is(err, db.ErrQuestNotCompletable) {
+			return models.Quest{}, validationErr("a shared quest cannot be edited after one member completes it")
+		} else if err != nil {
+			return models.Quest{}, err
+		}
+	}
+	if p.Status != nil && *p.Status == models.StatusActive {
+		if !shared.Assigned {
+			return models.Quest{}, validationErr("this quest is assigned to another board member")
+		}
+		if err := s.store.RestoreSharedQuestAssignment(s.userID, id); err != nil {
+			return models.Quest{}, err
+		}
+	}
+	if p.Status != nil && *p.Status == models.StatusArchived {
+		if err := s.store.ArchiveSharedQuest(s.userID, id); err != nil {
+			return models.Quest{}, err
+		}
+	}
+	return s.store.GetVisibleQuest(s.userID, id)
 }
 
 // CompleteQuest completes a quest and returns rich feedback + a refreshed dashboard.
@@ -300,6 +348,19 @@ func (s *Service) CompleteQuest(id int64) (models.CompletionResult, error) {
 	if _, err := s.ApplyDecay(); err != nil {
 		return models.CompletionResult{}, err
 	}
+	visible, visibleErr := s.store.GetVisibleQuest(s.userID, id)
+	if visibleErr != nil {
+		return models.CompletionResult{}, ErrNotFound
+	}
+	if visible.SharedQuestID != nil {
+		if !visible.AssignedToMe {
+			return models.CompletionResult{}, validationErr("this quest is assigned to another board member")
+		}
+		if visible.MyStatus != models.StatusActive {
+			return models.CompletionResult{}, validationErr("your part of this quest is not active")
+		}
+		id = visible.ID
+	}
 	quest, events, levelUps, gold, outcome, err := s.store.CompleteQuest(s.userID, id)
 	if err != nil {
 		switch {
@@ -309,6 +370,12 @@ func (s *Service) CompleteQuest(id int64) (models.CompletionResult, error) {
 			// 400, not 500 — re-completing/double-tapping is a client condition.
 			return models.CompletionResult{}, validationErr("%s", err.Error())
 		default:
+			return models.CompletionResult{}, err
+		}
+	}
+	if quest.SharedQuestID != nil {
+		quest, err = s.store.GetVisibleQuest(s.userID, quest.ID)
+		if err != nil {
 			return models.CompletionResult{}, err
 		}
 	}
@@ -325,6 +392,9 @@ func (s *Service) RecordSpontaneousQuest(in models.QuestInput) (models.Completio
 	}
 	if len(in.Subtasks) > 0 {
 		return models.CompletionResult{}, validationErr("spontaneous quests cannot have bonus objectives")
+	}
+	if in.AssigneeIDs != nil {
+		return models.CompletionResult{}, validationErr("spontaneous wins are personal; create a shared quest before completing it")
 	}
 	if err := s.validateQuestInput(&in); err != nil {
 		return models.CompletionResult{}, err
@@ -365,10 +435,29 @@ func (s *Service) SkipQuest(id int64) (models.Quest, error) {
 	if err := s.rollOverRecurringQuests(); err != nil {
 		return models.Quest{}, err
 	}
-	if _, err := s.store.GetQuest(s.userID, id); err != nil {
+	visible, err := s.store.GetVisibleQuest(s.userID, id)
+	if err != nil {
 		return models.Quest{}, ErrNotFound
 	}
-	return s.store.SkipQuest(s.userID, id)
+	if visible.SharedQuestID != nil {
+		if !visible.AssignedToMe {
+			return models.Quest{}, validationErr("this quest is assigned to another board member")
+		}
+		id = visible.ID
+		if err := s.store.SkipSharedQuestAssignment(s.userID, id); errors.Is(err, db.ErrQuestNotCompletable) {
+			return models.Quest{}, validationErr("your part of this quest is not active")
+		} else if err != nil {
+			return models.Quest{}, err
+		}
+		return s.store.GetVisibleQuest(s.userID, id)
+	}
+	if _, err := s.store.SkipQuest(s.userID, id); err != nil {
+		return models.Quest{}, err
+	}
+	if visible.SharedQuestID != nil {
+		return s.store.GetVisibleQuest(s.userID, id)
+	}
+	return s.store.GetQuest(s.userID, id)
 }
 
 // ArchiveQuest marks a quest archived.
@@ -376,8 +465,15 @@ func (s *Service) ArchiveQuest(id int64) (models.Quest, error) {
 	if err := s.rollOverRecurringQuests(); err != nil {
 		return models.Quest{}, err
 	}
-	if _, err := s.store.GetQuest(s.userID, id); err != nil {
+	visible, err := s.store.GetVisibleQuest(s.userID, id)
+	if err != nil {
 		return models.Quest{}, ErrNotFound
+	}
+	if visible.SharedQuestID != nil {
+		if err := s.store.ArchiveSharedQuest(s.userID, id); err != nil {
+			return models.Quest{}, err
+		}
+		return s.store.GetVisibleQuest(s.userID, id)
 	}
 	if err := s.store.SetQuestStatus(s.userID, id, models.StatusArchived); err != nil {
 		return models.Quest{}, err
@@ -493,9 +589,15 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 	if err != nil {
 		return models.Dashboard{}, err
 	}
-	todayQuests, err := s.store.ListQuests(s.userID, "", models.StatusActive)
+	visibleQuests, err := s.store.ListVisibleQuests(s.userID, "", models.StatusActive)
 	if err != nil {
 		return models.Dashboard{}, err
+	}
+	todayQuests := make([]models.Quest, 0, len(visibleQuests))
+	for _, q := range visibleQuests {
+		if q.AssignedToMe && q.MyStatus == models.StatusActive {
+			todayQuests = append(todayQuests, q)
+		}
 	}
 	streak, err := s.store.GetStreak(s.userID)
 	if err != nil {

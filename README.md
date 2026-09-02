@@ -142,6 +142,15 @@ docker run -p 8080:8080 -e DATABASE_URL=postgres://... -e EDI_TOKEN=<secret> -e 
 4. The agent suggests a useful next quest.
 5. Repeat.
 
+### Two-player quest boards
+
+Open **Quests → Shared quest board** to create a private board, then send the
+one-use invite code to the second player (valid for 24 hours). New quests can be
+Personal, assigned to either member, or assigned to Both. Both players see one
+shared card and each assignee marks their own part complete; XP, gold, streaks,
+subtasks, and recurring daily/weekly progress remain independent per character.
+A quest for Both closes only after both players finish it.
+
 ## Concepts
 
 - **Attributes** (9): Strength, Discipline, Focus, Health, Wealth, Relationships,
@@ -202,8 +211,12 @@ Base: `/api`
 | POST | `/admin/users/:id/token` | Admin: re-mint a user's token (refused for user 1 — env-owned) |
 | GET | `/dashboard` | Full dashboard payload (character, attributes, today's quests, streak, recent XP, recommended quest, suggestions, gold balance) |
 | GET | `/attributes` | All attributes with derived level/progress |
+| GET | `/multiplayer` | Current shared quest board and members (`board:null` when unset) |
+| POST | `/multiplayer/board` | Create a private two-player board from `{name}` |
+| POST | `/multiplayer/invite` | Mint a one-use board invite code (24-hour TTL) |
+| POST | `/multiplayer/join` | Join a board from `{code}` |
 | GET | `/quests?type=&status=` | List/filter quests |
-| POST | `/quests` | Create a quest |
+| POST | `/quests` | Create a personal quest, or a board quest with `assignee_ids` |
 | POST | `/quests/spontaneous` | Record an unplanned accomplishment as a completed quest and award its rewards atomically |
 | POST | `/quests/draft` | AI-propose a quest's type/difficulty/XP from a title (+ description); suggests only, persists nothing |
 | PATCH | `/quests/:id` | Update a quest (partial) |
@@ -234,7 +247,7 @@ Base: `/api`
 
 ### Agent-ready by design
 
-`server/internal/agent` wraps the service layer as 27 named tools with JSON Schemas
+`server/internal/agent` wraps the service layer as named tools with JSON Schemas
 (`get_dashboard`, `create_quest`, `record_spontaneous_quest`, `complete_quest`,
 `generate_suggestions`,
 `accept_suggestion`, `list_shop_items`, `purchase_shop_item`, `list_gold_events`,

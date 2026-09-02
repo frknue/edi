@@ -187,18 +187,27 @@ func scanQuest(scanner interface{ Scan(...any) error }) (models.Quest, error) {
 	var completed, due sql.NullTime
 	var rewards string
 	var srcSug sql.NullInt64
+	var sharedQuestID sql.NullInt64
 	err := scanner.Scan(&q.ID, &q.UserID, &q.Title, &q.Description, &q.Type, &q.Difficulty,
-		&q.Status, &rewards, &q.SkipCount, &srcSug, &q.CreatedAt, &completed, &due)
+		&q.Status, &rewards, &q.SkipCount, &srcSug, &q.CreatedAt, &completed, &due, &sharedQuestID)
 	if err != nil {
 		return q, err
 	}
 	q.AttributeRewards = unmarshalRewards(rewards)
 	q.CompletedAt = timePtr(completed)
 	q.DueDate = timePtr(due)
+	if sharedQuestID.Valid {
+		v := sharedQuestID.Int64
+		q.SharedQuestID = &v
+	}
+	q.Assignees = []models.QuestAssignee{}
+	q.AssignedToMe = true
+	q.MyStatus = q.Status
+	q.AllCompleted = q.Status == models.StatusCompleted
 	return q, nil
 }
 
-const questColumns = `id, user_id, title, description, type, difficulty, status, attribute_rewards, skip_count, source_suggestion_id, created_at, completed_at, due_date`
+const questColumns = `id, user_id, title, description, type, difficulty, status, attribute_rewards, skip_count, source_suggestion_id, created_at, completed_at, due_date, shared_quest_id`
 
 func (s *Store) GetQuest(userID, id int64) (models.Quest, error) {
 	row := s.db.QueryRow(`SELECT `+questColumns+` FROM quests WHERE id = $1 AND user_id = $2`, id, userID)
@@ -590,6 +599,23 @@ func (s *Store) completeQuest(userID, questID int64, spontaneous *models.QuestIn
 			 VALUES($1, $2, $3, $4, $5, 'active', $6, 0, $7, $8) RETURNING id`,
 			userID, spontaneous.Title, spontaneous.Description, spontaneous.Type, spontaneous.Difficulty,
 			marshalRewards(spontaneous.AttributeRewards), now, nullTime(spontaneous.DueDate)).Scan(&questID); err != nil {
+			return fail(err)
+		}
+	}
+	// Shared-quest metadata edits and each assignee's completion serialize on
+	// the shared row in addition to the normal per-user lock. This prevents one
+	// member completing with rewards while another edits those rewards.
+	var sharedQuestID sql.NullInt64
+	if err := tx.QueryRow(
+		`SELECT shared_quest_id FROM quests WHERE id = $1 AND user_id = $2`, questID, userID).
+		Scan(&sharedQuestID); err != nil {
+		if err == sql.ErrNoRows {
+			return fail(ErrNotFound)
+		}
+		return fail(err)
+	}
+	if sharedQuestID.Valid {
+		if _, err := tx.Exec(`SELECT id FROM shared_quests WHERE id = $1 FOR UPDATE`, sharedQuestID.Int64); err != nil {
 			return fail(err)
 		}
 	}

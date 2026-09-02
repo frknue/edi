@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, ChevronUp, Loader2, Minus, Plus, Sparkles, Trash2, X } from "lucide-react";
-import type { Difficulty, Quest, QuestInput, QuestType, SubtaskInput } from "../lib/types";
+import { ChevronDown, ChevronUp, Loader2, Minus, Plus, Sparkles, Trash2, Users, X } from "lucide-react";
+import type { Difficulty, Quest, QuestBoard, QuestInput, QuestType, SubtaskInput } from "../lib/types";
 import { attributeMeta, difficultyMeta, getType, typeMeta } from "../lib/theme";
 import { useDraftQuest, useOpenAIStatus } from "../lib/queries";
 import { pushToast } from "../lib/toast";
@@ -17,11 +17,12 @@ interface Props {
   mode?: "quest" | "spontaneous";
   busy?: boolean;
   error?: string | null;
+  board?: QuestBoard | null;
   onClose: () => void;
   onSubmit: (input: QuestInput, id?: number) => void;
 }
 
-export function QuestFormModal({ open, initial, mode = "quest", busy, error, onClose, onSubmit }: Props) {
+export function QuestFormModal({ open, initial, mode = "quest", busy, error, board, onClose, onSubmit }: Props) {
   const { t } = useI18n();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -31,6 +32,7 @@ export function QuestFormModal({ open, initial, mode = "quest", busy, error, onC
   const [subtasks, setSubtasks] = useState<SubtaskInput[]>([]);
   const [expandedSub, setExpandedSub] = useState<number | null>(null);
   const [draftReason, setDraftReason] = useState<string | null>(null);
+  const [assigneeIDs, setAssigneeIDs] = useState<number[] | null>(null);
   const formGeneration = useRef(0);
 
   // The AI can propose the mechanical fields (type/difficulty/XP) from the
@@ -76,6 +78,7 @@ export function QuestFormModal({ open, initial, mode = "quest", busy, error, onC
       initial?.subtasks?.map((st) => ({ title: st.title, attribute_rewards: { ...st.attribute_rewards } })) ?? [],
     );
     setExpandedSub(null);
+    setAssigneeIDs(initial?.shared_quest_id ? initial.assignees.map((a) => a.user_id) : null);
   }, [open, initial, mode]);
 
   useEffect(() => {
@@ -115,17 +118,16 @@ export function QuestFormModal({ open, initial, mode = "quest", busy, error, onC
     const cleanedSubs = subtasks
       .filter((s) => s.title.trim() !== "")
       .map((s) => ({ title: s.title.trim(), attribute_rewards: s.attribute_rewards }));
-    onSubmit(
-      {
+    const input: QuestInput = {
         title: title.trim(),
         description: description.trim(),
         type,
         difficulty,
         attribute_rewards: cleaned,
         subtasks: mode === "spontaneous" ? [] : cleanedSubs,
-      },
-      initial?.id,
-    );
+    };
+    if (!initial && mode !== "spontaneous" && assigneeIDs !== null) input.assignee_ids = assigneeIDs;
+    onSubmit(input, initial?.id);
   };
 
   return (
@@ -172,6 +174,44 @@ export function QuestFormModal({ open, initial, mode = "quest", busy, error, onC
                   className="w-full rounded-lg border border-edge bg-white/[0.03] px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-[var(--color-gold)] focus:outline-none"
                 />
               </div>
+
+              {mode !== "spontaneous" && board && (
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted">
+                    <Users size={13} /> {t("qf.assignment")}
+                  </label>
+                  {initial?.shared_quest_id ? (
+                    <div className="rounded-lg border border-edge bg-white/[0.02] px-3 py-2">
+                      <p className="text-xs text-ink">{initial.assignees.map((a) => a.name).join(" + ")}</p>
+                      <p className="mt-0.5 text-[10px] text-faint">{t("qf.assignmentLocked")}</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5" data-testid="quest-assignees">
+                      <AssignmentChip active={assigneeIDs === null} onClick={() => setAssigneeIDs(null)}>
+                        {t("qf.personal")}
+                      </AssignmentChip>
+                      {board.members.map((member) => (
+                        <AssignmentChip
+                          key={member.user_id}
+                          active={assigneeIDs?.length === 1 && assigneeIDs[0] === member.user_id}
+                          onClick={() => setAssigneeIDs([member.user_id])}
+                        >
+                          {member.name}
+                        </AssignmentChip>
+                      ))}
+                      {board.members.length > 1 && (
+                        <AssignmentChip
+                          active={assigneeIDs?.length === board.members.length}
+                          onClick={() => setAssigneeIDs(board.members.map((member) => member.user_id))}
+                        >
+                          {t("qf.both")}
+                        </AssignmentChip>
+                      )}
+                    </div>
+                  )}
+                  <p className="mt-1.5 text-[10px] leading-relaxed text-faint">{t("qf.assignmentHint")}</p>
+                </div>
+              )}
 
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted">{t("qf.description")}</label>
@@ -407,5 +447,22 @@ export function QuestFormModal({ open, initial, mode = "quest", busy, error, onC
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+function AssignmentChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all"
+      style={{
+        borderColor: active ? "var(--color-relationships)" : "var(--color-edge)",
+        background: active ? "color-mix(in srgb, var(--color-relationships) 12%, transparent)" : "transparent",
+        color: active ? "var(--color-relationships)" : "var(--color-muted)",
+      }}
+    >
+      {children}
+    </button>
   );
 }

@@ -50,6 +50,9 @@ func NewRegistry() *Registry {
 	add("get_dashboard", "Return the full dashboard: character level, attributes, today's quests, streak, recent XP, missed-daily penalty XP, recommended quest, and pending suggestions.",
 		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) { return svc.GetDashboard() })
 
+	add("get_quest_board", "Return the user's shared quest board and its members. Use the member ids when assigning a quest to one or both players.",
+		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) { return svc.MultiplayerStatus() })
+
 	add("list_quests", "List quests, optionally filtered by type and status.",
 		`{"type":"object","properties":{"type":{"type":"string","enum":["daily","weekly","main","side","boss","recovery"]},"status":{"type":"string","enum":["active","completed","skipped","archived"]}}}`,
 		func(svc *services.Service, in json.RawMessage) (any, error) {
@@ -60,8 +63,8 @@ func NewRegistry() *Registry {
 			return svc.ListQuests(p.Type, p.Status)
 		})
 
-	add("create_quest", "Create a new quest with attribute XP rewards, optionally with bonus-objective subtasks (each with its own bonus rewards, awarded only if checked before completion).",
-		`{"type":"object","required":["title"],"properties":{"title":{"type":"string"},"description":{"type":"string"},"type":{"type":"string","enum":["daily","weekly","main","side","boss","recovery"]},"difficulty":{"type":"string","enum":["trivial","easy","medium","hard","boss"]},"attribute_rewards":{"type":"object","additionalProperties":{"type":"integer"}},"subtasks":{"type":"array","items":{"type":"object","required":["title"],"properties":{"title":{"type":"string"},"attribute_rewards":{"type":"object","additionalProperties":{"type":"integer"}}}}}}}`,
+	add("create_quest", "Create a personal or shared quest with attribute XP rewards. For a shared quest, call get_quest_board and pass one or both member ids as assignee_ids; each assignee completes and earns rewards independently.",
+		`{"type":"object","required":["title"],"properties":{"title":{"type":"string"},"description":{"type":"string"},"type":{"type":"string","enum":["daily","weekly","main","side","boss","recovery"]},"difficulty":{"type":"string","enum":["trivial","easy","medium","hard","boss"]},"attribute_rewards":{"type":"object","additionalProperties":{"type":"integer"}},"assignee_ids":{"type":"array","minItems":1,"maxItems":2,"items":{"type":"integer"}},"subtasks":{"type":"array","items":{"type":"object","required":["title"],"properties":{"title":{"type":"string"},"attribute_rewards":{"type":"object","additionalProperties":{"type":"integer"}}}}}}}`,
 		func(svc *services.Service, in json.RawMessage) (any, error) {
 			var p models.QuestInput
 			if err := decode(in, &p); err != nil {

@@ -31,6 +31,37 @@ type User struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// QuestBoard is a private two-player party. Members share one quest board but
+// keep independent characters, completion state, XP, gold, and streaks.
+type QuestBoard struct {
+	ID        int64              `json:"id"`
+	Name      string             `json:"name"`
+	Members   []QuestBoardMember `json:"members"`
+	CreatedAt time.Time          `json:"created_at"`
+}
+
+type QuestBoardMember struct {
+	UserID int64  `json:"user_id"`
+	Name   string `json:"name"`
+}
+
+// MultiplayerStatus is returned even when the user has no board, keeping the
+// web and CLI discovery path simple.
+type MultiplayerStatus struct {
+	Board *QuestBoard `json:"board"`
+}
+
+// QuestBoardInvite is a one-time join code. The plaintext code is returned
+// only on creation; storage keeps only its SHA-256 hash.
+type QuestBoardInvite struct {
+	Code      string    `json:"code"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+type JoinQuestBoardInput struct {
+	Code string `json:"code"`
+}
+
 // RegisterInput is the self-serve signup payload. The invite code must match
 // the server's EDI_INVITE_CODE (registration is disabled when that is unset).
 type RegisterInput struct {
@@ -78,6 +109,19 @@ type Quest struct {
 	CreatedAt        time.Time        `json:"created_at"`
 	CompletedAt      *time.Time       `json:"completed_at"`
 	DueDate          *time.Time       `json:"due_date"`
+	SharedQuestID    *int64           `json:"shared_quest_id,omitempty"`
+	Assignees        []QuestAssignee  `json:"assignees"`
+	AssignedToMe     bool             `json:"assigned_to_me"`
+	MyStatus         string           `json:"my_status,omitempty"`
+	AllCompleted     bool             `json:"all_completed"`
+}
+
+// QuestAssignee is one member's independent progress on a shared quest.
+type QuestAssignee struct {
+	UserID      int64      `json:"user_id"`
+	Name        string     `json:"name"`
+	Status      string     `json:"status"`
+	CompletedAt *time.Time `json:"completed_at"`
 }
 
 // Subtask is an optional bonus objective on a quest. Checking it before the
@@ -159,6 +203,9 @@ type QuestInput struct {
 	AttributeRewards map[string]int64 `json:"attribute_rewards"`
 	Subtasks         []SubtaskInput   `json:"subtasks,omitempty"`
 	DueDate          *time.Time       `json:"due_date,omitempty"`
+	// Omitted means a personal quest. A non-empty list creates one linked copy
+	// per selected member on the user's shared board.
+	AssigneeIDs []int64 `json:"assignee_ids,omitempty"`
 }
 
 // Achievement is one badge from the catalog (earned or still open).

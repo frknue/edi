@@ -1,10 +1,11 @@
 import { motion } from "framer-motion";
-import { Archive, Check, CheckCircle2, Pencil, RotateCcw, SkipForward, Square, SquareCheckBig, TriangleAlert } from "lucide-react";
+import { Archive, Check, CheckCircle2, Circle, Pencil, RotateCcw, SkipForward, Square, SquareCheckBig, TriangleAlert, Users } from "lucide-react";
 import type { Quest } from "../lib/types";
 import { getType } from "../lib/theme";
 import { useToggleSubtask } from "../lib/queries";
 import { Btn, DifficultyPips, RewardChips, TypeBadge } from "./ui";
 import { useI18n } from "../lib/i18n";
+import type { MessageKey } from "../lib/locales/en";
 
 interface QuestCardProps {
   quest: Quest;
@@ -33,6 +34,13 @@ export function QuestCard({
   const isRecovery = quest.type === "recovery";
   const isActive = quest.status === "active";
   const isDone = quest.status === "completed";
+  const isShared = quest.shared_quest_id !== undefined;
+  const myActive = isShared ? quest.assigned_to_me && quest.my_status === "active" : isActive;
+  const myDone = isShared && quest.assigned_to_me && quest.my_status === "completed";
+  const canEdit = !isShared || !quest.assignees.some((a) => a.status === "completed");
+  const canRestore = isShared
+    ? quest.assigned_to_me && (quest.my_status === "skipped" || quest.my_status === "archived")
+    : quest.status === "skipped" || quest.status === "archived";
 
   const accent = meta.color;
 
@@ -58,6 +66,11 @@ export function QuestCard({
           <div className="min-w-0 flex-1">
             <div className="mb-1.5 flex items-center gap-2">
               <TypeBadge type={quest.type} />
+              {isShared && (
+                <span className="inline-flex items-center gap-1 text-[10px] text-[var(--color-relationships)]">
+                  <Users size={11} /> {t("quest.shared")}
+                </span>
+              )}
               {isRecovery && (
                 <span className="text-[10px] italic text-[var(--color-spirituality)]">
                   {t("quest.restCounts")}
@@ -66,6 +79,11 @@ export function QuestCard({
               {isDone && (
                 <span className="inline-flex items-center gap-1 text-[10px] text-[var(--color-health)]">
                   <CheckCircle2 size={11} /> {t("quest.done")}
+                </span>
+              )}
+              {myDone && !quest.all_completed && (
+                <span className="inline-flex items-center gap-1 text-[10px] text-[var(--color-focus)]">
+                  <CheckCircle2 size={11} /> {t("quest.waitingForOthers")}
                 </span>
               )}
             </div>
@@ -88,6 +106,27 @@ export function QuestCard({
           <RewardChips rewards={quest.attribute_rewards} />
         </div>
 
+        {isShared && (
+          <div className="mt-2 flex flex-wrap gap-1" data-testid={`assignees-${quest.id}`}>
+            {quest.assignees.map((assignee) => {
+              const AssigneeIcon = assignee.status === "completed" ? CheckCircle2 : Circle;
+              return (
+                <span
+                  key={assignee.user_id}
+                  className="inline-flex items-center gap-1 rounded-full border border-edge bg-white/[0.02] px-2 py-0.5 text-[10px] text-muted"
+                  title={t(`status.${assignee.status}` as MessageKey)}
+                >
+                  <AssigneeIcon
+                    size={10}
+                    style={{ color: assignee.status === "completed" ? "var(--color-health)" : "var(--color-faint)" }}
+                  />
+                  {assignee.name}
+                </span>
+              );
+            })}
+          </div>
+        )}
+
         {quest.type === "daily" && isActive && Object.values(quest.attribute_rewards).some((xp) => xp > 0) && (
           <div className="mt-2 flex items-center gap-1.5 text-[10px] text-[var(--color-boss)]" data-testid={`daily-penalty-${quest.id}`}>
             <TriangleAlert size={11} />
@@ -95,7 +134,7 @@ export function QuestCard({
           </div>
         )}
 
-        {quest.subtasks.length > 0 && <SubtaskList quest={quest} interactive={isActive} />}
+        {quest.subtasks.length > 0 && <SubtaskList quest={quest} interactive={myActive} />}
 
         {(onComplete || onSkip || onArchive || onEdit) && isActive && (
           <div className="mt-4 flex items-center gap-2">
@@ -111,7 +150,7 @@ export function QuestCard({
                 {t("common.complete")}
               </Btn>
             )}
-            {onEdit && (
+            {onEdit && canEdit && (
               <Btn variant="ghost" className="!px-2" onClick={() => onEdit(quest)} aria-label={t("quest.edit")}>
                 <Pencil size={15} />
               </Btn>
@@ -130,7 +169,7 @@ export function QuestCard({
         )}
 
         {/* Skipped/archived quests aren't gone — bring them back to active. */}
-        {onRestore && (quest.status === "skipped" || quest.status === "archived") && (
+        {onRestore && canRestore && (
           <div className="mt-4">
             <Btn
               variant="ghost"

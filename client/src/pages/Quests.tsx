@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Scroll, Sparkles } from "lucide-react";
+import { Copy, Link, Plus, Scroll, Sparkles, UserPlus, Users } from "lucide-react";
 import {
   useQuests,
   useCreateQuest,
@@ -8,6 +8,10 @@ import {
   useCompleteQuest,
   useSkipQuest,
   useArchiveQuest,
+  useCreateQuestBoard,
+  useCreateQuestBoardInvite,
+  useJoinQuestBoard,
+  useMultiplayerStatus,
 } from "../lib/queries";
 import { useReward } from "../lib/reward";
 import { pushToast } from "../lib/toast";
@@ -36,6 +40,7 @@ export function QuestsPage() {
     status: statusFilter === "all" ? undefined : statusFilter,
   };
   const { data: quests, isLoading } = useQuests(filters);
+  const { data: multiplayer } = useMultiplayerStatus();
 
   const create = useCreateQuest();
   const recordWin = useRecordSpontaneousQuest();
@@ -126,6 +131,8 @@ export function QuestsPage() {
         </div>
       </div>
 
+      <MultiplayerPanel />
+
       {/* Filters */}
       <div className="hud-panel space-y-3 p-3.5">
         <FilterRow label={t("quests.filterType")}>
@@ -167,9 +174,9 @@ export function QuestsPage() {
                 quest={q}
                 index={i}
                 busy={busy}
-                onComplete={q.status === "active" ? handleComplete : undefined}
+                onComplete={q.status === "active" && q.assigned_to_me && q.my_status === "active" ? handleComplete : undefined}
                 onEdit={openEdit}
-                onSkip={q.status === "active" ? (id) => skip.mutate(id) : undefined}
+                onSkip={q.status === "active" && q.assigned_to_me && q.my_status === "active" ? (id) => skip.mutate(id) : undefined}
                 onArchive={q.status !== "archived" ? (id) => archive.mutate(id) : undefined}
                 onRestore={(id) =>
                   update.mutate(
@@ -188,6 +195,7 @@ export function QuestsPage() {
         initial={editing}
         busy={create.isPending || update.isPending}
         error={formError}
+        board={multiplayer?.board}
         onClose={() => setModalOpen(false)}
         onSubmit={handleSubmit}
       />
@@ -199,6 +207,99 @@ export function QuestsPage() {
         onClose={() => setWinModalOpen(false)}
         onSubmit={handleWin}
       />
+    </div>
+  );
+}
+
+function MultiplayerPanel() {
+  const { t } = useI18n();
+  const { data, isLoading } = useMultiplayerStatus();
+  const create = useCreateQuestBoard();
+  const invite = useCreateQuestBoardInvite();
+  const join = useJoinQuestBoard();
+  const [joinCode, setJoinCode] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  if (isLoading) return null;
+  const board = data?.board;
+  const inputCls = "min-w-0 flex-1 rounded-lg border border-edge bg-white/[0.03] px-3 py-2 text-xs text-ink placeholder:text-faint focus:border-[var(--color-relationships)] focus:outline-none";
+
+  const copyInvite = async () => {
+    if (!invite.data) return;
+    try {
+      await navigator.clipboard.writeText(invite.data.code);
+      setCopied(true);
+    } catch {
+      // The selectable code remains visible when clipboard access is unavailable.
+    }
+  };
+
+  return (
+    <div className="hud-panel p-3.5" data-testid="multiplayer-panel">
+      <div className="flex items-start gap-3">
+        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[color-mix(in_srgb,var(--color-relationships)_12%,transparent)] text-[var(--color-relationships)]">
+          <Users size={16} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="font-display text-xs font-semibold uppercase tracking-[0.16em] text-ink">
+                {board?.name ?? t("multi.title")}
+              </h2>
+              <p className="mt-0.5 text-[11px] text-faint">
+                {board ? t("multi.boardHint") : t("multi.setupHint")}
+              </p>
+            </div>
+            {board && (
+              <div className="flex flex-wrap gap-1">
+                {board.members.map((member) => (
+                  <span key={member.user_id} className="rounded-full border border-edge px-2 py-0.5 text-[10px] text-muted">
+                    {member.name}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {!board ? (
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <Btn variant="soft" disabled={create.isPending} onClick={() => create.mutate(t("multi.defaultName"))} data-testid="create-board">
+                <UserPlus size={14} /> {t("multi.create")}
+              </Btn>
+              <div className="flex min-w-0 flex-1 gap-2">
+                <input
+                  value={joinCode}
+                  onChange={(event) => setJoinCode(event.target.value)}
+                  onKeyDown={(event) => event.key === "Enter" && joinCode.trim() && join.mutate(joinCode)}
+                  placeholder={t("multi.codePlaceholder")}
+                  data-testid="join-code"
+                  className={inputCls}
+                />
+                <Btn variant="ghost" disabled={join.isPending || joinCode.trim() === ""} onClick={() => join.mutate(joinCode)} data-testid="join-board">
+                  <Link size={14} /> {t("multi.join")}
+                </Btn>
+              </div>
+            </div>
+          ) : board.members.length < 2 ? (
+            <div className="mt-3">
+              {invite.data ? (
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[color-mix(in_srgb,var(--color-relationships)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-relationships)_6%,transparent)] p-2.5">
+                  <span className="text-[10px] text-faint">{t("multi.inviteCode")}</span>
+                  <code className="tabnum select-all text-sm font-semibold tracking-wider text-ink" data-testid="board-invite-code">{invite.data.code}</code>
+                  <button onClick={copyInvite} className="text-faint hover:text-ink" aria-label={t("multi.copyCode")}>
+                    <Copy size={13} />
+                  </button>
+                  <span className="text-[10px] text-faint">{copied ? t("multi.copied") : t("multi.expires")}</span>
+                </div>
+              ) : (
+                <Btn variant="ghost" disabled={invite.isPending} onClick={() => invite.mutate()} data-testid="invite-member">
+                  <UserPlus size={14} /> {t("multi.invite")}
+                </Btn>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }

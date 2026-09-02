@@ -130,6 +130,22 @@ export const en = {
   "quest.restore": "Restore quest",
   "quest.bonusObjectives": "Bonus objectives",
   "quest.missedPenalty": "Miss a day: lose 25% base XP (min 5 per stat)",
+  "quest.shared": "shared",
+  "quest.waitingForOthers": "your part is done",
+
+  // --- multiplayer --------------------------------------------------------
+  "multi.title": "Shared quest board",
+  "multi.boardHint": "Everyone sees the board; each assignee earns their own XP.",
+  "multi.setupHint": "Create a private two-player board or join with an invite code.",
+  "multi.defaultName": "Quest Party",
+  "multi.create": "Create board",
+  "multi.codePlaceholder": "invite code",
+  "multi.join": "Join",
+  "multi.inviteCode": "Invite code",
+  "multi.copyCode": "Copy invite code",
+  "multi.copied": "Copied.",
+  "multi.expires": "one use · 24 hours",
+  "multi.invite": "Invite second player",
 
   // --- xp feed ------------------------------------------------------------
   "feed.noXp": "No XP yet",
@@ -255,6 +271,11 @@ export const en = {
   "qf.removeSubtask": "Remove subtask",
   "qf.claimXp": "Claim XP",
   "qf.create": "Create quest",
+  "qf.assignment": "Who is this for?",
+  "qf.assignmentLocked": "Assignment is fixed after creation.",
+  "qf.personal": "Personal",
+  "qf.both": "Both",
+  "qf.assignmentHint": "On shared quests, every selected player marks their own part complete and receives their own rewards.",
 
   // --- shop ---------------------------------------------------------------
   "shop.purchased": 'Purchased "{name}" for {price}g — enjoy it, you earned it.',

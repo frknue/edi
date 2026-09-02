@@ -16,10 +16,13 @@ import type {
   JournalEntry,
   MoodAssistResult,
   MoodLog,
+  MultiplayerStatus,
   OpenAIModel,
   OpenAIStatus,
   PurchaseResult,
   Quest,
+  QuestBoard,
+  QuestBoardInvite,
   QuestDraft,
   QuestInput,
   RestState,
@@ -111,6 +114,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   getDashboard: () => request<Dashboard>("/dashboard"),
   getAttributes: () => request<Attribute[]>("/attributes"),
+  multiplayerStatus: () => request<MultiplayerStatus>("/multiplayer"),
+  createQuestBoard: (name: string) =>
+    request<QuestBoard>("/multiplayer/board", { method: "POST", body: JSON.stringify({ name }) }),
+  createQuestBoardInvite: () =>
+    request<QuestBoardInvite>("/multiplayer/invite", { method: "POST", body: "{}" }),
+  joinQuestBoard: (code: string) =>
+    request<QuestBoard>("/multiplayer/join", { method: "POST", body: JSON.stringify({ code }) }),
 
   listQuests: (params?: { type?: string; status?: string }) => {
     const q = new URLSearchParams();

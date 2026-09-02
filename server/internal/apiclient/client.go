@@ -84,6 +84,30 @@ func (c *Client) Dashboard() (models.Dashboard, error) {
 	return d, err
 }
 
+func (c *Client) MultiplayerStatus() (models.MultiplayerStatus, error) {
+	var status models.MultiplayerStatus
+	err := c.do(http.MethodGet, "/api/multiplayer", nil, &status)
+	return status, err
+}
+
+func (c *Client) CreateQuestBoard(name string) (models.QuestBoard, error) {
+	var board models.QuestBoard
+	err := c.do(http.MethodPost, "/api/multiplayer/board", map[string]string{"name": name}, &board)
+	return board, err
+}
+
+func (c *Client) CreateQuestBoardInvite() (models.QuestBoardInvite, error) {
+	var invite models.QuestBoardInvite
+	err := c.do(http.MethodPost, "/api/multiplayer/invite", map[string]string{}, &invite)
+	return invite, err
+}
+
+func (c *Client) JoinQuestBoard(code string) (models.QuestBoard, error) {
+	var board models.QuestBoard
+	err := c.do(http.MethodPost, "/api/multiplayer/join", models.JoinQuestBoardInput{Code: code}, &board)
+	return board, err
+}
+
 func (c *Client) ListQuests(questType, status string) ([]models.Quest, error) {
 	q := url.Values{}
 	if questType != "" {

@@ -69,7 +69,8 @@ Rules of thumb:
 Deliberately NOT in the agent registry (keep it that way, and say so here if
 you add to the list): user/admin management and tokens, OpenAI connect/config,
 Telegram pairing/unlinking (identity + credentials stay UI/CLI-only), and
-`POST /api/tools/{key}/assist` (the chat model already *is* the coach; the
+multiplayer board creation/invites/joining (membership + one-time codes stay
+UI/CLI-only), and `POST /api/tools/{key}/assist` (the chat model already *is* the coach; the
 consent + crisis gating is a UI-path concern). Free-text chat is CLI +
 Telegram (the web has no chat box yet — an open gap, not a rule).
 
@@ -245,6 +246,20 @@ streak, one tx in `store.InsertJournal`; regression: `TestJournalDailyXPOnce`).
 Deleting an entry never claws back XP. The UI shows per-day mood/energy
 sparklines and a 10-week consistency heatmap (single-hue phosphor ramp),
 computed client-side from entries.
+
+## Multiplayer quest boards
+
+Each user may belong to one private two-player `quest_board`. A one-time hashed
+invite code (24-hour TTL) adds the second member. Shared quests are represented
+by `shared_quests` plus one ordinary `quests` row per assignee. The web collapses
+those copies into one card with per-member status; completion, recurring
+rollover, subtasks, XP, gold, loot, and streaks remain on the existing per-user
+paths. A member earns rewards only by completing their own copy, and a quest
+assigned to both is globally complete only after both copies complete. Board
+members see every shared card, including quests assigned to only the other
+member, but an unassigned member cannot complete, skip, or toggle its subtasks.
+Shared metadata edits and completions lock the same `shared_quests` row so XP
+rewards cannot race an edit.
 
 ## Presence: Telegram channel + shell status
 

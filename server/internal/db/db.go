@@ -26,6 +26,10 @@ var (
 	ErrSuggestionNotPending = errors.New("suggestion already resolved")
 	// ErrInsufficientGold — the balance cannot cover the purchase.
 	ErrInsufficientGold = errors.New("not enough gold")
+	// Multiplayer membership/invite conditions, translated by the service.
+	ErrAlreadyInBoard = errors.New("user is already in a quest board")
+	ErrBoardFull      = errors.New("quest board already has two members")
+	ErrInvalidInvite  = errors.New("quest board invite is invalid or expired")
 )
 
 // Store wraps the database handle and provides domain persistence methods.
