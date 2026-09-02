@@ -23,6 +23,10 @@ export function useDashboard() {
   return useQuery({ queryKey: keys.dashboard, queryFn: api.getDashboard });
 }
 
+export function useCreateAccountInvite() {
+  return useMutation({ mutationFn: api.createAccountInvite });
+}
+
 export function useMultiplayerStatus() {
   return useQuery({ queryKey: keys.multiplayer, queryFn: api.multiplayerStatus });
 }

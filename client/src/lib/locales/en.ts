@@ -25,6 +25,17 @@ export const en = {
   "session.signOutTitle": "Sign out on this device",
   "session.signOut": "Sign out",
 
+  "invite.button": "Invite someone",
+  "invite.title": "Invite someone to Edi",
+  "invite.hint": "Generate a private onboarding link for a new Edi user.",
+  "invite.generate": "Generate invite link",
+  "invite.generateAnother": "Generate another",
+  "invite.linkLabel": "Onboarding link",
+  "invite.expires": "one use · valid for 24 hours",
+  "invite.copied": "Link copied.",
+  "invite.copy": "Copy link",
+  "invite.recipientHint": "They choose their name and receive their own access token. Quest-board invitations are created separately after they join Edi.",
+
   "common.close": "Close",
   "common.cancel": "Cancel",
   "common.back": "Back",

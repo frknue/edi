@@ -81,10 +81,16 @@ Server modes:
 
 More users:
 
+- **Admin invite UI:** signed-in admins press **Invite someone** in the account
+  card (or the mobile header), generate a one-use 24-hour onboarding link, and
+  send it to the new player. They choose their own name and receive their own
+  access token. This Edi account invite is separate from joining a shared quest
+  board.
 - **Self-serve:** set `EDI_INVITE_CODE` on the server → the sign-in screen
   gets a "create a character" form (name + invite code → fresh level-1
   character + a token shown once). Unset = registration closed.
 - **Admin API** (user 1): `GET/POST /api/admin/users`,
+  `POST /api/admin/invites` for onboarding links, and
   `POST /api/admin/users/{id}/token` to re-mint a lost token.
 
 All clients understand tokens:
@@ -208,6 +214,7 @@ Base: `/api`
 | POST | `/auth/register` | Create a user from `{name, invite_code}` → token (shown once) |
 | GET | `/me` | The authenticated user |
 | GET/POST | `/admin/users` | Admin: list / create users |
+| POST | `/admin/invites` | Admin: mint a one-use Edi account invite (24-hour TTL) |
 | POST | `/admin/users/:id/token` | Admin: re-mint a user's token (refused for user 1 — env-owned) |
 | GET | `/dashboard` | Full dashboard payload (character, attributes, today's quests, streak, recent XP, recommended quest, suggestions, gold balance) |
 | GET | `/attributes` | All attributes with derived level/progress |

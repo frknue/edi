@@ -195,6 +195,11 @@ export interface AuthConfig {
   registration_open: boolean;
 }
 
+export interface AccountInvite {
+  code: string;
+  expires_at: string;
+}
+
 // Returned once at signup/rotation — the only time the token is visible.
 export interface CreatedUser {
   user: User;

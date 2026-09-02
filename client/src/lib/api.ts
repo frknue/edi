@@ -1,4 +1,5 @@
 import type {
+  AccountInvite,
   Achievement,
   AuthConfig,
   ItemDrop,
@@ -114,6 +115,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   getDashboard: () => request<Dashboard>("/dashboard"),
   getAttributes: () => request<Attribute[]>("/attributes"),
+  createAccountInvite: () =>
+    request<AccountInvite>("/admin/invites", { method: "POST", body: "{}" }),
   multiplayerStatus: () => request<MultiplayerStatus>("/multiplayer"),
   createQuestBoard: (name: string) =>
     request<QuestBoard>("/multiplayer/board", { method: "POST", body: JSON.stringify({ name }) }),

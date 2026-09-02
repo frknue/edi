@@ -161,6 +161,30 @@ func TestMultiTenantHTTPFlow(t *testing.T) {
 		t.Errorf("admin list as non-admin = %d, want 403", rec.Code)
 	}
 
+	// Admins can mint one-use account invitations; non-admins cannot. The
+	// generated code works on the open registration endpoint exactly once.
+	if rec = do(http.MethodPost, "/api/admin/invites", created.Token, `{}`); rec.Code != http.StatusForbidden {
+		t.Errorf("account invite as non-admin = %d, want 403", rec.Code)
+	}
+	rec = do(http.MethodPost, "/api/admin/invites", "s3cret", `{}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("account invite as admin = %d (%s), want 201", rec.Code, rec.Body.String())
+	}
+	var accountInvite struct {
+		Code string `json:"code"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &accountInvite)
+	if accountInvite.Code == "" {
+		t.Fatal("account invite returned no code")
+	}
+	rec = do(http.MethodPost, "/api/auth/register", "", `{"name":"Lin","invite_code":"`+accountInvite.Code+`"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("register with account invite = %d (%s), want 201", rec.Code, rec.Body.String())
+	}
+	if rec = do(http.MethodPost, "/api/auth/register", "", `{"name":"Eve","invite_code":"`+accountInvite.Code+`"}`); rec.Code != http.StatusBadRequest {
+		t.Errorf("reuse account invite = %d, want 400", rec.Code)
+	}
+
 	// Wrong invite code -> 400, not a user.
 	if rec = do(http.MethodPost, "/api/auth/register", "", `{"name":"Eve","invite_code":"nope"}`); rec.Code != http.StatusBadRequest {
 		t.Errorf("register with wrong code = %d, want 400", rec.Code)

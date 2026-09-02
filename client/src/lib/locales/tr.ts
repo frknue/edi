@@ -27,6 +27,17 @@ export const tr: Record<MessageKey, string> = {
   "session.signOutTitle": "Bu cihazda oturumu kapat",
   "session.signOut": "Çıkış yap",
 
+  "invite.button": "Birini davet et",
+  "invite.title": "Edi'ye davet et",
+  "invite.hint": "Yeni bir Edi kullanıcısı için özel bir başlangıç bağlantısı oluştur.",
+  "invite.generate": "Davet bağlantısı oluştur",
+  "invite.generateAnother": "Yeni bağlantı oluştur",
+  "invite.linkLabel": "Başlangıç bağlantısı",
+  "invite.expires": "tek kullanımlık · 24 saat geçerli",
+  "invite.copied": "Bağlantı kopyalandı.",
+  "invite.copy": "Bağlantıyı kopyala",
+  "invite.recipientHint": "Davet edilen kişi adını seçer ve kendi erişim token'ını alır. Edi'ye katıldıktan sonra görev panosu davetini ayrıca oluşturursun.",
+
   "common.close": "Kapat",
   "common.cancel": "İptal",
   "common.back": "Geri",

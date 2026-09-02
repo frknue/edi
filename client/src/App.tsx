@@ -10,6 +10,7 @@ import { DailyMoodLog } from "./components/DailyMoodLog";
 import { LanguageToggle, Logo, Sidebar } from "./components/Sidebar";
 import { useI18n } from "./lib/i18n";
 import type { View } from "./components/Sidebar";
+import { AccountInviteButton } from "./components/AccountInvite";
 
 export default function App() {
   const { t } = useI18n();
@@ -62,7 +63,10 @@ export default function App() {
         style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top))" }}
       >
         <Logo />
-        <LanguageToggle />
+        <div className="flex items-center gap-2">
+          <AccountInviteButton compact />
+          <LanguageToggle />
+        </div>
       </header>
 
       {/* Main content */}

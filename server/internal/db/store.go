@@ -96,6 +96,16 @@ func (s *Store) SetUserTokenHash(userID int64, hash string) error {
 // needs — the nine attributes at 0 XP (no xp_events: SUM(0 rows)==0 keeps the
 // audit invariant) and a zeroed streak row — in one transaction.
 func (s *Store) CreateUserWithDefaults(name string, isAdmin bool) (models.User, error) {
+	return s.createUserWithDefaults(name, isAdmin, "")
+}
+
+// CreateUserWithDefaultsAndToken creates a playable user and binds their
+// already-hashed bearer token in the same transaction.
+func (s *Store) CreateUserWithDefaultsAndToken(name string, isAdmin bool, tokenHash string) (models.User, error) {
+	return s.createUserWithDefaults(name, isAdmin, tokenHash)
+}
+
+func (s *Store) createUserWithDefaults(name string, isAdmin bool, tokenHash string) (models.User, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return models.User{}, err
@@ -103,9 +113,25 @@ func (s *Store) CreateUserWithDefaults(name string, isAdmin bool) (models.User, 
 	defer tx.Rollback() //nolint:errcheck
 
 	now := time.Now().UTC()
+	u, err := createUserWithDefaultsTx(tx, name, isAdmin, tokenHash, now)
+	if err != nil {
+		return models.User{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return models.User{}, err
+	}
+	return u, nil
+}
+
+func createUserWithDefaultsTx(tx *sql.Tx, name string, isAdmin bool, tokenHash string, now time.Time) (models.User, error) {
+	var storedToken any
+	if tokenHash != "" {
+		storedToken = tokenHash
+	}
 	var id int64
-	if err := tx.QueryRow(`INSERT INTO users(name, is_admin, created_at) VALUES($1, $2, $3) RETURNING id`,
-		name, isAdmin, now).Scan(&id); err != nil {
+	if err := tx.QueryRow(
+		`INSERT INTO users(name, token_hash, is_admin, created_at) VALUES($1, $2, $3, $4) RETURNING id`,
+		name, storedToken, isAdmin, now).Scan(&id); err != nil {
 		return models.User{}, err
 	}
 	for _, a := range DefaultAttributes {
@@ -116,9 +142,6 @@ func (s *Store) CreateUserWithDefaults(name string, isAdmin bool) (models.User, 
 		}
 	}
 	if _, err := tx.Exec(`INSERT INTO streaks(user_id, current_count, longest_count) VALUES($1, 0, 0)`, id); err != nil {
-		return models.User{}, err
-	}
-	if err := tx.Commit(); err != nil {
 		return models.User{}, err
 	}
 	return models.User{ID: id, Name: name, IsAdmin: isAdmin, CreatedAt: now}, nil

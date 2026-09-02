@@ -20,13 +20,14 @@ import { useI18n } from "../lib/i18n";
  */
 export function TokenGate({ children }: { children: React.ReactNode }) {
   const { t } = useI18n();
+  const linkedInvite = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("invite") ?? "";
   const [locked, setLocked] = useState(false);
-  const [mode, setMode] = useState<"token" | "register">("token");
+  const [mode, setMode] = useState<"token" | "register">(linkedInvite ? "register" : "token");
   const [registrationOpen, setRegistrationOpen] = useState(false);
 
   const [value, setValue] = useState("");
   const [name, setName] = useState("");
-  const [invite, setInvite] = useState("");
+  const [invite, setInvite] = useState(linkedInvite);
   const [minted, setMinted] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +60,9 @@ export function TokenGate({ children }: { children: React.ReactNode }) {
     setError(null);
     try {
       const created = await api.register({ name: name.trim(), invite_code: invite.trim() });
+      if (linkedInvite) {
+        history.replaceState(null, "", window.location.pathname + window.location.search);
+      }
       setMinted(created.token);
     } catch (e) {
       setError((e as Error).message);
@@ -187,7 +191,7 @@ export function TokenGate({ children }: { children: React.ReactNode }) {
             <Btn variant="primary" className="w-full" disabled={value.trim() === ""} onClick={unlock}>
               {t("gate.unlock")}
             </Btn>
-            {registrationOpen && (
+            {(registrationOpen || linkedInvite) && (
               <button
                 onClick={() => setMode("register")}
                 data-testid="goto-register"

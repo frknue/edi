@@ -212,6 +212,15 @@ func (h *Handlers) createUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, created)
 }
 
+func (h *Handlers) createAccountInvite(w http.ResponseWriter, r *http.Request) {
+	invite, err := h.forUser(r).CreateAccountInvite()
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, invite)
+}
+
 func (h *Handlers) rotateUserToken(w http.ResponseWriter, r *http.Request) {
 	id, err := pathID(r, "id")
 	if err != nil {

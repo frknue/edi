@@ -2,11 +2,97 @@ package services
 
 import (
 	"errors"
+	"sync"
 	"testing"
+	"time"
 
 	"edi/internal/db/dbtest"
 	"edi/internal/models"
 )
+
+func TestAccountInviteRegistersExactlyOneUser(t *testing.T) {
+	t.Setenv("EDI_INVITE_CODE", "")
+	svc := newTestService(t)
+
+	invite, err := svc.CreateAccountInvite()
+	if err != nil {
+		t.Fatalf("CreateAccountInvite: %v", err)
+	}
+	if len(normalizeAccountInviteCode(invite.Code)) != 32 {
+		t.Fatalf("invite code %q does not contain 128 bits of hex", invite.Code)
+	}
+	if left := time.Until(invite.ExpiresAt); left < 23*time.Hour || left > 25*time.Hour {
+		t.Fatalf("invite expiry in %v, want about 24 hours", left)
+	}
+
+	type result struct {
+		created models.CreatedUser
+		err     error
+	}
+	start := make(chan struct{})
+	results := make(chan result, 2)
+	var wg sync.WaitGroup
+	for _, name := range []string{"Ada", "Grace"} {
+		wg.Add(1)
+		go func(name string) {
+			defer wg.Done()
+			<-start
+			created, err := svc.RegisterUser(models.RegisterInput{Name: name, InviteCode: invite.Code})
+			results <- result{created: created, err: err}
+		}(name)
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+
+	var success models.CreatedUser
+	failures := 0
+	for got := range results {
+		if got.err == nil {
+			success = got.created
+			continue
+		}
+		if !errors.Is(got.err, ErrValidation) {
+			t.Fatalf("losing registration error = %v, want ErrValidation", got.err)
+		}
+		failures++
+	}
+	if success.Token == "" || success.User.ID == 0 || failures != 1 {
+		t.Fatalf("concurrent results: success=%+v failures=%d, want one of each", success, failures)
+	}
+	if id, err := svc.AuthenticateToken(success.Token); err != nil || id != success.User.ID {
+		t.Fatalf("AuthenticateToken = id %d, err %v; want id %d", id, err, success.User.ID)
+	}
+	var users int
+	if err := svc.store.DB().QueryRow(`SELECT COUNT(1) FROM users`).Scan(&users); err != nil || users != 2 {
+		t.Fatalf("users after concurrent invite = %d, err %v; want 2", users, err)
+	}
+	var attrs int
+	if err := svc.store.DB().QueryRow(`SELECT COUNT(1) FROM attributes WHERE user_id = $1`, success.User.ID).Scan(&attrs); err != nil || attrs != 9 {
+		t.Fatalf("new user's attributes = %d, err %v; want 9", attrs, err)
+	}
+}
+
+func TestAccountInviteRejectsExpiredAndNonAdminCreation(t *testing.T) {
+	t.Setenv("EDI_INVITE_CODE", "")
+	svc := newTestService(t)
+
+	const expiredCode = "01234567-89ABCDEF-01234567-89ABCDEF"
+	if err := svc.store.CreateAccountInvite(1, hashToken(normalizeAccountInviteCode(expiredCode)), time.Now().UTC().Add(-time.Minute)); err != nil {
+		t.Fatalf("store expired invite: %v", err)
+	}
+	if _, err := svc.RegisterUser(models.RegisterInput{Name: "Late", InviteCode: expiredCode}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("register with expired invite = %v, want ErrValidation", err)
+	}
+
+	created, err := svc.CreateUser("Member")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	if _, err := svc.ForUser(created.User.ID).CreateAccountInvite(); !errors.Is(err, ErrValidation) {
+		t.Fatalf("non-admin CreateAccountInvite = %v, want ErrValidation", err)
+	}
+}
 
 func TestRegisterUserRequiresInviteCode(t *testing.T) {
 	svc := newTestService(t)

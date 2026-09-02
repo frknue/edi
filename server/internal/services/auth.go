@@ -8,10 +8,13 @@ import (
 	"errors"
 	"os"
 	"strings"
+	"time"
 
 	"edi/internal/db"
 	"edi/internal/models"
 )
+
+const accountInviteTTL = 24 * time.Hour
 
 // Auth model: token-based, no passwords. Every user owns one bearer token
 // (shown once at creation/rotation; the server stores its SHA-256). All
@@ -65,17 +68,65 @@ func (s *Service) Me() (models.User, error) {
 // code is configured via EDI_INVITE_CODE).
 func RegistrationOpen() bool { return os.Getenv("EDI_INVITE_CODE") != "" }
 
-// RegisterUser creates a new user (fresh level-1 character) from a name and
-// the server's invite code, returning the one-time-visible token.
+// CreateAccountInvite mints an expiring, one-use onboarding code. Only admins
+// may grow the tenant; the HTTP route also enforces that policy as a 403.
+func (s *Service) CreateAccountInvite() (models.AccountInvite, error) {
+	u, err := s.Me()
+	if err != nil {
+		return models.AccountInvite{}, err
+	}
+	if !u.IsAdmin {
+		return models.AccountInvite{}, validationErr("only an admin can invite new users")
+	}
+
+	raw := make([]byte, 16)
+	if _, err := rand.Read(raw); err != nil {
+		return models.AccountInvite{}, err
+	}
+	hexCode := strings.ToUpper(hex.EncodeToString(raw))
+	code := strings.Join([]string{
+		hexCode[0:8], hexCode[8:16], hexCode[16:24], hexCode[24:32],
+	}, "-")
+	expiresAt := time.Now().UTC().Add(accountInviteTTL)
+	if err := s.store.CreateAccountInvite(s.userID, hashToken(normalizeAccountInviteCode(code)), expiresAt); err != nil {
+		return models.AccountInvite{}, err
+	}
+	return models.AccountInvite{Code: code, ExpiresAt: expiresAt}, nil
+}
+
+func normalizeAccountInviteCode(code string) string {
+	return strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(code), "-", ""))
+}
+
+// RegisterUser creates a new user (fresh level-1 character) from either an
+// admin-minted one-use invitation or the legacy server-wide EDI_INVITE_CODE,
+// returning the one-time-visible bearer token.
 func (s *Service) RegisterUser(in models.RegisterInput) (models.CreatedUser, error) {
-	code := os.Getenv("EDI_INVITE_CODE")
-	if code == "" {
-		return models.CreatedUser{}, validationErr("registration is disabled on this server (EDI_INVITE_CODE is not set)")
+	name, err := validateUserName(in.Name)
+	if err != nil {
+		return models.CreatedUser{}, err
 	}
-	if subtle.ConstantTimeCompare([]byte(strings.TrimSpace(in.InviteCode)), []byte(code)) != 1 {
-		return models.CreatedUser{}, validationErr("wrong invite code")
+
+	normalized := normalizeAccountInviteCode(in.InviteCode)
+	if len(normalized) == 32 {
+		token, err := mintToken()
+		if err != nil {
+			return models.CreatedUser{}, err
+		}
+		u, err := s.store.CreateUserFromAccountInvite(hashToken(normalized), name, hashToken(token), time.Now().UTC())
+		if err == nil {
+			return models.CreatedUser{User: u, Token: token}, nil
+		}
+		if !errors.Is(err, db.ErrInvalidAccountInvite) {
+			return models.CreatedUser{}, err
+		}
 	}
-	return s.createUser(in.Name, false)
+
+	serverCode := os.Getenv("EDI_INVITE_CODE")
+	if serverCode != "" && subtle.ConstantTimeCompare([]byte(strings.TrimSpace(in.InviteCode)), []byte(serverCode)) == 1 {
+		return s.createUser(name, false)
+	}
+	return models.CreatedUser{}, validationErr("this account invite is invalid, expired, or already used")
 }
 
 // CreateUser is the admin path for adding a user (no invite code involved).
@@ -85,25 +136,30 @@ func (s *Service) CreateUser(name string) (models.CreatedUser, error) {
 }
 
 func (s *Service) createUser(name string, isAdmin bool) (models.CreatedUser, error) {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return models.CreatedUser{}, validationErr("name is required")
-	}
-	if len(name) > 40 {
-		return models.CreatedUser{}, validationErr("name is too long (max 40 characters)")
+	name, err := validateUserName(name)
+	if err != nil {
+		return models.CreatedUser{}, err
 	}
 	token, err := mintToken()
 	if err != nil {
 		return models.CreatedUser{}, err
 	}
-	u, err := s.store.CreateUserWithDefaults(name, isAdmin)
+	u, err := s.store.CreateUserWithDefaultsAndToken(name, isAdmin, hashToken(token))
 	if err != nil {
 		return models.CreatedUser{}, err
 	}
-	if err := s.store.SetUserTokenHash(u.ID, hashToken(token)); err != nil {
-		return models.CreatedUser{}, err
-	}
 	return models.CreatedUser{User: u, Token: token}, nil
+}
+
+func validateUserName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", validationErr("name is required")
+	}
+	if len(name) > 40 {
+		return "", validationErr("name is too long (max 40 characters)")
+	}
+	return name, nil
 }
 
 // ListUsers returns all users (admin surface).

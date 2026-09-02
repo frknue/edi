@@ -30,6 +30,8 @@ var (
 	ErrAlreadyInBoard = errors.New("user is already in a quest board")
 	ErrBoardFull      = errors.New("quest board already has two members")
 	ErrInvalidInvite  = errors.New("quest board invite is invalid or expired")
+	// Account onboarding codes are separate from quest-board invitations.
+	ErrInvalidAccountInvite = errors.New("account invite is invalid or expired")
 )
 
 // Store wraps the database handle and provides domain persistence methods.

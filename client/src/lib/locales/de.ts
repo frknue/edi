@@ -27,6 +27,17 @@ export const de: Record<MessageKey, string> = {
   "session.signOutTitle": "Auf diesem Gerät abmelden",
   "session.signOut": "Abmelden",
 
+  "invite.button": "Person einladen",
+  "invite.title": "Zu Edi einladen",
+  "invite.hint": "Erstelle einen privaten Onboarding-Link für eine neue Person in Edi.",
+  "invite.generate": "Einladungslink erstellen",
+  "invite.generateAnother": "Neuen Link erstellen",
+  "invite.linkLabel": "Onboarding-Link",
+  "invite.expires": "einmal verwendbar · 24 Stunden gültig",
+  "invite.copied": "Link kopiert.",
+  "invite.copy": "Link kopieren",
+  "invite.recipientHint": "Die Person wählt ihren Namen und erhält einen eigenen Zugangstoken. Die Einladung zum Questboard erstellst du danach separat.",
+
   "common.close": "Schließen",
   "common.cancel": "Abbrechen",
   "common.back": "Zurück",

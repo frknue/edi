@@ -37,6 +37,7 @@
 //	board-create [--name N]         Create a two-player board
 //	board-invite                    Create a one-time 24-hour invite code
 //	board-join <code>               Join a board with an invite code
+//	invite                          Create a one-use Edi account invite (admin)
 package main
 
 import (
@@ -45,6 +46,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strconv"
@@ -91,6 +93,8 @@ func run(c *apiclient.Client, cmd string, args []string) error {
 		return cmdBoardInvite(c)
 	case "board-join":
 		return cmdBoardJoin(c, args)
+	case "invite":
+		return cmdAccountInvite(c)
 	case "add":
 		return cmdAdd(c, args)
 	case "win":
@@ -341,6 +345,16 @@ func cmdBoardJoin(c *apiclient.Client, args []string) error {
 		return err
 	}
 	fmt.Printf("%s joined %q\n", green("✓"), board.Name)
+	return nil
+}
+
+func cmdAccountInvite(c *apiclient.Client) error {
+	invite, err := c.CreateAccountInvite()
+	if err != nil {
+		return err
+	}
+	link := strings.TrimRight(c.BaseURL, "/") + "/#invite=" + url.QueryEscape(invite.Code)
+	fmt.Printf("Invite link: %s\n%s\n", bold(link), dim("valid for 24 hours, one use"))
 	return nil
 }
 
@@ -899,6 +913,7 @@ commands:
   complete <id> | skip <id> | archive <id>
   subtask <quest_id> <subtask_id>    toggle a bonus objective
   board | board-create [--name N] | board-invite | board-join <code>
+  invite                             create a one-use Edi account invite (admin)
   journal [--q text] [--limit N]     list / search reflections
   journal-add --mood N --energy N [--notes "..."]
   journal-edit <id> [--mood N] [--energy N] [--notes "..."]

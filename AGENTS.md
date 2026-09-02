@@ -67,7 +67,8 @@ Rules of thumb:
   first and add a bespoke CLI command only when the output deserves formatting.
 
 Deliberately NOT in the agent registry (keep it that way, and say so here if
-you add to the list): user/admin management and tokens, OpenAI connect/config,
+you add to the list): user/admin management and tokens (including minting Edi
+account invites), OpenAI connect/config,
 Telegram pairing/unlinking (identity + credentials stay UI/CLI-only), and
 multiplayer board creation/invites/joining (membership + one-time codes stay
 UI/CLI-only), and `POST /api/tools/{key}/assist` (the chat model already *is* the coach; the

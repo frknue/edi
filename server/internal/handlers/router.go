@@ -30,6 +30,7 @@ func NewRouter(h *Handlers, clientDir string, tokenMode bool) http.Handler {
 	mux.HandleFunc("GET /api/admin/users", h.requireAdmin(h.listUsers))
 	mux.HandleFunc("POST /api/admin/users", h.requireAdmin(h.createUser))
 	mux.HandleFunc("POST /api/admin/users/{id}/token", h.requireAdmin(h.rotateUserToken))
+	mux.HandleFunc("POST /api/admin/invites", h.requireAdmin(h.createAccountInvite))
 
 	mux.HandleFunc("GET /api/dashboard", h.getDashboard)
 	mux.HandleFunc("GET /api/attributes", h.getAttributes)

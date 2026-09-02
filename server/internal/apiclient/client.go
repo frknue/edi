@@ -84,6 +84,13 @@ func (c *Client) Dashboard() (models.Dashboard, error) {
 	return d, err
 }
 
+// CreateAccountInvite creates an admin-only, one-use onboarding invitation.
+func (c *Client) CreateAccountInvite() (models.AccountInvite, error) {
+	var invite models.AccountInvite
+	err := c.do(http.MethodPost, "/api/admin/invites", map[string]string{}, &invite)
+	return invite, err
+}
+
 func (c *Client) MultiplayerStatus() (models.MultiplayerStatus, error) {
 	var status models.MultiplayerStatus
 	err := c.do(http.MethodGet, "/api/multiplayer", nil, &status)

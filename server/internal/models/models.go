@@ -69,6 +69,13 @@ type RegisterInput struct {
 	InviteCode string `json:"invite_code"`
 }
 
+// AccountInvite is an admin-minted, one-use onboarding credential. The
+// plaintext code is returned only at creation; storage keeps its hash.
+type AccountInvite struct {
+	Code      string    `json:"code"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
 // CreatedUser is returned once at user creation/token rotation: the only time
 // the plaintext token is ever visible (the server stores just its hash).
 type CreatedUser struct {

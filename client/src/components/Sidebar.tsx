@@ -18,6 +18,7 @@ import type { LucideIcon } from "lucide-react";
 import type { CSSProperties } from "react";
 import { LOCALES, localeLabel, useI18n } from "../lib/i18n";
 import type { MessageKey } from "../lib/locales/en";
+import { AccountInviteButton } from "./AccountInvite";
 
 export type View = "dashboard" | "quests" | "shop" | "moodlog" | "journal" | "agent";
 
@@ -224,25 +225,28 @@ function SessionCard() {
     );
   }
   return (
-    <div className="flex items-center justify-between rounded-xl border border-edge bg-white/[0.02] p-3">
-      <div className="min-w-0">
-        <div className="truncate text-[11px] font-medium text-muted">{me?.name ?? "…"}</div>
-        <div className="mt-0.5 text-[10px] text-faint">
-          {me?.is_admin ? `${t("session.admin")} · ` : ""}
-          {t("session.selfHosted")}
+    <div className="rounded-xl border border-edge bg-white/[0.02] p-3">
+      <div className="flex items-center justify-between">
+        <div className="min-w-0">
+          <div className="truncate text-[11px] font-medium text-muted">{me?.name ?? "…"}</div>
+          <div className="mt-0.5 text-[10px] text-faint">
+            {me?.is_admin ? `${t("session.admin")} · ` : ""}
+            {t("session.selfHosted")}
+          </div>
         </div>
+        <button
+          onClick={() => {
+            clearToken();
+            window.location.reload();
+          }}
+          title={t("session.signOutTitle")}
+          aria-label={t("session.signOut")}
+          className="shrink-0 text-faint hover:text-ink"
+        >
+          <LogOut size={14} />
+        </button>
       </div>
-      <button
-        onClick={() => {
-          clearToken();
-          window.location.reload();
-        }}
-        title={t("session.signOutTitle")}
-        aria-label={t("session.signOut")}
-        className="shrink-0 text-faint hover:text-ink"
-      >
-        <LogOut size={14} />
-      </button>
+      <AccountInviteButton />
     </div>
   );
 }
