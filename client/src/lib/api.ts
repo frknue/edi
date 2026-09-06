@@ -41,6 +41,7 @@ import type {
   ToolEntry,
   WardResult,
   XPEvent,
+  HardcoreState,
 } from "./types";
 
 // Base path is relative; the Vite dev proxy (and the Go static server in prod)
@@ -187,6 +188,9 @@ export const api = {
     request<WardResult>(`/attributes/${key}/ward`, { method: "POST" }),
   setRestMode: (on: boolean) =>
     request<RestState>("/rest", { method: "POST", body: JSON.stringify({ on }) }),
+  hardcoreState: () => request<HardcoreState>("/hardcore"),
+  setHardcoreMode: (on: boolean) =>
+    request<HardcoreState>("/hardcore", { method: "POST", body: JSON.stringify({ on }) }),
 
   listSuggestions: (status?: string) =>
     request<AgentSuggestion[]>(`/agent/suggestions${status ? `?status=${status}` : ""}`),

@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Archive, Check, CheckCircle2, Circle, Pencil, RotateCcw, SkipForward, Square, SquareCheckBig, TriangleAlert, Users } from "lucide-react";
+import { Archive, Check, CheckCircle2, Circle, Pencil, RotateCcw, SkipForward, Square, SquareCheckBig, Users } from "lucide-react";
 import type { Quest } from "../lib/types";
 import { getType } from "../lib/theme";
 import { useToggleSubtask } from "../lib/queries";
@@ -124,13 +124,6 @@ export function QuestCard({
                 </span>
               );
             })}
-          </div>
-        )}
-
-        {quest.type === "daily" && isActive && Object.values(quest.attribute_rewards).some((xp) => xp > 0) && (
-          <div className="mt-2 flex items-center gap-1.5 text-[10px] text-[var(--color-boss)]" data-testid={`daily-penalty-${quest.id}`}>
-            <TriangleAlert size={11} />
-            {t("quest.missedPenalty")}
           </div>
         )}
 

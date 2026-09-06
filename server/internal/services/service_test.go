@@ -268,7 +268,7 @@ func TestCompletedWeeklyQuestReturnsOnNextLocalMonday(t *testing.T) {
 		t.Fatalf("backdate weekly completion: %v", err)
 	}
 
-	if _, err := svc.store.RollOverRecurringQuests(svc.userID, sunday, nil); err != nil {
+	if _, err := svc.store.RollOverRecurringQuests(svc.userID, sunday, nil, true); err != nil {
 		t.Fatalf("Sunday rollover: %v", err)
 	}
 	beforeMonday, err := svc.store.GetQuest(svc.userID, q.ID)
@@ -282,7 +282,7 @@ func TestCompletedWeeklyQuestReturnsOnNextLocalMonday(t *testing.T) {
 		t.Fatal("weekly subtask reset before the new week")
 	}
 
-	if _, err := svc.store.RollOverRecurringQuests(svc.userID, monday, nil); err != nil {
+	if _, err := svc.store.RollOverRecurringQuests(svc.userID, monday, nil, true); err != nil {
 		t.Fatalf("Monday rollover: %v", err)
 	}
 	rolledOver, err := svc.store.GetQuest(svc.userID, q.ID)

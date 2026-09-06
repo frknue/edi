@@ -298,7 +298,12 @@ func (s *Store) ListQuests(userID int64, questType, status string) ([]models.Que
 // The update uses the same per-user advisory lock as completion. That keeps a
 // rollover racing with a completion from double-charging or reopening a quest
 // on the same day. It returns the XP removed during this call.
-func (s *Store) RollOverRecurringQuests(userID int64, now time.Time, restSince *time.Time) (int64, error) {
+// RollOverRecurringQuests settles missed dailies through yesterday and
+// re-activates completed recurring quests. billPenalties=false (hardcore off)
+// still advances the stakes cursor, resets bonus objectives and rolls quests
+// over — it only skips the XP removal, so switching hardcore on later never
+// bills days that were free at the time.
+func (s *Store) RollOverRecurringQuests(userID int64, now time.Time, restSince *time.Time, billPenalties bool) (int64, error) {
 	dayStart, _ := localDayBounds(now)
 	weekStart := localWeekStart(now)
 	tx, err := s.beginUserTx(userID)
@@ -376,10 +381,15 @@ func (s *Store) RollOverRecurringQuests(userID int64, now time.Time, restSince *
 		}
 
 		for _, q := range missed {
+			// The miss counter is a silent avoidance signal (it feeds
+			// "break it down" suggestions), so it counts in every mode.
 			if _, err := tx.Exec(
 				`UPDATE quests SET skip_count = skip_count + 1 WHERE user_id = $1 AND id = $2`,
 				userID, q.id); err != nil {
 				return 0, err
+			}
+			if !billPenalties {
+				continue
 			}
 			for _, key := range orderedKeys(q.rewards) {
 				owed := dailyQuestPenalty(q.rewards[key])
@@ -735,17 +745,20 @@ func (s *Store) completeQuest(userID, questID int64, spontaneous *models.QuestIn
 			}
 		}
 	}
-	// Active loot buffs: +N% on an attribute ("" = all), until local midnight.
+	// Active loot buffs: +N% on an attribute ("" = all), for 24h or 3 uses.
+	// Every buff that touched at least one award spends one use (in-tx).
 	buffs, err := activeBuffsTx(tx, userID, now)
 	if err != nil {
 		return fail(err)
 	}
 	if len(buffs) > 0 {
+		used := map[int64]bool{}
 		for _, a := range base {
 			pct := 0
 			for _, b := range buffs {
 				if b.Attribute == "" || b.Attribute == a.key {
 					pct += b.Percent
+					used[b.ID] = true
 				}
 			}
 			if pct == 0 {
@@ -753,6 +766,11 @@ func (s *Store) completeQuest(userID, questID int64, spontaneous *models.QuestIn
 			}
 			if bonus := int64(float64(a.amount) * float64(pct) / 100.0); bonus > 0 {
 				awards = append(awards, award{a.key, bonus, fmt.Sprintf("loot buff +%d%% · %s", pct, title), "buff", "buff"})
+			}
+		}
+		for id := range used {
+			if _, err := tx.Exec(`UPDATE user_buffs SET uses_left = uses_left - 1 WHERE id = $1 AND uses_left IS NOT NULL AND uses_left > 0`, id); err != nil {
+				return fail(err)
 			}
 		}
 	}
@@ -836,13 +854,22 @@ func (s *Store) completeQuest(userID, questID int64, spontaneous *models.QuestIn
 	return updated, events, levelUps, goldTotal, outcome, nil
 }
 
-// updateStreakTx advances the streak for "today" (local day).
+// streakMendCooldownDays is how many days must pass between two free mends.
+const streakMendCooldownDays = 7
+
+// updateStreakTx advances the streak for "today" (local day). A ONE-day gap
+// (last active the day before yesterday) is auto-mended for free when no
+// mend happened in the last streakMendCooldownDays — the streak continues
+// instead of resetting. Longer gaps still reset; there is no gold price.
 func updateStreakTx(tx *sql.Tx, userID int64, now time.Time) error {
-	today := now.Local().Format(dayFormat)
+	local := now.Local()
+	today := local.Format(dayFormat)
+	yesterday := local.AddDate(0, 0, -1).Format(dayFormat)
+	dayBefore := local.AddDate(0, 0, -2).Format(dayFormat)
 	var current, longest int
-	var last sql.NullString
-	err := tx.QueryRow(`SELECT current_count, longest_count, last_active_date FROM streaks WHERE user_id = $1`, userID).
-		Scan(&current, &longest, &last)
+	var last, lastMend sql.NullString
+	err := tx.QueryRow(`SELECT current_count, longest_count, last_active_date, last_mend_date FROM streaks WHERE user_id = $1`, userID).
+		Scan(&current, &longest, &last, &lastMend)
 	if err == sql.ErrNoRows {
 		_, e := tx.Exec(`INSERT INTO streaks(user_id, current_count, longest_count, last_active_date) VALUES($1, 1, 1, $2)`, userID, today)
 		return e
@@ -850,27 +877,43 @@ func updateStreakTx(tx *sql.Tx, userID int64, now time.Time) error {
 	if err != nil {
 		return err
 	}
+	mendToday := lastMend
 	switch {
 	case last.Valid && last.String == today:
 		// already counted today
-	case last.Valid && last.String == now.Local().AddDate(0, 0, -1).Format(dayFormat):
+	case last.Valid && last.String == yesterday:
 		current++
+	case last.Valid && last.String == dayBefore && current > 0 && mendAvailable(lastMend, local):
+		current++ // bridged the gap: streak lives
+		mendToday = sql.NullString{String: today, Valid: true}
 	default:
 		current = 1
 	}
 	if current > longest {
 		longest = current
 	}
-	_, e := tx.Exec(`UPDATE streaks SET current_count = $1, longest_count = $2, last_active_date = $3 WHERE user_id = $4`,
-		current, longest, today, userID)
+	_, e := tx.Exec(`UPDATE streaks SET current_count = $1, longest_count = $2, last_active_date = $3, last_mend_date = $4 WHERE user_id = $5`,
+		current, longest, today, mendToday, userID)
 	return e
+}
+
+// mendAvailable reports whether a free streak mend may be used today.
+func mendAvailable(lastMend sql.NullString, local time.Time) bool {
+	if !lastMend.Valid || lastMend.String == "" {
+		return true
+	}
+	t, err := time.ParseInLocation(dayFormat, lastMend.String, time.Local)
+	if err != nil {
+		return true
+	}
+	return localDaysBetween(t, local) >= streakMendCooldownDays
 }
 
 func (s *Store) GetStreak(userID int64) (models.Streak, error) {
 	var st models.Streak
-	var last sql.NullString
-	err := s.db.QueryRow(`SELECT current_count, longest_count, last_active_date FROM streaks WHERE user_id = $1`, userID).
-		Scan(&st.Current, &st.Longest, &last)
+	var last, mend sql.NullString
+	err := s.db.QueryRow(`SELECT current_count, longest_count, last_active_date, last_mend_date FROM streaks WHERE user_id = $1`, userID).
+		Scan(&st.Current, &st.Longest, &last, &mend)
 	if err == sql.ErrNoRows {
 		return models.Streak{}, nil
 	}
@@ -880,6 +923,10 @@ func (s *Store) GetStreak(userID int64) (models.Streak, error) {
 	if last.Valid {
 		v := last.String
 		st.LastActiveDate = &v
+	}
+	if mend.Valid && mend.String != "" {
+		v := mend.String
+		st.LastMendDate = &v
 	}
 	return st, nil
 }
@@ -957,6 +1004,43 @@ func (s *Store) ActiveDaysSince(userID int64, since time.Time) (int, error) {
 		days[t.Local().Format(dayFormat)] = true
 	}
 	return len(days), rows.Err()
+}
+
+// ActiveDaySet returns the local days (YYYY-MM-DD) on which the user
+// "showed up" — any positive, non-seed xp_event (quest, journal, tool,
+// supplement) since cutoff. Same signal as the streak, for the dashboard
+// activity strip.
+func (s *Store) ActiveDaySet(userID int64, since time.Time) (map[string]bool, error) {
+	rows, err := s.db.Query(
+		`SELECT created_at FROM xp_events WHERE user_id = $1 AND amount > 0 AND source <> 'seed' AND created_at >= $2`,
+		userID, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	days := map[string]bool{}
+	for rows.Next() {
+		var t time.Time
+		if err := rows.Scan(&t); err != nil {
+			return nil, err
+		}
+		days[t.Local().Format(dayFormat)] = true
+	}
+	return days, rows.Err()
+}
+
+// DailyQuestCountToday counts the daily quests on today's board: active ones
+// plus those already completed today (they stay 'completed' until the
+// midnight rollover). This is the closable daily set behind the goal ring.
+func (s *Store) DailyQuestCountToday(userID int64, now time.Time) (int, error) {
+	start, _ := localDayBounds(now)
+	var n int
+	err := s.db.QueryRow(
+		`SELECT COUNT(1) FROM quests
+		 WHERE user_id = $1 AND type = 'daily'
+		   AND (status = 'active' OR (status = 'completed' AND completed_at >= $2))`,
+		userID, start).Scan(&n)
+	return n, err
 }
 
 // CompletionsSince counts total completions since cutoff.

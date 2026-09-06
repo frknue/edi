@@ -10,6 +10,13 @@ import (
 // WardAttribute buys a Maintenance Ward: WardCostGold gold shields one
 // attribute from decay for WardDays days (extends a still-active ward).
 func (s *Service) WardAttribute(key string) (models.WardResult, error) {
+	hardcore, err := s.hardcoreOn()
+	if err != nil {
+		return models.WardResult{}, err
+	}
+	if !hardcore {
+		return models.WardResult{}, validationErr("wards only matter in hardcore mode — decay is off")
+	}
 	names, err := s.store.AttributeNames(s.userID)
 	if err != nil {
 		return models.WardResult{}, err

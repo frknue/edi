@@ -56,6 +56,19 @@ export interface RestState {
   since?: string;
 }
 
+// The opt-in punishment layer (decay, daily stakes, wards). Off by default.
+export interface HardcoreState {
+  on: boolean;
+  since?: string;
+}
+
+// One local day of the 14-day activity strip on the dashboard.
+export interface ActiveDay {
+  day: string; // YYYY-MM-DD
+  active: boolean;
+  today: boolean;
+}
+
 export interface Attribute {
   id: number;
   key: string;
@@ -123,6 +136,7 @@ export interface Streak {
   current: number;
   longest: number;
   last_active_date: string | null;
+  last_mend_date?: string; // a one-day gap was bridged for free on this day
 }
 
 export interface ShopItem {
@@ -270,8 +284,10 @@ export interface Dashboard {
   gold_balance: number;
   rest_mode: boolean;
   rest_since?: string;
+  hardcore: boolean;
   decayed_today: number;
   daily_penalty_xp: number;
+  active_days: ActiveDay[];
   recent_xp_events: XPEvent[];
   recommended_quest: Quest | null;
   daily_progress: DailyProgress;
@@ -313,10 +329,12 @@ export interface ItemDrop {
 }
 
 export interface ActiveBuff {
+  id: number;
   item_key: string;
   attribute: string; // "" = all
   percent: number;
   expires_at: string;
+  uses_left?: number; // undefined = unlimited (legacy drop)
 }
 
 export interface CompletionResult {

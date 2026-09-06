@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { getAttr, getType, difficultyMeta } from "../lib/theme";
 import type { Difficulty, QuestType } from "../lib/types";
 import { pct } from "../lib/format";
@@ -127,6 +127,74 @@ export function RewardChips({ rewards }: { rewards: Record<string, number> }) {
 }
 
 // --- layout helpers ---------------------------------------------------------
+
+// Fold: a collapsible section for everything that is not the next action.
+// Open state is remembered per device (localStorage) so a stat sheet the
+// player never wants stays folded.
+export function Fold({
+  id,
+  title,
+  hint,
+  action,
+  defaultOpen = false,
+  children,
+  testId,
+}: {
+  id: string;
+  title: ReactNode;
+  hint?: string;
+  action?: ReactNode;
+  defaultOpen?: boolean;
+  children: ReactNode;
+  testId?: string;
+}) {
+  const key = `edi.fold.${id}`;
+  const [open, setOpen] = useState<boolean>(() => {
+    try {
+      const v = localStorage.getItem(key);
+      return v === null ? defaultOpen : v === "1";
+    } catch {
+      return defaultOpen;
+    }
+  });
+  const toggle = () => {
+    setOpen((o) => {
+      try {
+        localStorage.setItem(key, o ? "0" : "1");
+      } catch {
+        /* private mode */
+      }
+      return !o;
+    });
+  };
+  return (
+    <section data-testid={testId ?? `fold-${id}`} data-open={open ? "1" : "0"}>
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <button
+          type="button"
+          onClick={toggle}
+          className="group flex min-w-0 items-start gap-2 text-left"
+          aria-expanded={open}
+          data-testid={`fold-toggle-${id}`}
+        >
+          <span
+            aria-hidden
+            className="mt-1 inline-block text-[var(--color-phos)] transition-transform"
+            style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)" }}
+          >
+            ▸
+          </span>
+          <span>
+            <span className="font-display text-base uppercase tracking-[0.14em] text-ink group-hover:text-[var(--color-goldhi)]">{title}</span>
+            {hint && <span className="block text-xs text-faint">{hint}</span>}
+          </span>
+        </button>
+        {open && action}
+      </div>
+      {open && children}
+    </section>
+  );
+}
 
 export function SectionTitle({
   children,

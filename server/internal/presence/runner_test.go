@@ -212,13 +212,29 @@ func TestPresenceOnDemandPushes(t *testing.T) {
 		t.Fatalf("/nudge now = %q, want the nudge", got)
 	}
 
-	// After completing something today, the nudge stands down.
+	// One completion does NOT silence it: the nudge acknowledges progress
+	// and asks for one more until today's set is cleared.
 	quests, _ := svc.ListQuests("", "active")
 	if _, err := svc.CompleteQuest(quests[0].ID); err != nil {
 		t.Fatalf("complete: %v", err)
 	}
+	if got := r.handleMessage(chat, "/nudge"); !strings.Contains(got, "today. One more?") {
+		t.Fatalf("/nudge after progress = %q, want a progress-aware nudge", got)
+	}
+	// Clearing the set (every daily done) stands it down.
+	for _, q := range quests[1:] {
+		if q.Type == "daily" {
+			if _, err := svc.CompleteQuest(q.ID); err != nil {
+				t.Fatalf("complete %d: %v", q.ID, err)
+			}
+		}
+	}
+	d, _ := svc.GetDashboard()
+	if d.DailyProgress.CompletedToday < d.DailyProgress.Goal {
+		t.Fatalf("set not cleared: %d/%d", d.DailyProgress.CompletedToday, d.DailyProgress.Goal)
+	}
 	if got := r.handleMessage(chat, "/nudge"); !strings.Contains(got, "Nothing to nudge about") {
-		t.Fatalf("/nudge after progress = %q, want stand-down message", got)
+		t.Fatalf("/nudge after clearing the set = %q, want stand-down message", got)
 	}
 
 	// Setting times still works with an argument.

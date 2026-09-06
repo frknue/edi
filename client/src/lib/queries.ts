@@ -485,6 +485,17 @@ export function useWardAttribute() {
   });
 }
 
+export function useSetHardcoreMode() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (on: boolean) => api.setHardcoreMode(on),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["attributes"] });
+    },
+  });
+}
+
 export function useSetRestMode() {
   const qc = useQueryClient();
   return useMutation({

@@ -14,9 +14,6 @@ import (
 	"edi/internal/tools"
 )
 
-// DailyGoal is the target number of completed quests per day.
-const DailyGoal = 5
-
 // ErrValidation is returned for bad client input (mapped to HTTP 400).
 var ErrValidation = errors.New("validation error")
 
@@ -96,11 +93,20 @@ func (s *Service) ListAttributes() ([]models.Attribute, error) {
 		out = append(out, enrichAttribute(a))
 	}
 
+	// Decay status is a hardcore-only surface: outside hardcore every
+	// attribute reports no decay at all (nil), so no client renders rust.
+	hardcore, err := s.hardcoreOn()
+	if err != nil {
+		return nil, err
+	}
+	if !hardcore {
+		return out, nil
+	}
 	rest, err := s.RestState()
 	if err != nil {
 		return nil, err
 	}
-	restEnded, err := s.restEndedAt()
+	floor, err := s.idleAnchorFloor()
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +115,7 @@ func (s *Service) ListAttributes() ([]models.Attribute, error) {
 		return nil, err
 	}
 	for i := range out {
-		out[i].Decay = decayStatus(out[i], inputs[out[i].Key], rest, restEnded, time.Now().UTC())
+		out[i].Decay = decayStatus(out[i], inputs[out[i].Key], rest, floor, time.Now().UTC())
 	}
 	return out, nil
 }
@@ -236,7 +242,13 @@ func (s *Service) rollOverRecurringQuests() error {
 	if rest.On {
 		restSince = rest.Since
 	}
-	_, err = s.store.RollOverRecurringQuests(s.userID, time.Now(), restSince)
+	hardcore, err := s.hardcoreOn()
+	if err != nil {
+		return err
+	}
+	// Outside hardcore the stakes cursor still advances (so switching hardcore
+	// on later never bills the past) but no XP is removed.
+	_, err = s.store.RollOverRecurringQuests(s.userID, time.Now(), restSince, hardcore)
 	return err
 }
 
@@ -627,7 +639,19 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 	if err != nil {
 		return models.Dashboard{}, err
 	}
+	hardcore, err := s.hardcoreOn()
+	if err != nil {
+		return models.Dashboard{}, err
+	}
 	dailyPenaltyXP, err := s.store.DailyQuestPenaltyToday(s.userID, time.Now())
+	if err != nil {
+		return models.Dashboard{}, err
+	}
+	dailiesToday, err := s.store.DailyQuestCountToday(s.userID, time.Now())
+	if err != nil {
+		return models.Dashboard{}, err
+	}
+	activeDays, err := s.activeDayStrip(activeDayStripLen, time.Now())
 	if err != nil {
 		return models.Dashboard{}, err
 	}
@@ -642,7 +666,7 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 		XPIntoLevel: into, XPForNextLevel: forNext, Progress: ratio,
 	}
 
-	goal := DailyGoal
+	goal := dailyGoal(dailiesToday)
 	dailyRatio := float64(completedToday) / float64(goal)
 	if dailyRatio > 1 {
 		dailyRatio = 1
@@ -659,7 +683,9 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 		GoldBalance:      goldBalance,
 		RestMode:         rest.On,
 		RestSince:        rest.Since,
+		Hardcore:         hardcore,
 		DailyPenaltyXP:   dailyPenaltyXP,
+		ActiveDays:       activeDays,
 		RecentXPEvents:   orEmpty(events),
 		RecommendedQuest: recommended,
 		DailyProgress:    models.DailyProgress{CompletedToday: completedToday, Goal: goal, Ratio: dailyRatio, NextComboMultiplier: ComboMultiplier(completedToday + 1)},
@@ -667,6 +693,43 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 		ActiveBuffs:      orEmpty(buffs),
 		DecayedToday:     decayed,
 	}, nil
+}
+
+// activeDayStripLen is how many local days the dashboard activity strip
+// covers (the headline replaces the streak counter: "days you showed up").
+const activeDayStripLen = 14
+
+// dailyGoal is today's target: the daily quests on the board (active or
+// already completed today), never below 1 — a closable set, not a fixed 5.
+func dailyGoal(dailiesToday int) int {
+	if dailiesToday < 1 {
+		return 1
+	}
+	return dailiesToday
+}
+
+// activeDayStrip returns the last n local days (oldest first) flagged by
+// whether at least one quest was completed that day.
+func (s *Service) activeDayStrip(n int, now time.Time) ([]models.ActiveDay, error) {
+	today := localDate(now)
+	since := today.AddDate(0, 0, -(n - 1))
+	set, err := s.store.ActiveDaySet(s.userID, since)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]models.ActiveDay, 0, n)
+	for i := 0; i < n; i++ {
+		day := since.AddDate(0, 0, i)
+		key := day.Format("2006-01-02")
+		out = append(out, models.ActiveDay{Day: key, Active: set[key], Today: i == n-1})
+	}
+	return out, nil
+}
+
+// localDate truncates to the local calendar day (mirrors db.localDate).
+func localDate(t time.Time) time.Time {
+	l := t.Local()
+	return time.Date(l.Year(), l.Month(), l.Day(), 0, 0, 0, 0, time.Local)
 }
 
 // recommendQuest picks the next useful active quest: prefer the one that best

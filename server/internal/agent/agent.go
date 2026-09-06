@@ -47,7 +47,7 @@ func NewRegistry() *Registry {
 		r.tools = append(r.tools, Tool{Name: name, Description: desc, InputSchema: raw(schema), handler: h})
 	}
 
-	add("get_dashboard", "Return the full dashboard: character level, attributes, today's quests, streak, recent XP, missed-daily penalty XP, recommended quest, and pending suggestions.",
+	add("get_dashboard", "Return the full dashboard: character level, attributes, today's quests, daily goal progress, streak, the last 14 active days, recent XP, recommended quest, pending suggestions, and whether hardcore mode (decay/stakes) is on.",
 		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) { return svc.GetDashboard() })
 
 	add("get_quest_board", "Return the user's shared quest board and its members. Use the member ids when assigning a quest to one or both players.",
@@ -282,7 +282,7 @@ func NewRegistry() *Registry {
 			return svc.ListGoldEvents(p.Limit, p.Source)
 		})
 
-	add("ward_attribute", "Buy a Maintenance Ward: spend 30 gold to shield one attribute from decay for 7 days (extends an active ward).",
+	add("ward_attribute", "Buy a Maintenance Ward: spend 30 gold to shield one attribute from decay for 7 days (extends an active ward). Only valid in hardcore mode — outside it there is no decay and the call fails with a validation error.",
 		`{"type":"object","required":["attribute_key"],"properties":{"attribute_key":{"type":"string"}}}`,
 		func(svc *services.Service, in json.RawMessage) (any, error) {
 			var p struct {
@@ -297,7 +297,22 @@ func NewRegistry() *Registry {
 			return svc.WardAttribute(p.AttributeKey)
 		})
 
-	add("set_rest_mode", "Turn rest mode on or off. While on, ALL attribute decay is paused (vacation/sick weeks); turning it off restarts every idle clock.",
+	add("get_hardcore_mode", "Report whether hardcore mode is on: the opt-in punishment layer (attribute decay, missed-daily XP stakes, wards). Off by default.",
+		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) { return svc.HardcoreState() })
+
+	add("set_hardcore_mode", "Turn hardcore mode on or off. On: neglected attributes decay and unfinished dailies cost XP at midnight. Off (default): no XP is ever removed. Turning it on never bills the past.",
+		`{"type":"object","required":["on"],"properties":{"on":{"type":"boolean"}}}`,
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			var p struct {
+				On bool `json:"on"`
+			}
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			return svc.SetHardcoreMode(p.On)
+		})
+
+	add("set_rest_mode", "Turn rest mode on or off (planned downtime: the evening nudge stands down; in hardcore mode decay and daily stakes pause too). Turning it off restarts every idle clock.",
 		`{"type":"object","required":["on"],"properties":{"on":{"type":"boolean"}}}`,
 		func(svc *services.Service, in json.RawMessage) (any, error) {
 			var p struct {

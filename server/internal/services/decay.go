@@ -45,12 +45,17 @@ func DecayFloor(peakXP int64) int64 {
 	return XPForLevel(LevelForXP(peakXP) - 2)
 }
 
-// ApplyDecay runs the lazy decay catch-up unless rest mode is on. It is
-// called at the top of attribute-touching reads and before completions, so
-// decay is always applied before new state is read or awarded. Returns the
-// XP removed by this call (0 when nothing was owed).
+// ApplyDecay runs the lazy decay catch-up — only in hardcore mode, and not
+// while rest mode is on. It is called at the top of attribute-touching reads
+// and before completions, so decay is always applied before new state is
+// read or awarded. Returns the XP removed by this call (0 when nothing was
+// owed, always 0 outside hardcore).
 func (s *Service) ApplyDecay() (int64, error) {
 	if err := s.rollOverRecurringQuests(); err != nil {
+		return 0, err
+	}
+	hardcore, err := s.hardcoreOn()
+	if err != nil || !hardcore {
 		return 0, err
 	}
 	rest, err := s.RestState()
@@ -60,23 +65,23 @@ func (s *Service) ApplyDecay() (int64, error) {
 	if rest.On {
 		return 0, nil
 	}
-	ended, err := s.restEndedAt()
+	floor, err := s.idleAnchorFloor()
 	if err != nil {
 		return 0, err
 	}
-	return s.store.ApplyDecay(s.userID, ended, time.Now().UTC())
+	return s.store.ApplyDecay(s.userID, floor, time.Now().UTC())
 }
 
 // decayStatus computes the read-side decay state for one attribute.
-func decayStatus(a models.Attribute, in db.DecayInput, rest models.RestState, restEnded *time.Time, now time.Time) *models.AttributeDecay {
+func decayStatus(a models.Attribute, in db.DecayInput, rest models.RestState, anchorFloor *time.Time, now time.Time) *models.AttributeDecay {
 	d := &models.AttributeDecay{FloorLevel: LevelForXP(DecayFloor(a.PeakXP))}
 
 	anchor := time.Time{}
 	if in.LastActivity != nil {
 		anchor = *in.LastActivity
 	}
-	if restEnded != nil && restEnded.After(anchor) {
-		anchor = *restEnded
+	if anchorFloor != nil && anchorFloor.After(anchor) {
+		anchor = *anchorFloor
 	}
 	if !anchor.IsZero() {
 		d.IdleDays = localDaysBetween(anchor, now)

@@ -10,7 +10,7 @@ import (
 )
 
 func TestWardAttribute(t *testing.T) {
-	svc := newTestService(t) // seed balance: 252 gold
+	svc := newHardcoreTestService(t) // seed balance: 252 gold
 	res, err := svc.WardAttribute("strength")
 	if err != nil {
 		t.Fatalf("ward: %v", err)
@@ -40,7 +40,7 @@ func TestWardAttribute(t *testing.T) {
 }
 
 func TestWardErrors(t *testing.T) {
-	svc := newTestService(t)
+	svc := newHardcoreTestService(t)
 	if _, err := svc.WardAttribute("nonsense"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("unknown attribute: got %v, want ErrNotFound", err)
 	}
@@ -60,7 +60,7 @@ func TestWardErrors(t *testing.T) {
 }
 
 func TestRestMode(t *testing.T) {
-	svc := newTestService(t)
+	svc := newHardcoreTestService(t)
 
 	st, err := svc.RestState()
 	if err != nil || st.On {
@@ -87,6 +87,22 @@ func TestRestMode(t *testing.T) {
 
 // backdateAttribute makes an attribute look idle by shifting all its positive
 // xp_events into the past. Test-only trick; the engine only reads times.
+// newHardcoreTestService is newTestService with the punishment layer ON —
+// the decay / daily-stake / ward tests exercise the hardcore path.
+func newHardcoreTestService(t *testing.T) *Service {
+	t.Helper()
+	svc := newTestService(t)
+	if _, err := svc.SetHardcoreMode(true); err != nil {
+		t.Fatalf("hardcore on: %v", err)
+	}
+	// Seed data predates the switch; the tests backdate activity explicitly,
+	// so clear the anchor the switch wrote (it exists to protect real users).
+	if err := svc.store.SetSetting(svc.userID, settingHardcoreSince, ""); err != nil {
+		t.Fatalf("clear hardcore_since: %v", err)
+	}
+	return svc
+}
+
 func backdateAttribute(t *testing.T, svc *Service, key string, daysAgo int) {
 	t.Helper()
 	ts := time.Now().UTC().AddDate(0, 0, -daysAgo)
@@ -97,7 +113,7 @@ func backdateAttribute(t *testing.T, svc *Service, key string, daysAgo int) {
 }
 
 func TestDecayCatchUp(t *testing.T) {
-	svc := newTestService(t)
+	svc := newHardcoreTestService(t)
 	backdateAttribute(t, svc, "strength", 10) // 520 XP, 10 idle days
 
 	removed, err := svc.ApplyDecay()
@@ -130,7 +146,7 @@ func TestDecayCatchUp(t *testing.T) {
 }
 
 func TestDecayGraceAndFloor(t *testing.T) {
-	svc := newTestService(t)
+	svc := newHardcoreTestService(t)
 
 	// 3 idle days = still in grace: nothing happens.
 	backdateAttribute(t, svc, "focus", 3)
@@ -151,7 +167,7 @@ func TestDecayGraceAndFloor(t *testing.T) {
 }
 
 func TestDecaySkipsRest(t *testing.T) {
-	svc := newTestService(t)
+	svc := newHardcoreTestService(t)
 
 	// Rest mode on: no decay at all.
 	backdateAttribute(t, svc, "wealth", 10)
@@ -173,7 +189,7 @@ func TestDecaySkipsRest(t *testing.T) {
 // Separate service from the rest test: turning rest off resets ALL idle
 // clocks, which would zero out the ward scenario below.
 func TestDecayWardExcludesCoveredDays(t *testing.T) {
-	svc := newTestService(t)
+	svc := newHardcoreTestService(t)
 
 	// A fresh ward covers today, so today's bill is excluded, but the
 	// uncovered past days still bill. learning: 300 XP, idle 6 days -> days
@@ -192,7 +208,7 @@ func TestDecayWardExcludesCoveredDays(t *testing.T) {
 }
 
 func TestDecayConcurrentSingleApplication(t *testing.T) {
-	svc := newTestService(t)
+	svc := newHardcoreTestService(t)
 	backdateAttribute(t, svc, "creativity", 8) // 170 XP: days 4..8 = 5 days * 5 = 25
 
 	var wg sync.WaitGroup
@@ -213,7 +229,7 @@ func TestDecayConcurrentSingleApplication(t *testing.T) {
 }
 
 func TestDecayStatusOnAttributes(t *testing.T) {
-	svc := newTestService(t)
+	svc := newHardcoreTestService(t)
 	backdateAttribute(t, svc, "health", 2)  // grace
 	backdateAttribute(t, svc, "wealth", 10) // decaying
 	if _, err := svc.WardAttribute("focus"); err != nil {
@@ -263,7 +279,7 @@ func TestDecayStatusOnAttributes(t *testing.T) {
 }
 
 func TestRedundantRestOffDoesNotResetClocks(t *testing.T) {
-	svc := newTestService(t)
+	svc := newHardcoreTestService(t)
 	backdateAttribute(t, svc, "wealth", 10) // seed wealth: 250 XP, 10 idle days
 	// Rest was never on; a redundant "off" must not move any idle clock.
 	if _, err := svc.SetRestMode(false); err != nil {
@@ -283,7 +299,7 @@ func TestRedundantRestOffDoesNotResetClocks(t *testing.T) {
 // XPForLevel(2)=100, set the current total just above it, and verify the
 // final bleed is partial and lands EXACTLY on the floor.
 func TestDecayPartialBleedLandsOnFloor(t *testing.T) {
-	svc := newTestService(t)
+	svc := newHardcoreTestService(t)
 	// health seed: 90 XP. Force peak 900 and total 103 directly (test-only
 	// surgery; keep the audit invariant by inserting a matching xp_event).
 	if _, err := svc.store.DB().Exec(
@@ -311,7 +327,7 @@ func TestDecayPartialBleedLandsOnFloor(t *testing.T) {
 // Completing a quest after long idleness must decay FIRST, then award —
 // so the completion lands on post-decay numbers.
 func TestDecayAppliesBeforeCompletion(t *testing.T) {
-	svc := newTestService(t)
+	svc := newHardcoreTestService(t)
 	backdateAttribute(t, svc, "strength", 10)                // 520 XP -> 7 days * 5 = 35 owed
 	workout := findQuestByTitle(t, svc, "30 minute workout") // {strength:40, discipline:10}
 	result, err := svc.CompleteQuest(workout.ID)

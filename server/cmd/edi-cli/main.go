@@ -25,8 +25,9 @@
 //	shop-add --name N --price P     Add a reward to the shop
 //	buy <id>                        Purchase a shop item (spends gold)
 //	gold                            Gold balance + recent ledger
-//	ward <attribute>                Buy a 7-day decay ward for an attribute (30g)
-//	rest [on|off]                   Show / pause / resume all attribute decay
+//	ward <attribute>                Buy a 7-day decay ward for an attribute (30g, hardcore mode)
+//	rest [on|off]                   Show / toggle rest mode (nudges stand down; pauses decay in hardcore)
+//	hardcore [on|off]               Show / toggle hardcore mode (decay + daily XP stakes; off by default)
 //	story | boss                    AI story narration / forge a boss quest
 //	push-times [--briefing HH:MM] [--nudge HH:MM]   Show / set Telegram push times
 //	status                          Compact stats block for shell startup (fail-silent)
@@ -137,6 +138,8 @@ func run(c *apiclient.Client, cmd string, args []string) error {
 		return cmdWard(c, args)
 	case "rest":
 		return cmdRest(c, args)
+	case "hardcore":
+		return cmdHardcore(c, args)
 	case "story":
 		return cmdStory(c)
 	case "boss":
@@ -814,6 +817,34 @@ func cmdWard(c *apiclient.Client, args []string) error {
 	return nil
 }
 
+func cmdHardcore(c *apiclient.Client, args []string) error {
+	if len(args) == 0 {
+		state, err := c.HardcoreState()
+		if err != nil {
+			return err
+		}
+		if state.On {
+			fmt.Println("Hardcore mode ON — attributes decay when idle, unfinished dailies cost XP at midnight.")
+		} else {
+			fmt.Println("Hardcore mode OFF — no XP is ever removed.")
+		}
+		return nil
+	}
+	if len(args) != 1 || (args[0] != "on" && args[0] != "off") {
+		return fmt.Errorf("usage: hardcore [on|off]")
+	}
+	state, err := c.SetHardcoreMode(args[0] == "on")
+	if err != nil {
+		return err
+	}
+	if state.On {
+		fmt.Println("Hardcore mode ON. Idle clocks start now — nothing in the past is billed.")
+	} else {
+		fmt.Println("Hardcore mode OFF. Decay and daily stakes are gone.")
+	}
+	return nil
+}
+
 func cmdRest(c *apiclient.Client, args []string) error {
 	if len(args) == 0 {
 		state, err := c.RestState()
@@ -821,7 +852,7 @@ func cmdRest(c *apiclient.Client, args []string) error {
 			return err
 		}
 		if state.On {
-			fmt.Println("Rest mode ON — decay paused.")
+			fmt.Println("Rest mode ON — nudges stand down.")
 		} else {
 			fmt.Println("Rest mode OFF.")
 		}
@@ -835,7 +866,7 @@ func cmdRest(c *apiclient.Client, args []string) error {
 		return err
 	}
 	if state.On {
-		fmt.Println("Rest mode ON — decay paused. Recover well.")
+		fmt.Println("Rest mode ON — nudges stand down. Recover well.")
 	} else {
 		fmt.Println("Rest mode OFF — idle clocks restarted from now.")
 	}

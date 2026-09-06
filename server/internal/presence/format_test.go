@@ -60,13 +60,26 @@ func TestFormatQuestsEmpty(t *testing.T) {
 func TestNudgeQuestConditions(t *testing.T) {
 	d := sampleDashboard()
 
-	// Completed today > 0: no nudge.
+	// Set not cleared (2/5): the nudge still fires — it only stands down
+	// once today's set is closed.
+	if q, ok := nudgeQuest(d); !ok || q.ID != 9 {
+		t.Errorf("nudge with 2/5 done = %+v/%v, want quest 9", q, ok)
+	}
+	if got := formatNudge(d, *sampleQuest(d, 9)); !strings.Contains(got, "2/5 today") || strings.Contains(got, "Nothing logged") {
+		t.Errorf("progress-aware nudge = %q", got)
+	}
+
+	// Set cleared: no nudge.
+	d.DailyProgress.CompletedToday = 5
 	if _, ok := nudgeQuest(d); ok {
-		t.Error("nudge fired despite completions today")
+		t.Error("nudge fired despite a cleared set")
 	}
 
 	// Nothing done: nudge the easiest (easy beats medium).
 	d.DailyProgress.CompletedToday = 0
+	if got := formatNudge(d, *sampleQuest(d, 9)); !strings.Contains(got, "Nothing logged today") {
+		t.Errorf("zero-progress nudge = %q", got)
+	}
 	q, ok := nudgeQuest(d)
 	if !ok || q.ID != 9 {
 		t.Errorf("nudge = %+v/%v, want quest 9 (easy)", q, ok)
@@ -93,6 +106,15 @@ func TestNudgeQuestConditions(t *testing.T) {
 	if _, ok := nudgeQuest(d); ok {
 		t.Error("nudge fired with no quests")
 	}
+}
+
+func sampleQuest(d models.Dashboard, id int64) *models.Quest {
+	for i := range d.TodayQuests {
+		if d.TodayQuests[i].ID == id {
+			return &d.TodayQuests[i]
+		}
+	}
+	return nil
 }
 
 func TestNextFire(t *testing.T) {

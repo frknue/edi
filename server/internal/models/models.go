@@ -169,11 +169,13 @@ type XPEvent struct {
 	CreatedAt     time.Time `json:"created_at"`
 }
 
-// Streak tracks consecutive active days.
+// Streak tracks consecutive active days. A one-day gap is auto-mended for
+// free at most once per 7 days (LastMendDate records the last bridge).
 type Streak struct {
 	Current        int     `json:"current"`
 	Longest        int     `json:"longest"`
 	LastActiveDate *string `json:"last_active_date"` // YYYY-MM-DD
+	LastMendDate   *string `json:"last_mend_date,omitempty"`
 }
 
 // JournalEntry is a daily reflection.
@@ -227,7 +229,7 @@ type Achievement struct {
 }
 
 // ItemDrop is one piece of loot: a completion may drop a trophy, a temporal
-// XP buff (auto-active until local midnight), or an instant gold cache.
+// XP buff (auto-active for 24 h or 3 completions), or an instant gold cache.
 type ItemDrop struct {
 	ID        int64      `json:"id"`
 	Key       string     `json:"key"`
@@ -246,10 +248,12 @@ type ItemDrop struct {
 // ActiveBuff is a running loot buff shown on the dashboard and applied (as
 // auditable 'buff' xp_events) to completions until it expires.
 type ActiveBuff struct {
+	ID        int64     `json:"id"`
 	ItemKey   string    `json:"item_key"`
 	Attribute string    `json:"attribute"` // "" = all attributes
 	Percent   int       `json:"percent"`
 	ExpiresAt time.Time `json:"expires_at"`
+	UsesLeft  *int      `json:"uses_left,omitempty"` // nil = unlimited (legacy drops)
 }
 
 // TelegramStatus is a user's view of the Telegram presence channel.
@@ -364,8 +368,10 @@ type Dashboard struct {
 	GoldBalance      int64             `json:"gold_balance"`
 	RestMode         bool              `json:"rest_mode"`
 	RestSince        *time.Time        `json:"rest_since,omitempty"`
-	DecayedToday     int64             `json:"decayed_today"`    // XP removed by this request's decay catch-up
-	DailyPenaltyXP   int64             `json:"daily_penalty_xp"` // XP removed today for missed daily quests
+	Hardcore         bool              `json:"hardcore"`         // punishment layer live (decay, stakes, wards)
+	DecayedToday     int64             `json:"decayed_today"`    // XP removed by this request's decay catch-up (hardcore only)
+	DailyPenaltyXP   int64             `json:"daily_penalty_xp"` // XP removed today for missed daily quests (hardcore only)
+	ActiveDays       []ActiveDay       `json:"active_days"`      // last 14 local days, oldest first
 	RecentXPEvents   []XPEvent         `json:"recent_xp_events"`
 	RecommendedQuest *Quest            `json:"recommended_quest"`
 	DailyProgress    DailyProgress     `json:"daily_progress"`
@@ -557,6 +563,20 @@ type WardResult struct {
 type RestState struct {
 	On    bool       `json:"on"`
 	Since *time.Time `json:"since,omitempty"`
+}
+
+// HardcoreState reports whether the opt-in punishment layer (decay, daily
+// stakes, wards) is live. Off by default.
+type HardcoreState struct {
+	On    bool       `json:"on"`
+	Since *time.Time `json:"since,omitempty"`
+}
+
+// ActiveDay is one local day of the recent-activity strip on the dashboard.
+type ActiveDay struct {
+	Day    string `json:"day"` // YYYY-MM-DD
+	Active bool   `json:"active"`
+	Today  bool   `json:"today"`
 }
 
 // AttributeDecay describes an attribute's decay state, computed on read.

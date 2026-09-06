@@ -696,6 +696,31 @@ func (h *Handlers) wardAttribute(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+func (h *Handlers) getHardcore(w http.ResponseWriter, r *http.Request) {
+	st, err := h.forUser(r).HardcoreState()
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, st)
+}
+
+func (h *Handlers) setHardcore(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		On bool `json:"on"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		writeError(w, err)
+		return
+	}
+	st, err := h.forUser(r).SetHardcoreMode(body.On)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, st)
+}
+
 func (h *Handlers) setRest(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		On bool `json:"on"`

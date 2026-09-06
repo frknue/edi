@@ -6,9 +6,10 @@ import (
 	"edi/internal/models"
 )
 
-// Rest mode pauses ALL decay (vacation / sick weeks). It is free but loud:
-// the dashboard shows a banner while it is on. Turning it off restarts every
-// attribute's idle clock from that moment (see the decay engine).
+// Rest mode is planned downtime (vacation / sick weeks): the evening nudge
+// stands down and, in hardcore mode, ALL decay and daily stakes pause.
+// Turning it off restarts every attribute's idle clock from that moment
+// (see the decay engine).
 const (
 	settingRestMode    = "rest_mode"     // "1" on, "" off
 	settingRestSince   = "rest_since"    // RFC3339

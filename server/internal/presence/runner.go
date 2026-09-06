@@ -277,9 +277,9 @@ func (r *Runner) handleCommand(svc *services.Service, chatID int64, cmd, arg str
 				return "⚠ " + html.EscapeString(userMessage(err))
 			}
 			if state.On {
-				return "☾ Rest mode ON — decay paused. Recover well."
+				return "☾ Rest mode ON — nudges stand down. Recover well."
 			}
-			return "☀ Rest mode OFF — idle clocks restarted."
+			return "☀ Rest mode OFF — welcome back."
 		default:
 			return "Usage: /rest on|off"
 		}
@@ -296,9 +296,9 @@ func (r *Runner) handleCommand(svc *services.Service, chatID int64, cmd, arg str
 			}
 			q, ok := nudgeQuest(d)
 			if !ok {
-				return "Nothing to nudge about — you've logged progress today (or rest mode is on). 🔥"
+				return "Nothing to nudge about — today's set is cleared (or rest mode is on). 🔥"
 			}
-			return fmt.Sprintf("🌙 Nothing logged today. Smallest step:\n%s\n\n/done %d and the streak lives.", questLine(*q), q.ID)
+			return formatNudge(d, *q)
 		}
 		if err := svc.SetTelegramPushTime(cmd, arg); err != nil {
 			return "⚠ " + html.EscapeString(userMessage(err))
@@ -508,5 +508,5 @@ func (r *Runner) buildNudge(svc *services.Service) (string, error) {
 	if !ok {
 		return "", nil
 	}
-	return fmt.Sprintf("🌙 Nothing logged today. Smallest step:\n%s\n\n/done %d and the streak lives.", questLine(*q), q.ID), nil
+	return formatNudge(d, *q), nil
 }

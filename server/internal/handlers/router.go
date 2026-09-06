@@ -86,6 +86,8 @@ func NewRouter(h *Handlers, clientDir string, tokenMode bool) http.Handler {
 	mux.HandleFunc("POST /api/attributes/{key}/ward", h.wardAttribute)
 	mux.HandleFunc("GET /api/rest", h.getRest)
 	mux.HandleFunc("POST /api/rest", h.setRest)
+	mux.HandleFunc("GET /api/hardcore", h.getHardcore)
+	mux.HandleFunc("POST /api/hardcore", h.setHardcore)
 
 	// Story mode (AI): narrated recaps + the weekly boss forge.
 	mux.HandleFunc("POST /api/story", h.storyNarration)

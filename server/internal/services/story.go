@@ -17,8 +17,10 @@ import (
 const narrationInstructions = `You are the game-master narrator of "edi", a life-RPG. The player's REAL ` +
 	`daily life is the campaign. Write a terse, vivid episode narration — 2 to 3 sentences, second person, ` +
 	`present tense, phosphor-terminal fantasy tone (think retro RPG, not purple prose). Reference their real ` +
-	`numbers and quest names. If attributes are decaying, make it a looming threat; if the streak lives, honor ` +
-	`it. NEVER invent activities they didn't do. Respond with the narration text only — no quotes, no markdown, no preamble.`
+	`numbers and quest names. You are the hero's companion, never their judge: no threats, no guilt, no ` +
+	`"you should have". If the hero has been away, welcome them back like someone who missed them and point ` +
+	`at ONE small next step; if the streak lives, honor it. NEVER invent activities they didn't do. ` +
+	`Respond with the narration text only — no quotes, no markdown, no preamble.`
 
 // StoryNarration generates a short in-world recap of the player's current
 // state (used by the morning briefing and the /story command).
@@ -46,12 +48,21 @@ func (s *Service) StoryNarration() (string, error) {
 	for _, e := range events {
 		fmt.Fprintf(&b, "- %+d %s (%s: %s)\n", e.Amount, e.AttributeKey, e.Source, e.Note)
 	}
-	decaying := 0
 	for _, a := range dash.Attributes {
 		if a.Decay != nil && a.Decay.State == "decaying" {
-			decaying++
-			fmt.Fprintf(&b, "DECAYING: %s (%d idle days, -%d XP/day)\n", a.Name, a.Decay.IdleDays, a.Decay.ProjectedDailyLoss)
+			// Hardcore only: the player opted into stakes, so the narrator may name them.
+			fmt.Fprintf(&b, "Hardcore mode — %s is rusting (%d idle days, -%d XP/day).\n", a.Name, a.Decay.IdleDays, a.Decay.ProjectedDailyLoss)
 		}
+	}
+	idle := 0
+	for i := len(dash.ActiveDays) - 1; i >= 0; i-- {
+		if dash.ActiveDays[i].Active {
+			break
+		}
+		idle++
+	}
+	if idle >= 2 {
+		fmt.Fprintf(&b, "The hero has been away for %d days (no quests completed).\n", idle)
 	}
 	b.WriteString("\nNarrate the current episode.")
 

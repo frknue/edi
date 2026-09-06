@@ -67,6 +67,15 @@ Rules of thumb:
   is instantly reachable from the shell and from MCP, so register the tool
   first and add a bespoke CLI command only when the output deserves formatting.
 
+The dashboard is a one-action screen (`pages/Dashboard.tsx`): hero strip
+with the active-days dots, then the NEXT MOVE panel (recommended quest, a big
+Complete, and a client-side "Not this one" veto that rotates the board with
+bosses last), then today's quests, then everything else behind `Fold`s
+(`components/ui.tsx`, open state per device). No red banners: hardcore's
+decay/penalty ledger lines live inside the Attributes fold and only when
+hardcore is on. Both completion handlers (Dashboard + Quests) must pass the
+full `RewardPayload` (crit, combo, drop, achievements, level) to `celebrate`.
+
 Deliberately NOT in the agent registry (keep it that way, and say so here if
 you add to the list): user/admin management and tokens (including minting Edi
 account invites), OpenAI connect/config,
@@ -158,10 +167,41 @@ caught and fixed — keep using it.
   `db.goldForXP`) happens inside the SAME tx as the xp_event; purchases check
   the balance inside the purchase tx so it can never go negative (regression
   tests: `TestGoldAuditInvariant`, `TestShopPurchaseConcurrentNoOverspend`).
-- **Decay is auditable, idempotent, and floored.** Neglected attributes lose
-  XP via negative `xp_events` (`source='decay'`, note `decay · YYYY-MM-DD`)
-  written by the lazy catch-up (`store.ApplyDecay`) inside one tx — never a
-  bare total_xp decrement. Billing is idempotent per attribute per local day
+- **The punishment layer is opt-in ("hardcore mode") and OFF by default.**
+  Decay, missed-daily stakes and wards only run when the per-user
+  `hardcore_mode` setting is `"1"` (`services/hardcore.go`:
+  `HardcoreState`/`SetHardcoreMode`, `GET|POST /api/hardcore`,
+  `get_hardcore_mode`/`set_hardcore_mode` tools, `edi-cli hardcore`, the
+  toggle in the dashboard's Attributes fold). Outside hardcore NO negative
+  xp_event is ever written, `Attribute.Decay` is nil (so no client renders
+  rust), `WardAttribute` is a 400, and the dashboard reports
+  `hardcore:false`. The engines stay intact behind the flag and must keep
+  passing their tests (`newHardcoreTestService`). Two rules keep the switch
+  safe: the stakes cursor still advances while off (`RollOverRecurringQuests
+  ... billPenalties=false` — only the XP removal is skipped; the silent miss
+  counter still counts), and switching ON writes `hardcore_since`, which
+  floors every idle anchor like `rest_ended_at` does — so turning it on after
+  a month away bills nothing (`TestHardcoreOnAfterIdleDoesNotRetroBill`,
+  `TestHardcoreOffNeverRemovesXP`). Don't "fix" the gating: absence is the
+  symptom the app exists for, and billing it drove the owner away.
+- **Streaks mend themselves.** `updateStreakTx` (shared by quests, journal,
+  tools, supplements) bridges a ONE-day gap for free at most once per 7 days
+  (`streaks.last_mend_date`); longer gaps reset. There is no gold price for
+  a streak — never add one (`TestStreakAutoMend`). Rest mode does not yet
+  bridge the streak (deferred; the mend covers most short pauses).
+- **The daily goal is the board, not a constant.** `DailyProgress.Goal` =
+  `max(1, dailies active or completed today)` (`store.DailyQuestCountToday`)
+  — a closable set. The evening nudge fires until `completed >= goal`; in
+  rest mode it stands down (`nudgeQuest`, `TestNudgeQuestConditions`).
+- **Buffs last 24 h or 3 uses** (`user_buffs.uses_left`, NULL = legacy
+  unlimited); every buff that touched an award spends one use inside the
+  completion tx (`TestBuffSpentAfterThreeUses`).
+- **`Dashboard.active_days`** (14 local days; "showed up" = any positive
+  non-seed xp_event) is the headline instead of the streak counter.
+- **Decay is auditable, idempotent, and floored** (hardcore only). Neglected
+  attributes lose XP via negative `xp_events` (`source='decay'`, note
+  `decay · YYYY-MM-DD`) written by the lazy catch-up (`store.ApplyDecay`)
+  inside one tx — never a bare total_xp decrement. Billing is idempotent per attribute per local day
   (the billed dates in the notes are re-read inside the tx), never bills
   ward-covered days or rest periods, and never drops below
   `XPForLevel(LevelForXP(peak_xp)-2)`. `peak_xp` is maintained in the same tx
@@ -199,6 +239,10 @@ caught and fixed — keep using it.
 - **AI features are gated on a connection — there is no offline/rule fallback.**
   Anything needing the LLM returns `ErrOpenAINotConnected` (→400) when disconnected.
   `GenerateSuggestions` builds a prompt from live state and asks for strict JSON.
+  Regenerating ADDS to the pending set (pending titles are fed into the
+  prompt and skipped on insert) — it never wipes suggestions the user may be
+  about to accept. The story narrator is the hero's companion, never their
+  judge: the prompt forbids threats/guilt and welcomes a returning hero.
 - **Model and reasoning effort are both user-selectable** and stored per user in
   the `app_settings` table (`POST /api/openai/config`). Available models come from
   the account via `openai.ListModels` (`codex/models?client_version=…`, exposed at

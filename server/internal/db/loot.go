@@ -12,6 +12,12 @@ import (
 const (
 	dropChance = 0.25
 	pityAfter  = 6
+
+	// Buff drops last buffLifetime or buffUses completions, whichever ends
+	// first. A drop at 23:50 used to die at midnight, unused — punishing the
+	// exact moment the player was active.
+	buffLifetime = 24 * time.Hour
+	buffUses     = 3
 )
 
 // rarity thresholds on a single [0,1) roll: common 60%, uncommon 25%,
@@ -33,8 +39,9 @@ func rollRarity(roll float64) string {
 
 // lootCatalog defines what can drop, per rarity. Effects:
 //   - kind "trophy": pure collectible.
-//   - kind "buff":   +Percent% XP on Attribute (”” = all) until local midnight,
-//     auto-active from the moment it drops.
+//   - kind "buff":   +Percent% XP on Attribute (”” = all) for the next
+//     buffUses completions or buffLifetime, whichever ends first —
+//     auto-active from the moment it drops (never lost to a bad evening).
 //   - kind "gold":   an instant gold cache (auditable gold_events row).
 type lootDef struct {
 	Key       string
@@ -54,21 +61,21 @@ var lootCatalog = map[string][]lootDef{
 		{Key: "phosphor_shard", Name: "Phosphor Shard", Icon: "🟢", Kind: "trophy", Flavor: "A splinter of the terminal glow."},
 	},
 	"uncommon": {
-		{Key: "focus_lens", Name: "Focus Lens", Icon: "🔍", Kind: "buff", Percent: 20, Attribute: "focus", Flavor: "+20% Focus XP until midnight."},
-		{Key: "iron_flask", Name: "Iron Flask", Icon: "🧪", Kind: "buff", Percent: 20, Attribute: "strength", Flavor: "+20% Strength XP until midnight."},
+		{Key: "focus_lens", Name: "Focus Lens", Icon: "🔍", Kind: "buff", Percent: 20, Attribute: "focus", Flavor: "+20% Focus XP for 3 quests."},
+		{Key: "iron_flask", Name: "Iron Flask", Icon: "🧪", Kind: "buff", Percent: 20, Attribute: "strength", Flavor: "+20% Strength XP for 3 quests."},
 		{Key: "silver_cache", Name: "Silver Cache", Icon: "💰", Kind: "gold", Gold: 15, Flavor: "Heavier than it looks."},
 	},
 	"rare": {
-		{Key: "scholars_quill", Name: "Scholar's Quill", Icon: "🪶", Kind: "buff", Percent: 30, Attribute: "learning", Flavor: "+30% Learning XP until midnight."},
-		{Key: "heartwood_charm", Name: "Heartwood Charm", Icon: "🌿", Kind: "buff", Percent: 30, Attribute: "health", Flavor: "+30% Health XP until midnight."},
+		{Key: "scholars_quill", Name: "Scholar's Quill", Icon: "🪶", Kind: "buff", Percent: 30, Attribute: "learning", Flavor: "+30% Learning XP for 3 quests."},
+		{Key: "heartwood_charm", Name: "Heartwood Charm", Icon: "🌿", Kind: "buff", Percent: 30, Attribute: "health", Flavor: "+30% Health XP for 3 quests."},
 		{Key: "gilded_cache", Name: "Gilded Cache", Icon: "👑", Kind: "gold", Gold: 40, Flavor: "Someone important lost this."},
 	},
 	"epic": {
-		{Key: "prism_of_momentum", Name: "Prism of Momentum", Icon: "🔮", Kind: "buff", Percent: 25, Attribute: "", Flavor: "+25% ALL XP until midnight."},
+		{Key: "prism_of_momentum", Name: "Prism of Momentum", Icon: "🔮", Kind: "buff", Percent: 25, Attribute: "", Flavor: "+25% ALL XP for 3 quests."},
 		{Key: "dragonhide_ledger", Name: "Dragonhide Ledger", Icon: "🐉", Kind: "gold", Gold: 100, Flavor: "The hoard acknowledges you."},
 	},
 	"legendary": {
-		{Key: "crown_of_streaks", Name: "Crown of Streaks", Icon: "🔥", Kind: "buff", Percent: 50, Attribute: "", Flavor: "+50% ALL XP until midnight. Wear it loudly."},
+		{Key: "crown_of_streaks", Name: "Crown of Streaks", Icon: "🔥", Kind: "buff", Percent: 50, Attribute: "", Flavor: "+50% ALL XP for 3 quests. Wear it loudly."},
 	},
 }
 
@@ -111,14 +118,13 @@ func (s *Store) rollLootTx(tx *sql.Tx, userID, questID int64, now time.Time) (*m
 
 	switch def.Kind {
 	case "buff":
-		// Auto-active until local midnight (same local-day discipline as decay).
-		_, dayEnd := localDayBounds(now)
+		expires := now.Add(buffLifetime)
 		if _, err := tx.Exec(
-			`INSERT INTO user_buffs(user_id, item_key, attribute_key, percent, expires_at, created_at) VALUES($1, $2, $3, $4, $5, $6)`,
-			userID, def.Key, def.Attribute, def.Percent, dayEnd, now); err != nil {
+			`INSERT INTO user_buffs(user_id, item_key, attribute_key, percent, expires_at, created_at, uses_left) VALUES($1, $2, $3, $4, $5, $6, $7)`,
+			userID, def.Key, def.Attribute, def.Percent, expires, now, buffUses); err != nil {
 			return nil, err
 		}
-		drop.ExpiresAt = &dayEnd
+		drop.ExpiresAt = &expires
 	case "gold":
 		if _, err := insertGoldEventTx(tx, userID, def.Gold, "loot", def.Name, nil, now); err != nil {
 			return nil, err
@@ -130,8 +136,9 @@ func (s *Store) rollLootTx(tx *sql.Tx, userID, questID int64, now time.Time) (*m
 // activeBuffsTx returns the user's unexpired buffs (for the award pipeline).
 func activeBuffsTx(tx *sql.Tx, userID int64, now time.Time) ([]models.ActiveBuff, error) {
 	rows, err := tx.Query(
-		`SELECT item_key, attribute_key, percent, expires_at FROM user_buffs
-		 WHERE user_id = $1 AND expires_at > $2`, userID, now)
+		`SELECT id, item_key, attribute_key, percent, expires_at, uses_left FROM user_buffs
+		 WHERE user_id = $1 AND expires_at > $2 AND (uses_left IS NULL OR uses_left > 0)
+		 ORDER BY id`, userID, now)
 	if err != nil {
 		return nil, err
 	}
@@ -139,8 +146,13 @@ func activeBuffsTx(tx *sql.Tx, userID int64, now time.Time) ([]models.ActiveBuff
 	var out []models.ActiveBuff
 	for rows.Next() {
 		var b models.ActiveBuff
-		if err := rows.Scan(&b.ItemKey, &b.Attribute, &b.Percent, &b.ExpiresAt); err != nil {
+		var uses sql.NullInt64
+		if err := rows.Scan(&b.ID, &b.ItemKey, &b.Attribute, &b.Percent, &b.ExpiresAt, &uses); err != nil {
 			return nil, err
+		}
+		if uses.Valid {
+			u := int(uses.Int64)
+			b.UsesLeft = &u
 		}
 		out = append(out, b)
 	}

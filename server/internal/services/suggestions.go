@@ -55,9 +55,16 @@ func (s *Service) GenerateSuggestions() ([]models.AgentSuggestion, error) {
 		return nil, fmt.Errorf("%w: the model returned an unexpected response, try again", ErrValidation)
 	}
 
-	// A fresh generation replaces the current pending set.
-	if err := s.store.DeletePendingSuggestions(s.userID); err != nil {
+	// A fresh generation ADDS to the pending set — it never wipes suggestions
+	// the user may be about to accept. Titles already pending are skipped.
+	pending, err := s.store.ListSuggestions(s.userID, "pending")
+	if err != nil {
 		return nil, err
+	}
+	seen := map[string]bool{}
+	for _, p := range pending {
+		seen[strings.ToLower(strings.TrimSpace(p.Title))] = true
+		seen[strings.ToLower(strings.TrimSpace(p.SuggestedQuest.Title))] = true
 	}
 
 	for _, ls := range parsed.Suggestions {
@@ -80,6 +87,11 @@ func (s *Service) GenerateSuggestions() ([]models.AgentSuggestion, error) {
 		if sug.Title == "" {
 			sug.Title = in.Title
 		}
+		if seen[strings.ToLower(sug.Title)] || seen[strings.ToLower(in.Title)] {
+			continue
+		}
+		seen[strings.ToLower(sug.Title)] = true
+		seen[strings.ToLower(in.Title)] = true
 		if _, err := s.store.InsertSuggestion(s.userID, sug); err != nil {
 			return nil, err
 		}
@@ -136,6 +148,12 @@ func (s *Service) buildSuggestionPrompt() (string, error) {
 	}
 	for _, q := range dash.TodayQuests {
 		fmt.Fprintf(&b, "- %q [%s]\n", q.Title, q.Type)
+	}
+	if len(dash.Suggestions) > 0 {
+		b.WriteString("\nSuggestions already pending (they stay; do NOT repeat these either):\n")
+		for _, sg := range dash.Suggestions {
+			fmt.Fprintf(&b, "- %q\n", sg.SuggestedQuest.Title)
+		}
 	}
 
 	if len(journal) > 0 {

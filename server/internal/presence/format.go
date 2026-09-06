@@ -24,8 +24,8 @@ Just talk to me — "add a 20 min run as a daily", "I finished the tax return", 
 /done &lt;id&gt; — complete a quest
 /supps — today's supplement stack
 /supps &lt;name&gt; — take one (full stack = bonus XP)
-/ward &lt;attribute&gt; — 7-day decay shield (30g)
-/rest on|off — pause/resume decay
+/ward &lt;attribute&gt; — 7-day decay shield (30g, hardcore mode only)
+/rest on|off — quiet mode: nudges stand down (and decay pauses in hardcore)
 /story — a narrated episode of your saga (AI)
 /boss — forge this week's boss quest (AI)
 /briefing — get your briefing right now
@@ -70,7 +70,7 @@ func statusCore(d models.Dashboard) string {
 	fmt.Fprintf(&b, "Lv %d · streak %d🔥 · %dg\n", d.Character.Level, d.Streak.Current, d.GoldBalance)
 	fmt.Fprintf(&b, "%d quests open · %d/%d done today\n", len(d.TodayQuests), d.DailyProgress.CompletedToday, d.DailyProgress.Goal)
 	if d.RestMode {
-		b.WriteString("☾ rest mode ON — decay + daily penalties paused\n")
+		b.WriteString("☾ rest mode ON — nudges stand down\n")
 	}
 	if d.DailyPenaltyXP > 0 {
 		fmt.Fprintf(&b, "⚠ missed dailies · -%d XP\n", d.DailyPenaltyXP)
@@ -118,10 +118,12 @@ func formatQuests(quests []models.Quest) string {
 var difficultyRank = map[string]int{"trivial": 0, "easy": 1, "medium": 2, "hard": 3, "boss": 4}
 
 // nudgeQuest decides whether the evening nudge fires and which quest it
-// shows: only when nothing was completed today, at least one quest is open,
-// and rest mode is off. Easiest quest wins (difficulty, then lowest reward).
+// shows: while today's set is not yet cleared (completed < goal), at least
+// one quest is open, and rest mode is off. It does NOT stand down after one
+// completion — that taught the app to go quiet exactly when momentum
+// existed. Easiest quest wins (difficulty, then lowest reward).
 func nudgeQuest(d models.Dashboard) (*models.Quest, bool) {
-	if d.RestMode || d.DailyProgress.CompletedToday > 0 || len(d.TodayQuests) == 0 {
+	if d.RestMode || d.DailyProgress.CompletedToday >= d.DailyProgress.Goal || len(d.TodayQuests) == 0 {
 		return nil, false
 	}
 	best := d.TodayQuests[0]
@@ -132,6 +134,17 @@ func nudgeQuest(d models.Dashboard) (*models.Quest, bool) {
 		}
 	}
 	return &best, true
+}
+
+// formatNudge renders the evening nudge as ONE answerable question: the
+// smallest open quest and how to log it. Progress-aware — never "nothing
+// logged" when something was.
+func formatNudge(d models.Dashboard, q models.Quest) string {
+	done, goal := d.DailyProgress.CompletedToday, d.DailyProgress.Goal
+	if done > 0 {
+		return fmt.Sprintf("🌙 %d/%d today. One more?\n%s\n\n/done %d closes it.", done, goal, questLine(q), q.ID)
+	}
+	return fmt.Sprintf("🌙 Nothing logged today. Smallest step:\n%s\n\n/done %d and the streak lives.", questLine(q), q.ID)
 }
 
 // nextFire returns the next local occurrence of hhmm ("15:04") after now.

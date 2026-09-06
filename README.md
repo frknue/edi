@@ -164,12 +164,22 @@ A quest for Both closes only after both players finish it.
 - **Level formula (MVP):** `level = floor(sqrt(total_xp / 100)) + 1`.
 - **Quests** have a type (`daily/weekly/main/side/boss/recovery`), difficulty, status,
   and per-attribute XP rewards, e.g. `{"strength": 40, "discipline": 10}`.
-- **Daily quest stakes:** an active daily left unfinished at local midnight loses
+- **Hardcore mode (opt-in, off by default):** the punishment layer — attribute
+  decay, daily quest stakes and wards — only runs when you switch it on
+  (`POST /api/hardcore {on:true}`, `edi-cli hardcore on`, the toggle in the
+  dashboard's Attributes fold, or the `set_hardcore_mode` agent tool). Off, no
+  XP is ever removed. Turning it on never bills the past.
+- **Daily quest stakes (hardcore):** an active daily left unfinished at local midnight loses
   25% of its base reward on each rewarded attribute (minimum 5 XP, capped at the
   reward and current XP). Misses are settled lazily, exactly once per local day,
   as negative `xp_events` (`source='daily_penalty'`); rest mode waives covered days.
   The first check after upgrading only starts the clock, so old quests are never
   charged retroactively.
+- **Streaks and showing up:** the dashboard headline is the last 14 days you
+  showed up (any XP-earning action), not an unbroken counter. A one-day gap
+  in the streak is mended for free once per 7 days; the daily goal is the
+  number of dailies on your board (a closable set), and the evening nudge
+  keeps asking for one more until it is cleared.
 - **Recurring quests:** a completed daily returns at the next local midnight; a
   completed weekly returns at local midnight on Monday. Checked bonus objectives
   reset with each new occurrence.
@@ -188,7 +198,7 @@ A quest for Both closes only after both players finish it.
   computed on read, same as XP. Spend it in the **Shop** on rewards you define
   yourself ("guilt-free gaming evening"); purchases check the balance inside the
   purchase transaction so it can never go negative.
-- **Decay & stakes:** neglected attributes lose XP over time — idle days beyond a
+- **Decay & stakes (hardcore):** neglected attributes lose XP over time — idle days beyond a
   3-day grace period bill 1% of the attribute's total (min 5 XP/day) as negative
   `xp_events` (`source='decay'`), the same auditable path as every other award.
   Decay never drops an attribute below its peak-based floor
@@ -250,7 +260,9 @@ Base: `/api`
 | GET | `/gold/events?limit=` | Recent gold ledger entries (mints + purchases); the balance is `SUM(amount)` |
 | POST | `/attributes/:key/ward` | Spend 30 gold to shield an attribute from decay for 7 days (stacks on an active ward) |
 | GET | `/rest` | Current rest mode state |
-| POST | `/rest` | Turn rest mode on/off — pauses decay for every attribute while on |
+| POST | `/rest` | Turn rest mode on/off — nudges stand down; pauses decay for every attribute while on (hardcore) |
+| GET | `/hardcore` | Is hardcore mode (decay, stakes, wards) on? |
+| POST | `/hardcore` | Turn hardcore mode on/off (`{on}`) — off by default, never bills the past |
 
 ### Agent-ready by design
 

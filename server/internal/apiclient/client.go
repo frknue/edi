@@ -312,6 +312,18 @@ func (c *Client) RestState() (models.RestState, error) {
 	return r, err
 }
 
+func (c *Client) SetHardcoreMode(on bool) (models.HardcoreState, error) {
+	var r models.HardcoreState
+	err := c.do(http.MethodPost, "/api/hardcore", map[string]bool{"on": on}, &r)
+	return r, err
+}
+
+func (c *Client) HardcoreState() (models.HardcoreState, error) {
+	var r models.HardcoreState
+	err := c.do(http.MethodGet, "/api/hardcore", nil, &r)
+	return r, err
+}
+
 // --- story mode ---------------------------------------------------------------
 
 // Story returns a narrated chapter of recent progress (needs ChatGPT connected).

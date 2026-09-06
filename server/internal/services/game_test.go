@@ -144,7 +144,7 @@ func seqRoll(rolls ...float64) func() float64 {
 }
 
 // A forced drop lands in the inventory inside the same completion, buff drops
-// auto-activate until midnight, and the buff pays on the NEXT completion as
+// auto-activate (24 h / 3 uses), and the buff pays on the NEXT completion as
 // auditable 'buff' rows.
 func TestLootDropAndBuff(t *testing.T) {
 	svc := newTestService(t)
@@ -159,7 +159,7 @@ func TestLootDropAndBuff(t *testing.T) {
 	q1, q2 := mk("dropper"), mk("buffed")
 
 	// no crit (0.99) → drop (0.0) → epic rarity (0.96) → first item (0.0)
-	// = Prism of Momentum: +25% ALL XP until midnight.
+	// = Prism of Momentum: +25% ALL XP.
 	svc.store.SetRollForTest(seqRoll(0.99, 0.0, 0.96, 0.0))
 	r1, err := svc.CompleteQuest(q1.ID)
 	if err != nil {

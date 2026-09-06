@@ -30,9 +30,9 @@ func TestMissedDailyPenaltyMath(t *testing.T) {
 }
 
 func TestMissedDailyQuestPenaltyIsAuditableAndIdempotent(t *testing.T) {
-	svc := newTestService(t)
+	svc := newHardcoreTestService(t)
 	now := time.Now().UTC()
-	if removed, err := svc.store.RollOverRecurringQuests(svc.userID, now, nil); err != nil || removed != 0 {
+	if removed, err := svc.store.RollOverRecurringQuests(svc.userID, now, nil, true); err != nil || removed != 0 {
 		t.Fatalf("prime daily cursor = %d, %v", removed, err)
 	}
 	archiveSeedDailies(t, svc)
@@ -47,14 +47,14 @@ func TestMissedDailyQuestPenaltyIsAuditableAndIdempotent(t *testing.T) {
 	}
 
 	future := now.AddDate(0, 0, 1)
-	removed, err := svc.store.RollOverRecurringQuests(svc.userID, future, nil)
+	removed, err := svc.store.RollOverRecurringQuests(svc.userID, future, nil, true)
 	if err != nil {
 		t.Fatalf("assess missed daily: %v", err)
 	}
 	if removed != 15 {
 		t.Fatalf("removed = %d, want 15", removed)
 	}
-	again, err := svc.store.RollOverRecurringQuests(svc.userID, future, nil)
+	again, err := svc.store.RollOverRecurringQuests(svc.userID, future, nil, true)
 	if err != nil || again != 0 {
 		t.Fatalf("second assessment = %d, %v; want idempotent 0", again, err)
 	}
@@ -109,9 +109,9 @@ func TestMissedDailyQuestPenaltyIsAuditableAndIdempotent(t *testing.T) {
 }
 
 func TestCompletedDailyQuestAvoidsPenaltyAndRollsOver(t *testing.T) {
-	svc := newTestService(t)
+	svc := newHardcoreTestService(t)
 	now := time.Now().UTC()
-	if _, err := svc.store.RollOverRecurringQuests(svc.userID, now, nil); err != nil {
+	if _, err := svc.store.RollOverRecurringQuests(svc.userID, now, nil, true); err != nil {
 		t.Fatalf("prime daily cursor: %v", err)
 	}
 	archiveSeedDailies(t, svc)
@@ -127,7 +127,7 @@ func TestCompletedDailyQuestAvoidsPenaltyAndRollsOver(t *testing.T) {
 	if _, err := svc.CompleteQuest(q.ID); err != nil {
 		t.Fatalf("complete daily: %v", err)
 	}
-	removed, err := svc.store.RollOverRecurringQuests(svc.userID, now.AddDate(0, 0, 1), nil)
+	removed, err := svc.store.RollOverRecurringQuests(svc.userID, now.AddDate(0, 0, 1), nil, true)
 	if err != nil {
 		t.Fatalf("next-day rollover: %v", err)
 	}
@@ -144,9 +144,9 @@ func TestCompletedDailyQuestAvoidsPenaltyAndRollsOver(t *testing.T) {
 }
 
 func TestRestModeWaivesMissedDailyPenalty(t *testing.T) {
-	svc := newTestService(t)
+	svc := newHardcoreTestService(t)
 	now := time.Now().UTC()
-	if _, err := svc.store.RollOverRecurringQuests(svc.userID, now, nil); err != nil {
+	if _, err := svc.store.RollOverRecurringQuests(svc.userID, now, nil, true); err != nil {
 		t.Fatalf("prime daily cursor: %v", err)
 	}
 	archiveSeedDailies(t, svc)
@@ -160,7 +160,7 @@ func TestRestModeWaivesMissedDailyPenalty(t *testing.T) {
 		t.Fatalf("create daily: %v", err)
 	}
 	restSince := now
-	removed, err := svc.store.RollOverRecurringQuests(svc.userID, now.AddDate(0, 0, 1), &restSince)
+	removed, err := svc.store.RollOverRecurringQuests(svc.userID, now.AddDate(0, 0, 1), &restSince, true)
 	if err != nil {
 		t.Fatalf("rest rollover: %v", err)
 	}
@@ -179,9 +179,9 @@ func TestRestModeWaivesMissedDailyPenalty(t *testing.T) {
 }
 
 func TestMissedDailyPenaltyConcurrentSingleApplication(t *testing.T) {
-	svc := newTestService(t)
+	svc := newHardcoreTestService(t)
 	now := time.Now().UTC()
-	if _, err := svc.store.RollOverRecurringQuests(svc.userID, now, nil); err != nil {
+	if _, err := svc.store.RollOverRecurringQuests(svc.userID, now, nil, true); err != nil {
 		t.Fatalf("prime daily cursor: %v", err)
 	}
 	archiveSeedDailies(t, svc)
@@ -203,7 +203,7 @@ func TestMissedDailyPenaltyConcurrentSingleApplication(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			removed, err := svc.store.RollOverRecurringQuests(svc.userID, future, nil)
+			removed, err := svc.store.RollOverRecurringQuests(svc.userID, future, nil, true)
 			results <- removed
 			errs <- err
 		}()
@@ -236,7 +236,7 @@ func TestMissedDailyPenaltyConcurrentSingleApplication(t *testing.T) {
 
 func TestDailyPenaltyFirstRunDoesNotChargeExistingQuests(t *testing.T) {
 	svc := newTestService(t)
-	removed, err := svc.store.RollOverRecurringQuests(svc.userID, time.Now().AddDate(0, 0, 30), nil)
+	removed, err := svc.store.RollOverRecurringQuests(svc.userID, time.Now().AddDate(0, 0, 30), nil, true)
 	if err != nil {
 		t.Fatalf("first rollover: %v", err)
 	}
