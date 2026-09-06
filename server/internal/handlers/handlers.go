@@ -390,6 +390,86 @@ func (h *Handlers) toolAssist(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+// --- supplements (daily stack) ----------------------------------------------
+
+func (h *Handlers) listSupplements(w http.ResponseWriter, r *http.Request) {
+	today, err := h.forUser(r).ListSupplements()
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, today)
+}
+
+func (h *Handlers) createSupplement(w http.ResponseWriter, r *http.Request) {
+	var in models.SupplementInput
+	if err := decodeBody(r, &in); err != nil {
+		writeError(w, err)
+		return
+	}
+	sp, err := h.forUser(r).AddSupplement(in)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, sp)
+}
+
+func (h *Handlers) updateSupplement(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	var in models.SupplementInput
+	if err := decodeBody(r, &in); err != nil {
+		writeError(w, err)
+		return
+	}
+	sp, err := h.forUser(r).UpdateSupplement(id, in)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, sp)
+}
+
+func (h *Handlers) archiveSupplement(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := h.forUser(r).ArchiveSupplement(id); err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"archived": true})
+}
+
+func (h *Handlers) takeSupplement(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	result, err := h.forUser(r).TakeSupplement(id)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handlers) supplementHistory(w http.ResponseWriter, r *http.Request) {
+	days, err := h.forUser(r).SupplementHistory(queryInt(r, "days", 0))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, days)
+}
+
 // --- openai connection ------------------------------------------------------
 
 func (h *Handlers) openaiStatus(w http.ResponseWriter, r *http.Request) {

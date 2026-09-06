@@ -107,6 +107,8 @@ func run(c *apiclient.Client, cmd string, args []string) error {
 		return cmdSimpleQuest(c, args, c.SkipQuest, "skipped")
 	case "archive":
 		return cmdSimpleQuest(c, args, c.ArchiveQuest, "archived")
+	case "supps", "supplements":
+		return cmdSupps(c, args)
 	case "journal":
 		return cmdJournal(c, args)
 	case "journal-edit":
@@ -423,6 +425,129 @@ func cmdSimpleQuest(c *apiclient.Client, args []string, fn func(int64) (models.Q
 	}
 	fmt.Printf("%s %s quest #%d %q\n", green("✓"), verb, q.ID, q.Title)
 	return nil
+}
+
+// cmdSupps: supps | supps add <name> [--dose D] | supps take <name|id> | supps rm <id> | supps history [--days N]
+func cmdSupps(c *apiclient.Client, args []string) error {
+	if len(args) == 0 {
+		today, err := c.ListSupplements()
+		if err != nil {
+			return err
+		}
+		if today.Total == 0 {
+			fmt.Println("(empty stack — edi-cli supps add <name>)")
+			return nil
+		}
+		fmt.Printf("\n  %s  %d/%d today", bold("Supplements"), today.Taken, today.Total)
+		if today.BonusAwarded {
+			fmt.Printf("  %s", green("full stack ✓ bonus paid"))
+		}
+		fmt.Println()
+		for _, sp := range today.Supplements {
+			mark := dim("▢")
+			if sp.Taken {
+				mark = green("✓")
+			}
+			fmt.Printf("  %s %s %s %s\n", mark, dim("#"+strconv.FormatInt(sp.ID, 10)), sp.Name, dim(sp.Dose))
+		}
+		fmt.Printf("  %s\n\n", dim(fmt.Sprintf("%s per item · %s when the whole stack is taken", rewardStr(today.ItemRewards), rewardStr(today.BonusRewards))))
+		return nil
+	}
+	switch args[0] {
+	case "add":
+		fs := flag.NewFlagSet("supps add", flag.ContinueOnError)
+		dose := fs.String("dose", "", "dose, e.g. 400 mg")
+		var name []string
+		for _, a := range args[1:] {
+			if strings.HasPrefix(a, "-") {
+				break
+			}
+			name = append(name, a)
+		}
+		if err := fs.Parse(args[1+len(name):]); err != nil {
+			return err
+		}
+		if len(name) == 0 {
+			return fmt.Errorf("usage: supps add <name> [--dose D]")
+		}
+		sp, err := c.AddSupplement(models.SupplementInput{Name: strings.Join(name, " "), Dose: *dose})
+		if err != nil {
+			return err
+		}
+		fmt.Printf("added %s %s\n", bold(sp.Name), dim("#"+strconv.FormatInt(sp.ID, 10)))
+		return nil
+	case "take":
+		if len(args) < 2 {
+			return fmt.Errorf("usage: supps take <name|id>")
+		}
+		ref := strings.Join(args[1:], " ")
+		id, err := strconv.ParseInt(ref, 10, 64)
+		if err != nil {
+			today, lerr := c.ListSupplements()
+			if lerr != nil {
+				return lerr
+			}
+			for _, sp := range today.Supplements {
+				if strings.EqualFold(sp.Name, ref) || strings.HasPrefix(strings.ToLower(sp.Name), strings.ToLower(ref)) {
+					id = sp.ID
+					break
+				}
+			}
+			if id == 0 {
+				return fmt.Errorf("no supplement matching %q (see: edi-cli supps)", ref)
+			}
+		}
+		res, err := c.TakeSupplement(id)
+		if err != nil {
+			return err
+		}
+		var xp int64
+		for _, e := range res.XPEvents {
+			xp += e.Amount
+		}
+		fmt.Printf("✓ %s taken  +%d XP  +%dg  %d/%d today\n", bold(res.Intake.Name), xp, res.Gold, res.Today.Taken, res.Today.Total)
+		if res.BonusAwarded {
+			fmt.Println(green("  FULL STACK — bonus paid"))
+		}
+		for _, lu := range res.LevelUps {
+			fmt.Printf("  ⬆ %s reached Lv %d!\n", lu.AttributeName, lu.ToLevel)
+		}
+		return nil
+	case "rm":
+		id, err := argID(args[1:])
+		if err != nil {
+			return err
+		}
+		if err := c.ArchiveSupplement(id); err != nil {
+			return err
+		}
+		fmt.Printf("removed #%d (history kept)\n", id)
+		return nil
+	case "history":
+		fs := flag.NewFlagSet("supps history", flag.ContinueOnError)
+		days := fs.Int("days", 14, "days back")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		hist, err := c.SupplementHistory(*days)
+		if err != nil {
+			return err
+		}
+		if len(hist) == 0 {
+			fmt.Println("(nothing taken yet)")
+			return nil
+		}
+		for _, d := range hist {
+			mark := " "
+			if d.Bonus {
+				mark = green("★")
+			}
+			fmt.Printf("  %s %s %d taken  +%d XP  %s\n", mark, d.Day, d.Taken, d.XP, dim(strings.Join(d.Names, ", ")))
+		}
+		return nil
+	default:
+		return fmt.Errorf("usage: supps [add <name> [--dose D] | take <name|id> | rm <id> | history [--days N]]")
+	}
 }
 
 func cmdJournal(c *apiclient.Client, args []string) error {
@@ -914,6 +1039,11 @@ commands:
   subtask <quest_id> <subtask_id>    toggle a bonus objective
   board | board-create [--name N] | board-invite | board-join <code>
   invite                             create a one-use Edi account invite (admin)
+  supps                              today's supplement stack (✓ taken / ▢ pending)
+  supps add <name> [--dose D]        add a supplement to the stack
+  supps take <name|id>               take one today (full stack pays a bonus)
+  supps rm <id>                      remove a supplement (history kept)
+  supps history [--days N]           per-day intake history
   journal [--q text] [--limit N]     list / search reflections
   journal-add --mood N --energy N [--notes "..."]
   journal-edit <id> [--mood N] [--energy N] [--notes "..."]

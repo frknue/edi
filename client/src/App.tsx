@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Bot, BookHeart, BrainCircuit, LayoutDashboard, ScrollText, Store } from "lucide-react";
+import { Bot, BookHeart, BrainCircuit, LayoutDashboard, Pill, ScrollText, Store } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { DashboardPage } from "./pages/Dashboard";
 import { QuestsPage } from "./pages/Quests";
@@ -7,6 +7,7 @@ import { JournalPage } from "./pages/Journal";
 import { SuggestionsPage } from "./pages/Suggestions";
 import { ShopPage } from "./pages/Shop";
 import { DailyMoodLog } from "./components/DailyMoodLog";
+import { Supplements } from "./components/Supplements";
 import { LanguageToggle, Logo, Sidebar } from "./components/Sidebar";
 import { useI18n } from "./lib/i18n";
 import type { View } from "./components/Sidebar";
@@ -77,6 +78,7 @@ export default function App() {
         {view === "quests" && <QuestsPage />}
         {view === "shop" && <ShopPage />}
         {view === "moodlog" && <DailyMoodLog onClose={() => setView("dashboard")} />}
+        {view === "supplements" && <Supplements />}
         {view === "journal" && <JournalPage />}
         {view === "agent" && <SuggestionsPage />}
       </main>
@@ -92,6 +94,7 @@ export default function App() {
             { id: "quests", label: t("nav.quests"), Icon: ScrollText },
             { id: "shop", label: t("nav.shop"), Icon: Store },
             { id: "moodlog", label: t("nav.moodlogShort"), Icon: BrainCircuit },
+            { id: "supplements", label: t("nav.supplementsShort"), Icon: Pill },
             { id: "journal", label: t("nav.journal"), Icon: BookHeart },
             { id: "agent", label: t("nav.agent"), Icon: Bot },
           ] as { id: View; label: string; Icon: LucideIcon }[]

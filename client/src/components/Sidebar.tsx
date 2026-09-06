@@ -6,6 +6,7 @@ import {
   BookHeart,
   BrainCircuit,
   ChevronDown,
+  Pill,
   ChevronsLeft,
   ChevronsRight,
   LayoutDashboard,
@@ -20,15 +21,16 @@ import { LOCALES, localeLabel, useI18n } from "../lib/i18n";
 import type { MessageKey } from "../lib/locales/en";
 import { AccountInviteButton } from "./AccountInvite";
 
-export type View = "dashboard" | "quests" | "shop" | "moodlog" | "journal" | "agent";
+export type View = "dashboard" | "quests" | "shop" | "moodlog" | "supplements" | "journal" | "agent";
 
 type NavItem = { id: View; labelKey: MessageKey; Icon: LucideIcon };
 
 // "Tools" is not a page — in the expanded sidebar it's a collapsible group whose
-// children (Daily Mood Log, Journal) are the actual destinations. In the
+// children (Daily Mood Log, Supplements, Journal) are the actual destinations. In the
 // collapsed rail the children render as direct icons and the group disappears.
 export const TOOL_CHILDREN: NavItem[] = [
   { id: "moodlog", labelKey: "nav.moodlog", Icon: BrainCircuit },
+  { id: "supplements", labelKey: "nav.supplements", Icon: Pill },
   { id: "journal", labelKey: "nav.journal", Icon: BookHeart },
 ];
 
@@ -91,7 +93,7 @@ export function Sidebar({
   onToggle: () => void;
 }) {
   const { t } = useI18n();
-  const inToolsGroup = view === "moodlog" || view === "journal";
+  const inToolsGroup = TOOL_CHILDREN.some((c) => c.id === view);
   const [toolsOpen, setToolsOpen] = useState(false);
   const showChildren = toolsOpen || inToolsGroup;
 

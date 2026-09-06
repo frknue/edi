@@ -61,6 +61,14 @@ func NewRouter(h *Handlers, clientDir string, tokenMode bool) http.Handler {
 	mux.HandleFunc("GET /api/tools/{key}/entries", h.listToolEntries)
 	mux.HandleFunc("POST /api/tools/{key}/assist", h.toolAssist)
 
+	// Supplements — the daily stack (per-item XP + once-a-day full-stack bonus).
+	mux.HandleFunc("GET /api/supplements", h.listSupplements)
+	mux.HandleFunc("POST /api/supplements", h.createSupplement)
+	mux.HandleFunc("GET /api/supplements/history", h.supplementHistory)
+	mux.HandleFunc("PATCH /api/supplements/{id}", h.updateSupplement)
+	mux.HandleFunc("POST /api/supplements/{id}/archive", h.archiveSupplement)
+	mux.HandleFunc("POST /api/supplements/{id}/take", h.takeSupplement)
+
 	mux.HandleFunc("GET /api/journal", h.listJournal)
 	mux.HandleFunc("POST /api/journal", h.createJournal)
 	mux.HandleFunc("PATCH /api/journal/{id}", h.updateJournal)

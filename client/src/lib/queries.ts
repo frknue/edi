@@ -4,7 +4,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { api } from "./api";
-import type { MoodLog, QuestInput, ShopItemInput, TelegramPushTimes } from "./types";
+import type { MoodLog, QuestInput, ShopItemInput, SupplementInput, TelegramPushTimes } from "./types";
 
 export const keys = {
   dashboard: ["dashboard"] as const,
@@ -17,6 +17,8 @@ export const keys = {
   shop: ["shop"] as const,
   goldEvents: ["gold-events"] as const,
   multiplayer: ["multiplayer"] as const,
+  supplements: ["supplements"] as const,
+  supplementHistory: ["supplements", "history"] as const,
 };
 
 export function useDashboard() {
@@ -285,6 +287,53 @@ export function useTelegramUnlink() {
   return useMutation({
     mutationFn: () => api.telegramUnlink(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["telegram-status"] }),
+  });
+}
+
+// --- supplements (daily stack) ----------------------------------------------
+
+export function useSupplements() {
+  return useQuery({ queryKey: keys.supplements, queryFn: api.listSupplements });
+}
+
+export function useSupplementHistory(days = 70) {
+  return useQuery({ queryKey: [...keys.supplementHistory, days], queryFn: () => api.supplementHistory(days) });
+}
+
+function useInvalidateSupplements() {
+  const qc = useQueryClient();
+  return () => qc.invalidateQueries({ queryKey: keys.supplements });
+}
+
+export function useAddSupplement() {
+  const invalidate = useInvalidateSupplements();
+  return useMutation({ mutationFn: (input: SupplementInput) => api.addSupplement(input), onSuccess: invalidate });
+}
+
+export function useUpdateSupplement() {
+  const invalidate = useInvalidateSupplements();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: number; input: SupplementInput }) => api.updateSupplement(id, input),
+    onSuccess: invalidate,
+  });
+}
+
+export function useArchiveSupplement() {
+  const invalidate = useInvalidateSupplements();
+  return useMutation({ mutationFn: (id: number) => api.archiveSupplement(id), onSuccess: invalidate });
+}
+
+// Taking awards XP (and maybe the full-stack bonus) — refresh everything the
+// dashboard shows, like a quest completion does.
+export function useTakeSupplement() {
+  const invalidateAll = useInvalidateAll();
+  const invalidateSupps = useInvalidateSupplements();
+  return useMutation({
+    mutationFn: (id: number) => api.takeSupplement(id),
+    onSuccess: () => {
+      invalidateAll();
+      invalidateSupps();
+    },
   });
 }
 

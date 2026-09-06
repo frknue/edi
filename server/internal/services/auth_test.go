@@ -224,6 +224,13 @@ func TestTenantIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("b shop: %v", err)
 	}
+	bSupp, err := b.AddSupplement(models.SupplementInput{Name: "B's magnesium"})
+	if err != nil {
+		t.Fatalf("b supplement: %v", err)
+	}
+	if _, err := b.TakeSupplement(bSupp.ID); err != nil {
+		t.Fatalf("b take: %v", err)
+	}
 
 	// A sees NONE of it.
 	if quests, _ := a.ListQuests("", ""); len(quests) != 0 {
@@ -237,6 +244,12 @@ func TestTenantIsolation(t *testing.T) {
 	}
 	if items, _ := a.ListShopItems(); len(items) != 0 {
 		t.Errorf("A sees %d of B's shop items, want 0", len(items))
+	}
+	if today, _ := a.ListSupplements(); today.Total != 0 || today.Taken != 0 {
+		t.Errorf("A sees %d/%d of B's supplements, want none", today.Taken, today.Total)
+	}
+	if hist, _ := a.SupplementHistory(7); len(hist) != 0 {
+		t.Errorf("A sees %d days of B's supplement history, want 0", len(hist))
 	}
 	if gold, _ := a.GoldBalance(); gold != 0 {
 		t.Errorf("A's gold = %d, want 0 (B's balance must not leak)", gold)
@@ -259,6 +272,12 @@ func TestTenantIsolation(t *testing.T) {
 	}
 	if _, err := a.PurchaseShopItem(bItem.ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("A purchasing B's item = %v, want ErrNotFound", err)
+	}
+	if _, err := a.TakeSupplement(bSupp.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("A taking B's supplement = %v, want ErrNotFound", err)
+	}
+	if err := a.ArchiveSupplement(bSupp.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("A archiving B's supplement = %v, want ErrNotFound", err)
 	}
 
 	// And B's own view is intact after A's probing.
@@ -286,7 +305,9 @@ func TestTenantIsolation(t *testing.T) {
 	if got := attrByKey(aAttrs, "health").TotalXP; got != 20 {
 		t.Errorf("A health = %d, want 20", got)
 	}
-	if got := attrByKey(bAttrs, "health").TotalXP; got != 90 { // seed value, untouched
-		t.Errorf("B health = %d, want the seeded 90 (A's completion must not leak)", got)
+	// Seeded 90 + B's own supplement take (3 item + 10 full-stack bonus); A's
+	// completion must not leak into it.
+	if got := attrByKey(bAttrs, "health").TotalXP; got != 90+13 {
+		t.Errorf("B health = %d, want 103 (seeded 90 + own supplement 13; A's completion must not leak)", got)
 	}
 }

@@ -326,3 +326,34 @@ func TestPresenceScheduleFollowsServiceSetting(t *testing.T) {
 		t.Fatalf("bad time err = %v, want ErrValidation", err)
 	}
 }
+
+// /supps lists the stack; /supps <name> takes one (full stack pays the bonus).
+func TestPresenceSupplementCommands(t *testing.T) {
+	r, svc, _ := newTestRunner(t)
+	const chat = int64(8008)
+	code, _ := svc.CreateTelegramPairCode()
+	r.handleMessage(chat, "/pair "+code.Code)
+
+	if got := r.handleMessage(chat, "/supps"); !strings.Contains(got, "stack is empty") {
+		t.Fatalf("/supps on empty stack = %q", got)
+	}
+	if _, err := svc.AddSupplement(models.SupplementInput{Name: "Magnesium", Dose: "400 mg"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.handleMessage(chat, "/supps"); !strings.Contains(got, "0/1 today") || !strings.Contains(got, "▢ Magnesium") {
+		t.Fatalf("/supps = %q", got)
+	}
+	got := r.handleMessage(chat, "/supps magn")
+	if !strings.Contains(got, "FULL STACK") || !strings.Contains(got, "1/1 today") || !strings.Contains(got, "+18 XP") {
+		t.Fatalf("/supps magn = %q", got)
+	}
+	if got := r.handleMessage(chat, "/supps magnesium"); !strings.Contains(got, "already taken") {
+		t.Fatalf("second take = %q, want already-taken", got)
+	}
+	if got := r.handleMessage(chat, "/supps nope"); !strings.Contains(got, "⚠") {
+		t.Fatalf("unknown = %q, want ⚠", got)
+	}
+	if got := r.handleMessage(chat, "/supps"); !strings.Contains(got, "✓ Magnesium") || !strings.Contains(got, "bonus paid") {
+		t.Fatalf("/supps after = %q", got)
+	}
+}

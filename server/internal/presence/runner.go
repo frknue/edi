@@ -305,6 +305,36 @@ func (r *Runner) handleCommand(svc *services.Service, chatID int64, cmd, arg str
 		}
 		return fmt.Sprintf("✓ %s time set to %s (your local server time)", cmd, html.EscapeString(arg))
 
+	case "supps", "supplements", "take":
+		if arg == "" {
+			today, err := svc.ListSupplements()
+			if err != nil {
+				return "⚠ " + html.EscapeString(userMessage(err))
+			}
+			return formatSupplements(today)
+		}
+		sp, err := svc.FindSupplement(arg)
+		if err != nil {
+			return "⚠ " + html.EscapeString(userMessage(err))
+		}
+		res, err := svc.TakeSupplement(sp.ID)
+		if err != nil {
+			return "⚠ " + html.EscapeString(userMessage(err))
+		}
+		var xp int64
+		for _, e := range res.XPEvents {
+			xp += e.Amount
+		}
+		reply := fmt.Sprintf("✓ <b>%s</b> taken · +%d XP · +%dg · %d/%d today",
+			html.EscapeString(sp.Name), xp, res.Gold, res.Today.Taken, res.Today.Total)
+		if res.BonusAwarded {
+			reply = "🏅 <b>FULL STACK!</b>\n" + reply
+		}
+		for _, lu := range res.LevelUps {
+			reply += fmt.Sprintf("\n⬆ %s reached Lv %d!", html.EscapeString(lu.AttributeName), lu.ToLevel)
+		}
+		return reply
+
 	case "story":
 		story, err := r.narrate(svc)
 		if err != nil {

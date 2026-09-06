@@ -413,3 +413,59 @@ export interface OpenAIModel {
   efforts: string[];
   default_effort?: string;
 }
+
+// --- supplements (daily stack) ------------------------------------------------
+
+export interface Supplement {
+  id: number;
+  name: string;
+  dose: string;
+  sort_order: number;
+  created_at: string;
+  taken: boolean;
+  taken_at?: string;
+}
+
+export interface SupplementInput {
+  name: string;
+  dose: string;
+}
+
+export interface SupplementsToday {
+  day: string;
+  supplements: Supplement[];
+  taken: number;
+  total: number;
+  all_taken: boolean;
+  bonus_awarded: boolean;
+  item_rewards: Record<string, number>;
+  bonus_rewards: Record<string, number>;
+}
+
+export interface SupplementIntake {
+  id: number;
+  supplement_id: number;
+  name: string;
+  day: string;
+  xp_awarded: number;
+  bonus: boolean;
+  created_at: string;
+}
+
+export interface SupplementTakeResult {
+  intake: SupplementIntake;
+  bonus_awarded: boolean;
+  xp_events: XPEvent[];
+  level_ups: LevelUp[];
+  gold: number;
+  today: SupplementsToday;
+  dashboard: Dashboard;
+}
+
+export interface SupplementDay {
+  day: string;
+  taken: number;
+  bonus: boolean;
+  xp: number;
+  names: string[];
+}

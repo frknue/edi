@@ -193,6 +193,42 @@ func (c *Client) CreateJournal(in models.JournalInput) (models.JournalCreateResu
 	return r, err
 }
 
+// --- supplements (daily stack) ---------------------------------------------
+
+func (c *Client) ListSupplements() (models.SupplementsToday, error) {
+	var out models.SupplementsToday
+	err := c.do(http.MethodGet, "/api/supplements", nil, &out)
+	return out, err
+}
+
+func (c *Client) AddSupplement(in models.SupplementInput) (models.Supplement, error) {
+	var sp models.Supplement
+	err := c.do(http.MethodPost, "/api/supplements", in, &sp)
+	return sp, err
+}
+
+func (c *Client) UpdateSupplement(id int64, in models.SupplementInput) (models.Supplement, error) {
+	var sp models.Supplement
+	err := c.do(http.MethodPatch, fmt.Sprintf("/api/supplements/%d", id), in, &sp)
+	return sp, err
+}
+
+func (c *Client) ArchiveSupplement(id int64) error {
+	return c.do(http.MethodPost, fmt.Sprintf("/api/supplements/%d/archive", id), nil, nil)
+}
+
+func (c *Client) TakeSupplement(id int64) (models.SupplementTakeResult, error) {
+	var r models.SupplementTakeResult
+	err := c.do(http.MethodPost, fmt.Sprintf("/api/supplements/%d/take", id), nil, &r)
+	return r, err
+}
+
+func (c *Client) SupplementHistory(days int) ([]models.SupplementDay, error) {
+	var out []models.SupplementDay
+	err := c.do(http.MethodGet, fmt.Sprintf("/api/supplements/history?days=%d", days), nil, &out)
+	return out, err
+}
+
 // DeleteJournal removes a reflection by id.
 func (c *Client) DeleteJournal(id int64) error {
 	return c.do(http.MethodDelete, fmt.Sprintf("/api/journal/%d", id), nil, nil)

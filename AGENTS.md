@@ -61,7 +61,8 @@ Rules of thumb:
 - **If Telegram can do it, the web and the agent can do it** (`/story` ↔
   `POST /api/story` ↔ `tell_story`; `/boss` ↔ `forge_boss`).
 - **If it awards XP, the agent can do it** (`complete_tool` for guided
-  instruments) — through the same auditable store path.
+  instruments, `take_supplement` for the daily stack) — through the same
+  auditable store path.
 - `edi-cli invoke <tool> [json]` is the generic escape hatch: a new agent tool
   is instantly reachable from the shell and from MCP, so register the tool
   first and add a bespoke CLI command only when the output deserves formatting.
@@ -93,6 +94,11 @@ make reset    # drop + recreate edi_dev (re-seeds on next start)
 ```
 
 Local Postgres must be running on :5432 (Postgres.app / homebrew).
+
+**Deploying = pushing to `main`.** There is no separate release step: a push
+to `main` triggers CI, and a green suite runs `railway up` against the live
+instance (details under Deployment). So a commit on `main` is a production
+change — run `make backup-prod` first whenever it carries a migration.
 
 Always run from the repo root. Go module root is `server/` (module `edi`).
 
@@ -238,6 +244,29 @@ coaching), and the UI requires a one-time privacy opt-in (`lib/aiConsent.tsx`)
 before sending private entry text to OpenAI. AI assist is always optional; the
 tool works fully without a connection.
 
+## Supplements (daily stack)
+
+The Supplements tool follows the Journal pattern (own tables, own service
+methods — NOT the `tools.Registry` payload flow, which fits one-shot
+instruments only). `supplements` is the user's list (soft-deleted via
+`archived_at`, so history and xp_events survive removal);
+`supplement_intakes` holds one row per supplement per Go-computed local day
+(`taken_on` YYYY-MM-DD, UNIQUE backstop). `store.TakeSupplement` runs inside
+`beginUserTx`: already-taken check → intake row → per-item reward
+(`supplementItemRewards`, health 3, xp_events `source='supplement'`) →
+if this take completed the active stack **and no bonus was paid today**, the
+full-stack bonus (`supplementBonusRewards`, health 10 + discipline 5) →
+streak. Rules (tested in `supplements_test.go`): a second take the same day
+is a 400, there is no un-take/clawback, the bonus is once per local day even
+if the list grows afterwards, it is evaluated only at take time (archiving an
+untaken item never grants it retroactively), an empty stack never pays it,
+and two concurrent takes of the last two items pay exactly one bonus
+(`TestSupplementConcurrentSingleBonus`, `-race`). Parity: HTTP
+`/api/supplements[...]`, agent tools `list_supplements` / `add_supplement` /
+`take_supplement` (id or case-insensitive name/unique prefix) /
+`remove_supplement` / `supplement_history`, CLI `edi-cli supps ...`,
+Telegram `/supps [name]`, web `components/Supplements.tsx` (Tools group).
+
 ## Journal
 
 The journal is a first-class tool: entries support edit/delete/search, and the
@@ -270,7 +299,7 @@ Telegram runs **in-process** (`internal/presence`, enabled by
 code (web UI → `POST /api/telegram/pair-code`) and sends `/pair <code>` (or the
 `t.me/<bot>?start=<code>` deep link) to the bot; `telegram_links` maps chat ↔
 user, and every command runs on `svc.ForUser(linked)`. Commands: /status
-/quests /done /ward /rest /briefing /nudge /story /boss /new /unpair — plus
+/quests /done /supps /ward /rest /briefing /nudge /story /boss /new /unpair — plus
 free-text chat (below). Pushes: per-user briefing + conditional nudge at
 per-user times (app_settings, read/written by every client through
 `GET|POST /api/telegram/push-times` / `edi-cli push-times` / the

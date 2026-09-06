@@ -22,6 +22,8 @@ Just talk to me — "add a 20 min run as a daily", "I finished the tax return", 
 /status — level, streak, gold, quests, decay
 /quests — active quests with IDs
 /done &lt;id&gt; — complete a quest
+/supps — today's supplement stack
+/supps &lt;name&gt; — take one (full stack = bonus XP)
 /ward &lt;attribute&gt; — 7-day decay shield (30g)
 /rest on|off — pause/resume decay
 /story — a narrated episode of your saga (AI)
@@ -176,4 +178,31 @@ func parseCommand(text string) (string, string) {
 	}
 	arg := strings.Join(parts[1:], " ")
 	return strings.ToLower(cmd), arg
+}
+
+// formatSupplements renders today's stack as a checklist with the bonus state.
+func formatSupplements(t models.SupplementsToday) string {
+	if t.Total == 0 {
+		return "💊 Your stack is empty — add supplements in the app (Tools → Supplements) or tell me \"add magnesium to my supplements\"."
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "💊 <b>Supplements</b> · %d/%d today\n", t.Taken, t.Total)
+	for _, sp := range t.Supplements {
+		mark := "▢"
+		if sp.Taken {
+			mark = "✓"
+		}
+		fmt.Fprintf(&b, "%s %s", mark, html.EscapeString(sp.Name))
+		if sp.Dose != "" {
+			fmt.Fprintf(&b, " <i>%s</i>", html.EscapeString(sp.Dose))
+		}
+		b.WriteString("\n")
+	}
+	switch {
+	case t.BonusAwarded:
+		b.WriteString("\n🏅 Full stack — bonus paid.")
+	default:
+		b.WriteString("\n/supps <i>name</i> to take one · full stack pays a bonus")
+	}
+	return b.String()
 }

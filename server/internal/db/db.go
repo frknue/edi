@@ -26,6 +26,10 @@ var (
 	ErrSuggestionNotPending = errors.New("suggestion already resolved")
 	// ErrInsufficientGold — the balance cannot cover the purchase.
 	ErrInsufficientGold = errors.New("not enough gold")
+	// ErrSupplementTaken — this supplement was already taken today.
+	ErrSupplementTaken = errors.New("supplement already taken today")
+	// ErrSupplementExists — an active supplement with that name already exists.
+	ErrSupplementExists = errors.New("supplement already in the stack")
 	// Multiplayer membership/invite conditions, translated by the service.
 	ErrAlreadyInBoard = errors.New("user is already in a quest board")
 	ErrBoardFull      = errors.New("quest board already has two members")

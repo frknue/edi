@@ -30,6 +30,11 @@ import type {
   ShopItem,
   ShopItemInput,
   Subtask,
+  SupplementDay,
+  SupplementInput,
+  SupplementsToday,
+  SupplementTakeResult,
+  Supplement,
   ToolCompletionResult,
   ToolDefinition,
   ToolEntry,
@@ -216,6 +221,17 @@ export const api = {
   openaiConfig: (cfg: { model?: string; effort?: string }) =>
     request<OpenAIStatus>("/openai/config", { method: "POST", body: JSON.stringify(cfg) }),
   openaiModels: () => request<{ models: OpenAIModel[] }>("/openai/models"),
+
+  // Supplements — the daily stack.
+  listSupplements: () => request<SupplementsToday>("/supplements"),
+  addSupplement: (input: SupplementInput) =>
+    request<Supplement>("/supplements", { method: "POST", body: JSON.stringify(input) }),
+  updateSupplement: (id: number, input: SupplementInput) =>
+    request<Supplement>(`/supplements/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+  archiveSupplement: (id: number) =>
+    request<{ archived: boolean }>(`/supplements/${id}/archive`, { method: "POST" }),
+  takeSupplement: (id: number) => request<SupplementTakeResult>(`/supplements/${id}/take`, { method: "POST" }),
+  supplementHistory: (days = 70) => request<SupplementDay[]>(`/supplements/history?days=${days}`),
 
   listTools: () => request<{ tools: ToolDefinition[] }>("/tools").then((r) => r.tools),
   completeTool: (key: string, data: MoodLog) =>

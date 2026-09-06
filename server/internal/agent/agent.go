@@ -392,6 +392,67 @@ func NewRegistry() *Registry {
 			return svc.ListToolEntries(p.Key, p.Limit)
 		})
 
+	add("list_supplements", "List the user's daily supplement stack with today's taken/untaken state, progress (taken/total) and the XP schedule (per item + full-stack bonus).",
+		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) { return svc.ListSupplements() })
+
+	add("add_supplement", "Add a supplement to the daily stack (name, optional dose like '2000 IU' or '400 mg').",
+		`{"type":"object","required":["name"],"properties":{"name":{"type":"string"},"dose":{"type":"string"}}}`,
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			var p models.SupplementInput
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			return svc.AddSupplement(p)
+		})
+
+	add("take_supplement", "Record that the user took a supplement today (awards XP; completing the whole stack pays the daily bonus). Pass id or name (case-insensitive, unique prefix ok). Already taken today → error.",
+		`{"type":"object","properties":{"id":{"type":"integer"},"name":{"type":"string"}}}`,
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			var p struct {
+				ID   int64  `json:"id"`
+				Name string `json:"name"`
+			}
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			if p.ID == 0 {
+				if p.Name == "" {
+					return nil, fmt.Errorf("%w: id or name is required", services.ErrValidation)
+				}
+				sp, err := svc.FindSupplement(p.Name)
+				if err != nil {
+					return nil, err
+				}
+				p.ID = sp.ID
+			}
+			return svc.TakeSupplement(p.ID)
+		})
+
+	add("remove_supplement", "Remove a supplement from the daily stack by id (history and XP are kept).",
+		`{"type":"object","required":["id"],"properties":{"id":{"type":"integer"}}}`,
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			id, err := decodeID(in, "id")
+			if err != nil {
+				return nil, err
+			}
+			if err := svc.ArchiveSupplement(id); err != nil {
+				return nil, err
+			}
+			return map[string]any{"archived": true, "id": id}, nil
+		})
+
+	add("supplement_history", "Per-day supplement history (taken count, full-stack bonus flag, XP) for the last N days (default 70).",
+		`{"type":"object","properties":{"days":{"type":"integer"}}}`,
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			var p struct {
+				Days int `json:"days"`
+			}
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			return svc.SupplementHistory(p.Days)
+		})
+
 	add("tell_story", "Narrate the hero's current chapter: a short in-world story of recent progress (uses the connected ChatGPT model).",
 		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) {
 			story, err := svc.StoryNarration()

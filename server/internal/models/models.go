@@ -569,3 +569,65 @@ type AttributeDecay struct {
 	ProjectedDailyLoss int64      `json:"projected_daily_loss"` // 0 unless decaying
 	FloorLevel         int        `json:"floor_level"`
 }
+
+// --- Supplements (daily stack) -----------------------------------------------
+
+// Supplement is one item of the user's daily stack, with today's intake state.
+type Supplement struct {
+	ID        int64      `json:"id"`
+	Name      string     `json:"name"`
+	Dose      string     `json:"dose"`
+	SortOrder int        `json:"sort_order"`
+	CreatedAt time.Time  `json:"created_at"`
+	Taken     bool       `json:"taken"`              // taken today (local day)
+	TakenAt   *time.Time `json:"taken_at,omitempty"` // when, if taken today
+}
+
+// SupplementInput creates or edits a supplement.
+type SupplementInput struct {
+	Name string `json:"name"`
+	Dose string `json:"dose"`
+}
+
+// SupplementsToday is the stack with today's progress and the reward schedule.
+type SupplementsToday struct {
+	Day          string           `json:"day"` // YYYY-MM-DD, local
+	Supplements  []Supplement     `json:"supplements"`
+	Taken        int              `json:"taken"`
+	Total        int              `json:"total"`
+	AllTaken     bool             `json:"all_taken"`
+	BonusAwarded bool             `json:"bonus_awarded"` // the all-taken bonus already paid today
+	ItemRewards  map[string]int64 `json:"item_rewards"`  // XP per supplement taken
+	BonusRewards map[string]int64 `json:"bonus_rewards"` // XP once when the whole stack is taken
+}
+
+// SupplementIntake is one recorded take (the audit row behind the XP).
+type SupplementIntake struct {
+	ID           int64     `json:"id"`
+	SupplementID int64     `json:"supplement_id"`
+	Name         string    `json:"name"`
+	Day          string    `json:"day"`
+	XPAwarded    int64     `json:"xp_awarded"`
+	Bonus        bool      `json:"bonus"` // this take completed the stack and paid the bonus
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+// SupplementTakeResult mirrors quest/tool completion for the reward overlay.
+type SupplementTakeResult struct {
+	Intake       SupplementIntake `json:"intake"`
+	BonusAwarded bool             `json:"bonus_awarded"`
+	XPEvents     []XPEvent        `json:"xp_events"`
+	LevelUps     []LevelUp        `json:"level_ups"`
+	Gold         int64            `json:"gold"`
+	Today        SupplementsToday `json:"today"`
+	Dashboard    Dashboard        `json:"dashboard"`
+}
+
+// SupplementDay is one local day of history (for the consistency heatmap).
+type SupplementDay struct {
+	Day   string   `json:"day"`
+	Taken int      `json:"taken"`
+	Bonus bool     `json:"bonus"` // the whole stack was taken that day
+	XP    int64    `json:"xp"`
+	Names []string `json:"names"`
+}
