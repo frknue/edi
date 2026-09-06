@@ -133,6 +133,15 @@ func (s *Store) rollLootTx(tx *sql.Tx, userID, questID int64, now time.Time) (*m
 	return drop, nil
 }
 
+// LootPity exposes the dropless counter (the visible loot meter).
+func (s *Store) LootPity(userID int64) (models.LootPity, error) {
+	var dropless int
+	if err := s.db.QueryRow(`SELECT dropless FROM loot_pity WHERE user_id = $1`, userID).Scan(&dropless); err != nil && err != sql.ErrNoRows {
+		return models.LootPity{}, err
+	}
+	return models.LootPity{Dropless: dropless, GuaranteedAfter: pityAfter}, nil
+}
+
 // activeBuffsTx returns the user's unexpired buffs (for the award pipeline).
 func activeBuffsTx(tx *sql.Tx, userID int64, now time.Time) ([]models.ActiveBuff, error) {
 	rows, err := tx.Query(

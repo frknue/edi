@@ -127,6 +127,8 @@ export const en = {
   "hero.activeDaysTitle": "Days you showed up (last two weeks). A gap is just a gap.",
   "hero.streakSmall": "{n} in a row · best {best}",
   "hero.mended": "mended",
+  "hero.loot": "loot {n}/{total}",
+  "hero.lootTitle": "Loot meter: after {n} completions without a drop, the next one is guaranteed.",
 
   // --- attribute card -----------------------------------------------------
   "attrCard.wardedUntil": "warded until {date}",
@@ -147,6 +149,8 @@ export const en = {
   "quest.start": "Start",
   "quest.running": "running",
   "quest.resume": "resume",
+  "quest.hp": "HP",
+  "quest.phases": "Phases — each check is a hit",
   "quest.shared": "shared",
   "quest.waitingForOthers": "your part is done",
 
@@ -189,6 +193,7 @@ export const en = {
 
   // --- reward overlay -----------------------------------------------------
   "reward.questComplete": "Quest Complete",
+  "reward.boardClear": "Board cleared!",
   "reward.spontaneousWin": "Spontaneous Win",
   "reward.journal": "Journal",
   "reward.toolComplete": "Tool Complete",
@@ -242,6 +247,22 @@ export const en = {
   "dash.landingPlaceholder": "e.g. open the editor at main.go",
   "dash.stopAndSave": "Stop & keep the note",
   "dash.justStop": "Just stop",
+  "dash.paysNow": "pays {xp} XP now",
+  "dash.paysNowTitle": "What completing it pays right now: base + combo + active buffs",
+  "dash.reason.first_move": "your first move",
+  "dash.reason.near_level": "closes a level",
+  "dash.reason.buff": "a buff is live",
+  "dash.reason.combo": "combo is hot",
+  "dash.reason.weakest": "trains your weakest stat",
+  "dash.reason.default": "best payout right now",
+  "dash.camp": "Camp",
+  "dash.campTitle": "Today is done.",
+  "dash.campSummary": "{done}/{goal} dailies cleared · {xp} XP today · {days} of 14 days showed up.",
+  "dash.campBonus": "Board-clear bonus paid.",
+  "dash.extraCredit": "Extra credit",
+  "dash.tomorrowFirst": "First thing tomorrow?",
+  "dash.firstMoveDone": "Today's first move is set — see you at the top of tomorrow's board.",
+  "dash.unpin": "Unpin (never a skip)",
   "dash.restOn": "Rest mode is ON — nudges stand down. Recover well.",
   "dash.wakeUp": "Wake up",
   "dash.degradation": "Hardcore: {xp} XP lost to decay since your last visit.",

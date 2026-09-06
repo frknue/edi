@@ -190,9 +190,40 @@ caught and fixed — keep using it.
   a streak — never add one (`TestStreakAutoMend`). Rest mode does not yet
   bridge the streak (deferred; the mend covers most short pauses).
 - **The daily goal is the board, not a constant.** `DailyProgress.Goal` =
-  `max(1, dailies active or completed today)` (`store.DailyQuestCountToday`)
-  — a closable set. The evening nudge fires until `completed >= goal`; in
-  rest mode it stands down (`nudgeQuest`, `TestNudgeQuestConditions`).
+  `max(1, dailies active or completed today)` (`store.DailyQuestCountToday`),
+  `DailiesDone` counts dailies completed today (with no dailies, any
+  completion counts), `Cleared` = the set is closed and `Dashboard.DayState`
+  is `camp`. The evening nudge fires until cleared; in rest mode it stands
+  down (`nudgeQuest`, `TestNudgeQuestConditions`).
+- **Board clear pays once per local day, inside the completion tx.** When a
+  completion leaves zero active dailies with at least one completed today
+  and no `board_clear` xp_event exists for today, `db.boardClearRewards`
+  (discipline 15, focus 10; mirrored as `services.BoardClearRewards`) is
+  appended to the award list (`boardClearedTx`), so gold and level-ups flow
+  through the same pipeline (`TestBoardClearBonusOncePerDay`).
+  `CompletionResult.BoardClear` flags it; the web flips the home screen to
+  the Campfire (`Campfire` in `pages/Dashboard.tsx`): done for today, extras
+  muted, and the shutdown ritual ("first thing tomorrow?").
+- **First move** (`services/firstmove.go`): app_settings `first_move` =
+  `YYYY-MM-DD|questID`. The recommender returns it with reason
+  `first_move` on its day; a stale or archived pin vanishes silently and is
+  NEVER a skip (`TestFirstMove`). Parity: `POST|DELETE /api/first-move`,
+  tools `set_first_move`/`clear_first_move`, `edi-cli first <id>
+  [--tomorrow]`, the camp panel, and the `★ first move` line in `/status`.
+- **Every card carries `projected_xp`** = `services.ProjectPayout` (base +
+  checked subtasks + combo bonus for the next completion + active buffs, no
+  crit), computed in `GetDashboard`, never stored. It MUST equal what
+  `db.completeQuest` pays for a non-crit roll — `TestProjectionMatchesAward`
+  is the contract; change both or neither. `recommendQuest` scores from the
+  same number (bosses excluded, +near-level, +weakest) and returns a
+  `recommend_reason` key the UI translates.
+- **Loot pity is visible** (`Dashboard.LootPity`, `store.LootPity`): the
+  header meter and `/status` show `dropless/guaranteed_after`.
+- **Boss phases are the HP bar.** `ForgeBoss` asks the model for 3-5 ordered
+  phases and stores them as subtasks; the boss card renders HP from
+  subtasks left (`BossHP` in `QuestCard.tsx`), Telegram `/boss` prints the
+  bar and `/hit <phase id>` maps to `ToggleSubtask`. XP is unchanged: phase
+  bonuses stay frozen and paid at completion.
 - **Buffs last 24 h or 3 uses** (`user_buffs.uses_left`, NULL = legacy
   unlimited); every buff that touched an award spends one use inside the
   completion tx (`TestBuffSpentAfterThreeUses`).

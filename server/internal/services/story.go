@@ -80,10 +80,11 @@ const forgeBossInstructions = `You are the dungeon-master of "edi", a life-RPG w
 	`description states the real-world completion condition in 1-2 sentences.
 
 Respond with ONLY a JSON object, no prose or fences:
-{"title":"string","description":"string","attribute_rewards":{"<attribute_key>":<integer, multiple of 5>}}
+{"title":"string","description":"string","attribute_rewards":{"<attribute_key>":<integer, multiple of 5>},"phases":[{"title":"string","attribute_rewards":{"<attribute_key>":<integer 5-20>}}]}
 
 Rules:
 - attribute_rewards: 2-3 of the player's weakest attribute keys, total 120-200 XP.
+- phases: 3 to 5 ORDERED, concrete, small real-world steps that together defeat the boss (each one doable in one sitting; the first must be a 5-minute start). Each phase carries 5-20 XP on one of the boss's attributes. Phases are the boss's HP bar — checking one is a hit.
 - The challenge must be genuinely completable within a week by one person.
 - Do not duplicate an active quest.`
 
@@ -122,9 +123,25 @@ func (s *Service) ForgeBoss() (models.Quest, error) {
 		Title            string           `json:"title"`
 		Description      string           `json:"description"`
 		AttributeRewards map[string]int64 `json:"attribute_rewards"`
+		Phases           []struct {
+			Title            string           `json:"title"`
+			AttributeRewards map[string]int64 `json:"attribute_rewards"`
+		} `json:"phases"`
 	}
 	if err := json.Unmarshal([]byte(extractJSONObject(raw)), &parsed); err != nil {
 		return models.Quest{}, fmt.Errorf("%w: the model returned an unexpected response, try again", ErrValidation)
+	}
+	// Phases become subtasks: the boss's HP bar. Bad ones are dropped, not fatal.
+	var phases []models.SubtaskInput
+	for _, ph := range parsed.Phases {
+		title := strings.TrimSpace(ph.Title)
+		if title == "" || len(phases) >= 5 {
+			continue
+		}
+		if ph.AttributeRewards == nil {
+			ph.AttributeRewards = map[string]int64{}
+		}
+		phases = append(phases, models.SubtaskInput{Title: title, AttributeRewards: ph.AttributeRewards})
 	}
 	in := models.QuestInput{
 		Title:            strings.TrimSpace(parsed.Title),
@@ -132,6 +149,7 @@ func (s *Service) ForgeBoss() (models.Quest, error) {
 		Type:             "boss",
 		Difficulty:       "boss",
 		AttributeRewards: parsed.AttributeRewards,
+		Subtasks:         phases,
 	}
 	if err := s.validateQuestInput(&in); err != nil {
 		return models.Quest{}, err

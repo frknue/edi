@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Archive, Check, CheckCircle2, Circle, CornerDownRight, Pencil, Play, RotateCcw, SkipForward, Square, SquareCheckBig, Users } from "lucide-react";
 import type { Quest } from "../lib/types";
@@ -115,8 +116,22 @@ export function QuestCard({
 
         <div className="mt-3 flex items-center justify-between gap-2">
           <DifficultyPips difficulty={quest.difficulty} />
-          <RewardChips rewards={quest.attribute_rewards} />
+          <div className="flex items-center gap-2">
+            {typeof quest.projected_xp === "number" && quest.projected_xp > 0 && isActive && (
+              <span
+                className="tabnum whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+                style={{ borderColor: "rgba(255,176,0,0.45)", color: "var(--color-goldhi)" }}
+                title={t("dash.paysNowTitle")}
+                data-testid={`pays-${quest.id}`}
+              >
+                {t("dash.paysNow", { xp: quest.projected_xp })}
+              </span>
+            )}
+            <RewardChips rewards={quest.attribute_rewards} />
+          </div>
         </div>
+
+        {isBoss && quest.subtasks.length > 0 && <BossHP quest={quest} />}
 
         {isShared && (
           <div className="mt-2 flex flex-wrap gap-1" data-testid={`assignees-${quest.id}`}>
@@ -149,7 +164,7 @@ export function QuestCard({
           </div>
         )}
 
-        {quest.subtasks.length > 0 && <SubtaskList quest={quest} interactive={myActive} />}
+        {quest.subtasks.length > 0 && <SubtaskList quest={quest} interactive={myActive} boss={isBoss} />}
 
         {(onComplete || onStart || onSkip || onArchive || onEdit) && isActive && (
           <div className="mt-4 flex items-center gap-2">
@@ -215,15 +230,60 @@ export function QuestCard({
   );
 }
 
-// SubtaskList renders a quest's bonus objectives. While the quest is active the
-// checkboxes toggle via the API; afterwards they show frozen state.
-function SubtaskList({ quest, interactive }: { quest: Quest; interactive: boolean }) {
+// BossHP renders a boss's phases as an HP bar: every checked phase is a hit
+// that takes a chunk off. A week-long boss becomes five visible hits.
+function BossHP({ quest }: { quest: Quest }) {
+  const { t } = useI18n();
+  const total = quest.subtasks.length;
+  const done = quest.subtasks.filter((s) => s.done).length;
+  const left = total - done;
+  const prev = useRef(done);
+  const [hit, setHit] = useState(false);
+  useEffect(() => {
+    if (done > prev.current) {
+      setHit(true);
+      const id = window.setTimeout(() => setHit(false), 550);
+      return () => window.clearTimeout(id);
+    }
+    prev.current = done;
+  }, [done]);
+  useEffect(() => {
+    prev.current = done;
+  }, [done]);
+  return (
+    <div className={`mt-3 ${hit ? "boss-hit" : ""}`} data-testid={`boss-hp-${quest.id}`} data-hp={`${left}/${total}`}>
+      <div className="mb-1 flex items-center justify-between font-display text-[10px] uppercase tracking-[0.18em]" style={{ color: "var(--color-boss)" }}>
+        <span>{t("quest.hp")}</span>
+        <span className="tabnum">
+          {left}/{total}
+        </span>
+      </div>
+      <div className="flex gap-1">
+        {quest.subtasks.map((st) => (
+          <span
+            key={st.id}
+            className="h-2 flex-1 rounded-[2px] transition-all"
+            style={{
+              background: st.done ? "rgba(255,255,255,0.06)" : "var(--color-boss)",
+              boxShadow: st.done ? undefined : "0 0 8px rgba(255,71,71,0.6)",
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// SubtaskList renders a quest's bonus objectives (or a boss's phases). While
+// the quest is active the checkboxes toggle via the API; afterwards they show
+// frozen state.
+function SubtaskList({ quest, interactive, boss = false }: { quest: Quest; interactive: boolean; boss?: boolean }) {
   const { t } = useI18n();
   const toggle = useToggleSubtask();
   return (
     <div className="mt-3 space-y-1 rounded-lg border border-edge/70 bg-white/[0.015] p-2">
       <div className="px-1 font-display text-[9px] uppercase tracking-[0.18em] text-faint">
-        {t("quest.bonusObjectives")}
+        {boss ? t("quest.phases") : t("quest.bonusObjectives")}
       </div>
       {quest.subtasks.map((st) => {
         const Icon = st.done ? SquareCheckBig : Square;

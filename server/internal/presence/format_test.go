@@ -18,7 +18,7 @@ func sampleDashboard() models.Dashboard {
 			{ID: 7, Title: "30 minute <workout>", Difficulty: "medium", AttributeRewards: map[string]int64{"strength": 40, "discipline": 10}},
 			{ID: 9, Title: "Read 15 pages", Difficulty: "easy", AttributeRewards: map[string]int64{"learning": 30}},
 		},
-		DailyProgress: models.DailyProgress{CompletedToday: 2, Goal: 5},
+		DailyProgress: models.DailyProgress{CompletedToday: 2, DailiesDone: 2, Goal: 5},
 		Attributes: []models.Attribute{
 			{Key: "focus", Name: "Focus", Decay: &models.AttributeDecay{State: "decaying", IdleDays: 6, ProjectedDailyLoss: 6}},
 			{Key: "strength", Name: "Strength", Decay: &models.AttributeDecay{State: "fresh"}},
@@ -69,14 +69,15 @@ func TestNudgeQuestConditions(t *testing.T) {
 		t.Errorf("progress-aware nudge = %q", got)
 	}
 
-	// Set cleared: no nudge.
-	d.DailyProgress.CompletedToday = 5
+	// Set cleared (camp): no nudge.
+	d.DailyProgress.DailiesDone, d.DailyProgress.Cleared = 5, true
 	if _, ok := nudgeQuest(d); ok {
 		t.Error("nudge fired despite a cleared set")
 	}
+	d.DailyProgress.Cleared = false
 
 	// Nothing done: nudge the easiest (easy beats medium).
-	d.DailyProgress.CompletedToday = 0
+	d.DailyProgress.CompletedToday, d.DailyProgress.DailiesDone = 0, 0
 	if got := formatNudge(d, *sampleQuest(d, 9)); !strings.Contains(got, "Nothing logged today") {
 		t.Errorf("zero-progress nudge = %q", got)
 	}

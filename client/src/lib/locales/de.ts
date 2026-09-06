@@ -129,6 +129,8 @@ export const de: Record<MessageKey, string> = {
   "hero.activeDaysTitle": "Tage, an denen du da warst (letzte zwei Wochen). Eine Lücke ist nur eine Lücke.",
   "hero.streakSmall": "{n} in Folge · Rekord {best}",
   "hero.mended": "geflickt",
+  "hero.loot": "Beute {n}/{total}",
+  "hero.lootTitle": "Beute-Zähler: nach {n} Abschlüssen ohne Drop ist der nächste garantiert.",
 
   // --- attribute card -----------------------------------------------------
   "attrCard.wardedUntil": "geschützt bis {date}",
@@ -149,6 +151,8 @@ export const de: Record<MessageKey, string> = {
   "quest.start": "Los",
   "quest.running": "läuft",
   "quest.resume": "weiter",
+  "quest.hp": "HP",
+  "quest.phases": "Phasen — jeder Haken ist ein Treffer",
   "quest.shared": "geteilt",
   "quest.waitingForOthers": "dein Teil ist erledigt",
 
@@ -191,6 +195,7 @@ export const de: Record<MessageKey, string> = {
 
   // --- reward overlay -----------------------------------------------------
   "reward.questComplete": "Quest abgeschlossen",
+  "reward.boardClear": "Brett geleert!",
   "reward.spontaneousWin": "Spontaner Sieg",
   "reward.journal": "Journal",
   "reward.toolComplete": "Werkzeug abgeschlossen",
@@ -244,6 +249,22 @@ export const de: Record<MessageKey, string> = {
   "dash.landingPlaceholder": "z. B. den Editor bei main.go öffnen",
   "dash.stopAndSave": "Stoppen & Notiz behalten",
   "dash.justStop": "Einfach stoppen",
+  "dash.paysNow": "bringt jetzt {xp} XP",
+  "dash.paysNowTitle": "Was ein Abschluss jetzt zahlt: Basis + Combo + aktive Buffs",
+  "dash.reason.first_move": "dein erster Zug",
+  "dash.reason.near_level": "schließt ein Level ab",
+  "dash.reason.buff": "ein Buff ist aktiv",
+  "dash.reason.combo": "Combo läuft heiß",
+  "dash.reason.weakest": "trainiert deinen schwächsten Wert",
+  "dash.reason.default": "beste Ausbeute gerade",
+  "dash.camp": "Lager",
+  "dash.campTitle": "Heute ist geschafft.",
+  "dash.campSummary": "{done}/{goal} Tagesquests erledigt · {xp} XP heute · an {days} von 14 Tagen da gewesen.",
+  "dash.campBonus": "Bonus fürs leere Brett gezahlt.",
+  "dash.extraCredit": "Extra",
+  "dash.tomorrowFirst": "Das Erste morgen?",
+  "dash.firstMoveDone": "Der erste Zug für heute steht — bis morgen oben auf dem Brett.",
+  "dash.unpin": "Lösen (kein Überspringen)",
   "dash.restOn": "Ruhemodus ist AN — Erinnerungen pausieren. Erhol dich gut.",
   "dash.wakeUp": "Aufwachen",
   "dash.degradation": "Hardcore: {xp} XP seit deinem letzten Besuch durch Verfall verloren.",

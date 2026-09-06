@@ -745,6 +745,28 @@ func (h *Handlers) listSessions(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+func (h *Handlers) setFirstMove(w http.ResponseWriter, r *http.Request) {
+	var in models.FirstMoveInput
+	if err := decodeBody(r, &in); err != nil {
+		writeError(w, err)
+		return
+	}
+	fm, err := h.forUser(r).SetFirstMove(in)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, fm)
+}
+
+func (h *Handlers) clearFirstMove(w http.ResponseWriter, r *http.Request) {
+	if err := h.forUser(r).ClearFirstMove(); err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"cleared": true})
+}
+
 func (h *Handlers) getHardcore(w http.ResponseWriter, r *http.Request) {
 	st, err := h.forUser(r).HardcoreState()
 	if err != nil {

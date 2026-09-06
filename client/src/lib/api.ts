@@ -43,6 +43,7 @@ import type {
   XPEvent,
   HardcoreState,
   QuestSession,
+  FirstMove,
 } from "./types";
 
 // Base path is relative; the Vite dev proxy (and the Go static server in prod)
@@ -164,6 +165,9 @@ export const api = {
   stopQuest: (note: string) =>
     request<QuestSession>("/session/stop", { method: "POST", body: JSON.stringify({ note }) }),
   activeSession: () => request<{ session: QuestSession | null }>("/session"),
+  setFirstMove: (quest_id: number, tomorrow: boolean) =>
+    request<FirstMove>("/first-move", { method: "POST", body: JSON.stringify({ quest_id, tomorrow }) }),
+  clearFirstMove: () => request<{ cleared: boolean }>("/first-move", { method: "DELETE" }),
   archiveQuest: (id: number) => request<Quest>(`/quests/${id}/archive`, { method: "POST" }),
 
   getXPEvents: (limit = 50) => request<XPEvent[]>(`/xp-events?limit=${limit}`),

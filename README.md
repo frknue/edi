@@ -246,6 +246,8 @@ Base: `/api`
 | GET | `/session` | The running session (`{session:null}` when none; stale ones expire at the local day boundary) |
 | POST | `/session/stop` | Stop the running session; `{note}` is stored as the quest's resume note ("next physical action") |
 | GET | `/sessions?limit=` | Recent sessions, newest first |
+| POST | `/first-move` | Pin `{quest_id, tomorrow}` as the first move of today/tomorrow (the shutdown ritual); never a skip |
+| DELETE | `/first-move` | Drop the pin |
 | GET | `/xp-events?limit=` | Recent XP audit events |
 | GET | `/journal?limit=&q=` | Recent reflections (optional full-text search over notes) |
 | POST | `/journal` | Add a reflection (mood/energy 1–10 + notes); first entry of the day awards XP |

@@ -114,14 +114,18 @@ type Quest struct {
 	Subtasks         []Subtask        `json:"subtasks"`
 	SkipCount        int              `json:"skip_count"`
 	ResumeNote       string           `json:"resume_note"` // "next physical action" captured at Stop; cleared on completion
-	CreatedAt        time.Time        `json:"created_at"`
-	CompletedAt      *time.Time       `json:"completed_at"`
-	DueDate          *time.Time       `json:"due_date"`
-	SharedQuestID    *int64           `json:"shared_quest_id,omitempty"`
-	Assignees        []QuestAssignee  `json:"assignees"`
-	AssignedToMe     bool             `json:"assigned_to_me"`
-	MyStatus         string           `json:"my_status,omitempty"`
-	AllCompleted     bool             `json:"all_completed"`
+	// Derived on the dashboard (never stored): what completing it pays RIGHT
+	// NOW (base + combo + buffs, no crit) and why it is recommended.
+	ProjectedXP     int64           `json:"projected_xp,omitempty"`
+	RecommendReason string          `json:"recommend_reason,omitempty"` // first_move | near_level | buff | combo | weakest | default
+	CreatedAt       time.Time       `json:"created_at"`
+	CompletedAt     *time.Time      `json:"completed_at"`
+	DueDate         *time.Time      `json:"due_date"`
+	SharedQuestID   *int64          `json:"shared_quest_id,omitempty"`
+	Assignees       []QuestAssignee `json:"assignees"`
+	AssignedToMe    bool            `json:"assigned_to_me"`
+	MyStatus        string          `json:"my_status,omitempty"`
+	AllCompleted    bool            `json:"all_completed"`
 }
 
 // QuestAssignee is one member's independent progress on a shared quest.
@@ -349,10 +353,14 @@ type CharacterSummary struct {
 	Progress       float64 `json:"progress"`
 }
 
-// DailyProgress drives the "today" indicator.
+// DailyProgress drives the "today" indicator. The set that closes the day
+// is the dailies on the board (Goal, DailiesDone); CompletedToday counts
+// every completion (it drives the combo chain).
 type DailyProgress struct {
 	CompletedToday int     `json:"completed_today"`
 	Goal           int     `json:"goal"`
+	DailiesDone    int     `json:"dailies_done"`
+	Cleared        bool    `json:"cleared"` // today's set is closed — camp
 	Ratio          float64 `json:"ratio"`
 	// NextComboMultiplier is what the NEXT completion today will pay (combo
 	// chain: back-to-back completions the same local day multiply XP).
@@ -374,11 +382,36 @@ type Dashboard struct {
 	DailyPenaltyXP   int64             `json:"daily_penalty_xp"` // XP removed today for missed daily quests (hardcore only)
 	ActiveDays       []ActiveDay       `json:"active_days"`      // last 14 local days, oldest first
 	ActiveSession    *QuestSession     `json:"active_session"`   // the running quest, if any
+	DayState         string            `json:"day_state"`        // open | camp (today's set is cleared)
+	XPToday          int64             `json:"xp_today"`         // positive XP earned today
+	BoardClearToday  bool              `json:"board_clear_today"`
+	LootPity         LootPity          `json:"loot_pity"`
+	FirstMove        *FirstMove        `json:"first_move"` // the pre-chosen first quest (today or tomorrow)
 	RecentXPEvents   []XPEvent         `json:"recent_xp_events"`
 	RecommendedQuest *Quest            `json:"recommended_quest"`
 	DailyProgress    DailyProgress     `json:"daily_progress"`
 	Suggestions      []AgentSuggestion `json:"pending_suggestions"`
 	ActiveBuffs      []ActiveBuff      `json:"active_buffs"` // running loot buffs
+}
+
+// LootPity makes the variable ratio visible: after GuaranteedAfter dropless
+// completions the next one is a guaranteed drop.
+type LootPity struct {
+	Dropless        int `json:"dropless"`
+	GuaranteedAfter int `json:"guaranteed_after"`
+}
+
+// FirstMove is the quest the user pre-chose as the first thing of a day
+// (the shutdown ritual: "what's the first thing tomorrow?").
+type FirstMove struct {
+	Day   string `json:"day"` // YYYY-MM-DD it applies to
+	Quest Quest  `json:"quest"`
+}
+
+// FirstMoveInput sets the first move for today or tomorrow.
+type FirstMoveInput struct {
+	QuestID  int64 `json:"quest_id"`
+	Tomorrow bool  `json:"tomorrow"`
 }
 
 // LevelUp reports an attribute crossing a level boundary during a completion.
@@ -402,6 +435,7 @@ type CompletionResult struct {
 	Crit            bool      `json:"crit"`
 	ComboMultiplier float64   `json:"combo_multiplier"`
 	Drop            *ItemDrop `json:"drop,omitempty"` // loot, if the dice smiled
+	BoardClear      bool      `json:"board_clear"`    // this completion closed today's set (bonus paid)
 	// Achievements newly unlocked by this completion (evaluated post-commit).
 	AchievementsUnlocked []Achievement `json:"achievements_unlocked"`
 	Dashboard            Dashboard     `json:"dashboard"`

@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { PixelHero } from "./PixelHero";
-import { Coins, Flame } from "lucide-react";
-import type { ActiveDay, CharacterSummary, DailyProgress, Streak } from "../lib/types";
+import { Coins, Flame, Gift } from "lucide-react";
+import type { ActiveDay, CharacterSummary, DailyProgress, LootPity, Streak } from "../lib/types";
 import { ProgressBar } from "./ui";
 import { formatNumber, pct } from "../lib/format";
 import { useI18n } from "../lib/i18n";
@@ -77,12 +77,16 @@ export function CharacterHeader({
   daily,
   gold,
   activeDays,
+  loot,
+  mood = "idle",
 }: {
   character: CharacterSummary;
   streak: Streak;
   daily: DailyProgress;
   gold: number;
   activeDays: ActiveDay[];
+  loot?: LootPity;
+  mood?: "idle" | "focus" | "camp";
 }) {
   const { t } = useI18n();
   const today = activeDays.find((d) => d.today)?.day;
@@ -101,7 +105,7 @@ export function CharacterHeader({
       <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center">
         {/* identity: the hero + one level */}
         <div className="flex items-center gap-4">
-          <PixelHero level={character.level} titled={!!character.title} size={56} />
+          <PixelHero level={character.level} titled={!!character.title} size={56} mood={mood} />
           <div
             className="relative grid h-[64px] w-[68px] place-items-center rounded-sm border"
             style={{
@@ -159,7 +163,7 @@ export function CharacterHeader({
             </div>
           </div>
           <div className="text-center">
-            <DailyRing ratio={daily.ratio} completed={daily.completed_today} goal={daily.goal} />
+            <DailyRing ratio={daily.ratio} completed={daily.dailies_done} goal={daily.goal} />
             <div className="mt-0.5 font-display text-[10px] uppercase tracking-wider text-faint">{t("hero.today")}</div>
             {daily.next_combo_multiplier > 1 && daily.completed_today < daily.goal && (
               <div className="tabnum text-[10px] font-semibold" style={{ color: "var(--color-spirituality)" }} title={t("hero.comboTitle")} data-testid="combo-chip">
@@ -173,6 +177,26 @@ export function CharacterHeader({
               <span className="tabnum text-xl font-bold text-ink">{gold}</span>
             </div>
             <div className="mt-0.5 font-display text-[10px] uppercase tracking-wider text-faint">{t("hero.gold")}</div>
+            {loot && loot.guaranteed_after > 0 && (
+              <div
+                className="mt-1 flex items-center justify-center gap-1 text-[10px]"
+                style={{ color: "#cbaaff" }}
+                title={t("hero.lootTitle", { n: loot.guaranteed_after })}
+                data-testid="loot-meter"
+              >
+                <Gift size={11} />
+                <span className="flex items-center gap-[2px]">
+                  {Array.from({ length: loot.guaranteed_after }, (_, i) => (
+                    <span
+                      key={i}
+                      className="block h-1.5 w-1.5 rounded-[1px]"
+                      style={{ background: i < loot.dropless ? "#b98aff" : "rgba(255,255,255,0.08)" }}
+                    />
+                  ))}
+                </span>
+                <span className="tabnum">{t("hero.loot", { n: loot.dropless, total: loot.guaranteed_after })}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

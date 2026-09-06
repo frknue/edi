@@ -591,6 +591,38 @@ type CompletionOutcome struct {
 	Crit            bool
 	ComboMultiplier float64
 	Drop            *models.ItemDrop
+	BoardClear      bool // this completion closed today's daily set
+}
+
+// boardClearRewards is the once-per-local-day bonus for clearing the daily
+// set (every daily on the board completed today). Mirrored for display in
+// services.BoardClearRewards — keep in sync.
+var boardClearRewards = map[string]int64{"discipline": 15, "focus": 10}
+
+// boardClearedTx reports whether, inside the completion tx, every daily on
+// the board is completed today (at least one) and the bonus was not paid yet.
+func boardClearedTx(tx *sql.Tx, userID int64, dayStart, dayEnd time.Time) (bool, error) {
+	var activeDailies, doneDailies, paid int
+	if err := tx.QueryRow(`SELECT COUNT(1) FROM quests WHERE user_id = $1 AND type = 'daily' AND status = 'active'`, userID).Scan(&activeDailies); err != nil {
+		return false, err
+	}
+	if activeDailies > 0 {
+		return false, nil
+	}
+	if err := tx.QueryRow(
+		`SELECT COUNT(1) FROM quests WHERE user_id = $1 AND type = 'daily' AND status = 'completed' AND completed_at >= $2 AND completed_at < $3`,
+		userID, dayStart, dayEnd).Scan(&doneDailies); err != nil {
+		return false, err
+	}
+	if doneDailies == 0 {
+		return false, nil
+	}
+	if err := tx.QueryRow(
+		`SELECT COUNT(1) FROM xp_events WHERE user_id = $1 AND source = 'board_clear' AND created_at >= $2 AND created_at < $3`,
+		userID, dayStart, dayEnd).Scan(&paid); err != nil {
+		return false, err
+	}
+	return paid == 0, nil
 }
 
 func (s *Store) CompleteQuest(userID, questID int64) (models.Quest, []models.XPEvent, []models.LevelUp, int64, CompletionOutcome, error) {
@@ -772,6 +804,20 @@ func (s *Store) completeQuest(userID, questID int64, spontaneous *models.QuestIn
 			if _, err := tx.Exec(`UPDATE user_buffs SET uses_left = uses_left - 1 WHERE id = $1 AND uses_left IS NOT NULL AND uses_left > 0`, id); err != nil {
 				return fail(err)
 			}
+		}
+	}
+
+	// Board clear: this completion closed today's daily set → once-per-day
+	// bonus, evaluated in-tx (the supplement full-stack pattern).
+	cleared, err := boardClearedTx(tx, userID, dayStart, dayEnd)
+	if err != nil {
+		return fail(err)
+	}
+	if cleared {
+		outcome.BoardClear = true
+		note := fmt.Sprintf("board clear · %s", now.Local().Format(dayFormat))
+		for _, key := range orderedKeys(boardClearRewards) {
+			awards = append(awards, award{key, boardClearRewards[key], note, "board_clear", "board_clear"})
 		}
 	}
 
@@ -1032,6 +1078,36 @@ func (s *Store) ActiveDaySet(userID int64, since time.Time) (map[string]bool, er
 		days[t.Local().Format(dayFormat)] = true
 	}
 	return days, rows.Err()
+}
+
+// DailiesDoneToday counts daily quests completed on the local today.
+func (s *Store) DailiesDoneToday(userID int64, now time.Time) (int, error) {
+	start, end := localDayBounds(now)
+	var n int
+	err := s.db.QueryRow(
+		`SELECT COUNT(1) FROM quests WHERE user_id = $1 AND type = 'daily' AND status = 'completed' AND completed_at >= $2 AND completed_at < $3`,
+		userID, start, end).Scan(&n)
+	return n, err
+}
+
+// BoardClearPaidToday reports whether the daily-set bonus was paid today.
+func (s *Store) BoardClearPaidToday(userID int64, now time.Time) (bool, error) {
+	start, end := localDayBounds(now)
+	var n int
+	err := s.db.QueryRow(
+		`SELECT COUNT(1) FROM xp_events WHERE user_id = $1 AND source = 'board_clear' AND created_at >= $2 AND created_at < $3`,
+		userID, start, end).Scan(&n)
+	return n > 0, err
+}
+
+// XPToday sums positive XP earned on the local today (any source but seed).
+func (s *Store) XPToday(userID int64, now time.Time) (int64, error) {
+	start, end := localDayBounds(now)
+	var n int64
+	err := s.db.QueryRow(
+		`SELECT COALESCE(SUM(amount),0) FROM xp_events WHERE user_id = $1 AND amount > 0 AND source <> 'seed' AND created_at >= $2 AND created_at < $3`,
+		userID, start, end).Scan(&n)
+	return n, err
 }
 
 // DailyQuestCountToday counts the daily quests on today's board: active ones

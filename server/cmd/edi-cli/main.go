@@ -16,6 +16,7 @@
 //	start <id>                      Start a quest in active mode (timed session, no XP yet)
 //	stop [note]                     Stop the running session; note = next physical action
 //	now                             Show the running quest and elapsed time
+//	first <id> [--tomorrow]         Pin a quest as the first move of today / tomorrow
 //	skip <id> | archive <id>        Skip / archive a quest
 //	journal                         List recent reflections
 //	journal [--q text]              List / search reflections
@@ -149,6 +150,8 @@ func run(c *apiclient.Client, cmd string, args []string) error {
 		return cmdStop(c, args)
 	case "now":
 		return cmdNow(c)
+	case "first":
+		return cmdFirst(c, args)
 	case "story":
 		return cmdStory(c)
 	case "boss":
@@ -867,6 +870,28 @@ func cmdNow(c *apiclient.Client) error {
 	if sess.ResumeNote != "" {
 		fmt.Printf("  resume: %s\n", sess.ResumeNote)
 	}
+	return nil
+}
+
+func cmdFirst(c *apiclient.Client, args []string) error {
+	tomorrow := false
+	var rest []string
+	for _, a := range args {
+		if a == "--tomorrow" {
+			tomorrow = true
+		} else {
+			rest = append(rest, a)
+		}
+	}
+	id, err := argID(rest)
+	if err != nil {
+		return err
+	}
+	fm, err := c.SetFirstMove(id, tomorrow)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s first move for %s: %q\n", green("★"), fm.Day, fm.Quest.Title)
 	return nil
 }
 

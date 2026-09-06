@@ -121,6 +121,8 @@ export interface Quest {
   subtasks: Subtask[];
   skip_count: number;
   resume_note: string; // "next physical action" captured at Stop; cleared on completion
+  projected_xp?: number; // dashboard only: what completing it pays right now
+  recommend_reason?: RecommendReason; // dashboard only, on the recommended quest
   created_at: string;
   completed_at: string | null;
   due_date: string | null;
@@ -285,11 +287,25 @@ export interface CharacterSummary {
   progress: number;
 }
 
+export type RecommendReason = "first_move" | "near_level" | "buff" | "combo" | "weakest" | "default";
+
 export interface DailyProgress {
-  completed_today: number;
-  goal: number;
+  completed_today: number; // every completion (drives the combo chain)
+  goal: number; // dailies on the board (min 1)
+  dailies_done: number; // the closable set
+  cleared: boolean; // today's set is closed — camp
   ratio: number;
   next_combo_multiplier: number;
+}
+
+export interface LootPity {
+  dropless: number;
+  guaranteed_after: number;
+}
+
+export interface FirstMove {
+  day: string; // YYYY-MM-DD
+  quest: Quest;
 }
 
 export interface Dashboard {
@@ -306,6 +322,11 @@ export interface Dashboard {
   daily_penalty_xp: number;
   active_days: ActiveDay[];
   active_session: QuestSession | null;
+  day_state: "open" | "camp";
+  xp_today: number;
+  board_clear_today: boolean;
+  loot_pity: LootPity;
+  first_move: FirstMove | null;
   recent_xp_events: XPEvent[];
   recommended_quest: Quest | null;
   daily_progress: DailyProgress;
@@ -363,6 +384,7 @@ export interface CompletionResult {
   crit: boolean;
   combo_multiplier: number;
   drop?: ItemDrop;
+  board_clear: boolean; // this completion closed today's set (bonus paid)
   achievements_unlocked: Achievement[];
   dashboard: Dashboard;
 }

@@ -177,6 +177,12 @@ func (c *Client) ActiveSession() (*models.QuestSession, error) {
 	return out.Session, err
 }
 
+func (c *Client) SetFirstMove(questID int64, tomorrow bool) (*models.FirstMove, error) {
+	var fm models.FirstMove
+	err := c.do(http.MethodPost, "/api/first-move", models.FirstMoveInput{QuestID: questID, Tomorrow: tomorrow}, &fm)
+	return &fm, err
+}
+
 func (c *Client) SkipQuest(id int64) (models.Quest, error) {
 	var qst models.Quest
 	err := c.do(http.MethodPost, fmt.Sprintf("/api/quests/%d/skip", id), nil, &qst)

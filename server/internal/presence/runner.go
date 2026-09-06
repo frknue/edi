@@ -394,8 +394,42 @@ func (r *Runner) handleCommand(svc *services.Service, chatID int64, cmd, arg str
 		if err != nil {
 			return "⚠ " + html.EscapeString(userMessage(err))
 		}
-		return fmt.Sprintf("⚔️ <b>A boss has been forged:</b>\n%s\n<i>%s</i>\n\n/done %d when you bring it down.",
-			questLine(q), html.EscapeString(q.Description), q.ID)
+		return formatBoss(q)
+
+	case "hit":
+		// /hit <subtask id> — land a hit on a boss phase (ToggleSubtask).
+		sid, err := strconv.ParseInt(arg, 10, 64)
+		if err != nil {
+			return "Usage: /hit <i>phase id</i> — ids from /boss or /quests"
+		}
+		quests, err := svc.ListQuests("", "active")
+		if err != nil {
+			return "⚠ " + html.EscapeString(userMessage(err))
+		}
+		for _, q := range quests {
+			for _, st := range q.Subtasks {
+				if st.ID != sid {
+					continue
+				}
+				res, err := svc.ToggleSubtask(q.ID, sid)
+				if err != nil {
+					return "⚠ " + html.EscapeString(userMessage(err))
+				}
+				if !res.Done {
+					return fmt.Sprintf("↶ unchecked %s", html.EscapeString(res.Title))
+				}
+				updated, err := svc.ListQuests("", "active")
+				if err == nil {
+					for _, uq := range updated {
+						if uq.ID == q.ID {
+							return "💥 <b>HIT!</b> " + html.EscapeString(res.Title) + "\n" + formatBoss(uq)
+						}
+					}
+				}
+				return "💥 <b>HIT!</b> " + html.EscapeString(res.Title)
+			}
+		}
+		return "⚠ no active quest has a phase with that id"
 
 	case "new", "forget":
 		r.sessions.Reset(sessionKey(chatID))

@@ -47,7 +47,7 @@ func NewRegistry() *Registry {
 		r.tools = append(r.tools, Tool{Name: name, Description: desc, InputSchema: raw(schema), handler: h})
 	}
 
-	add("get_dashboard", "Return the full dashboard: character level, attributes, today's quests, daily goal progress, streak, the last 14 active days, recent XP, recommended quest, pending suggestions, and whether hardcore mode (decay/stakes) is on.",
+	add("get_dashboard", "Return the full dashboard: character level, attributes, today's quests (each with projected_xp = what it pays right now), daily set progress + day_state (open|camp), streak, the last 14 active days, the running session, loot pity meter, recent XP, the recommended quest (with recommend_reason), pending suggestions, and whether hardcore mode is on.",
 		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) { return svc.GetDashboard() })
 
 	add("get_quest_board", "Return the user's shared quest board and its members. Use the member ids when assigning a quest to one or both players.",
@@ -169,6 +169,21 @@ func NewRegistry() *Registry {
 				return nil, err
 			}
 			return map[string]any{"session": sess}, nil
+		})
+
+	add("set_first_move", "Pin a quest as the first move of today or tomorrow (the shutdown ritual: \"what's the first thing tomorrow?\"). The dashboard and morning briefing lead with it; it is never a commitment that counts as a skip.",
+		`{"type":"object","required":["quest_id"],"properties":{"quest_id":{"type":"integer"},"tomorrow":{"type":"boolean","description":"true = tomorrow's first move (default today)"}}}`,
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			var p models.FirstMoveInput
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			return svc.SetFirstMove(p)
+		})
+
+	add("clear_first_move", "Drop the pinned first move (costs nothing, never counted as a skip).",
+		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) {
+			return map[string]bool{"cleared": true}, svc.ClearFirstMove()
 		})
 
 	add("skip_quest", "Skip a quest (increments its skip counter).",

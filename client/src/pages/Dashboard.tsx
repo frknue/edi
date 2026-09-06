@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, Check, CornerDownRight, Moon, Play, Skull, Sparkles, SkipForward, Square, Swords, Zap } from "lucide-react";
+import { ArrowRight, Check, CornerDownRight, Moon, Play, Skull, Sparkles, SkipForward, Square, Star, Swords, X, Zap } from "lucide-react";
 import {
   useDashboard,
   useCompleteQuest,
@@ -11,6 +11,9 @@ import {
   useSetHardcoreMode,
   useStartQuest,
   useStopQuest,
+  useSetFirstMove,
+  useClearFirstMove,
+  useQuests,
 } from "../lib/queries";
 import { useReward } from "../lib/reward";
 import { getAttr, getType } from "../lib/theme";
@@ -25,7 +28,8 @@ import { Btn, DifficultyPips, EmptyState, Fold, SectionTitle, Spinner, RewardChi
 import { pushToast } from "../lib/toast";
 import { formatTime } from "../lib/format";
 import { useI18n } from "../lib/i18n";
-import type { CompletionResult, Quest, QuestSession } from "../lib/types";
+import type { CompletionResult, Dashboard, Quest, QuestSession } from "../lib/types";
+import type { MessageKey } from "../lib/locales/en";
 
 export function DashboardPage({
   onGoToQuests,
@@ -63,7 +67,7 @@ export function DashboardPage({
       title: res.completed_quest.title,
       xp_events: res.xp_events,
       level_ups: res.level_ups,
-      label: t("reward.questComplete"),
+      label: res.board_clear ? t("reward.boardClear") : t("reward.questComplete"),
       gold: res.gold,
       crit: res.crit,
       combo: res.combo_multiplier,
@@ -81,10 +85,13 @@ export function DashboardPage({
         daily={data.daily_progress}
         gold={data.gold_balance}
         activeDays={data.active_days}
+        loot={data.loot_pity}
+        mood={data.active_session ? "focus" : data.day_state === "camp" ? "camp" : "idle"}
       />
 
       {/* THE next move — one quest, one button, above everything else.
-          While a quest runs, the panel IS the running quest: timer, finisher. */}
+          While a quest runs, the panel IS the running quest: timer, finisher.
+          Once today's set is cleared, it is the campfire: you're done. */}
       {data.active_session ? (
         <RunningQuest
           session={data.active_session}
@@ -93,6 +100,8 @@ export function DashboardPage({
           onComplete={handleComplete}
           onStop={(note) => stop.mutate(note)}
         />
+      ) : data.day_state === "camp" ? (
+        <Campfire data={data} />
       ) : (
         <NextMove
           quests={data.today_quests}
@@ -154,12 +163,12 @@ export function DashboardPage({
             </Btn>
           }
         >
-          {t("dash.todaysQuests")}
+          {data.day_state === "camp" ? t("dash.extraCredit") : t("dash.todaysQuests")}
         </SectionTitle>
         {data.today_quests.length === 0 ? (
           <EmptyState icon={<Swords size={20} />} title={t("dash.noActiveQuests")} hint={t("dash.noActiveQuestsHint")} />
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 ${data.day_state === "camp" ? "opacity-70" : ""}`}>
             {data.today_quests.map((q, i) => (
               <QuestCard
                 key={q.id}
@@ -322,10 +331,15 @@ function NextMove({
       data-quest-id={current.id}
     >
       <div className="absolute inset-y-0 left-0 w-1" style={{ background: meta.color }} />
-      <div className="mb-2 flex items-center gap-2">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         <Sparkles size={14} style={{ color: "var(--color-gold)" }} />
         <span className="font-display text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--color-gold)]">{t("dash.nextMove")}</span>
         <TypeBadge type={current.type} />
+        {current.recommend_reason && current.id === recommended?.id && (
+          <span className="text-[11px] text-muted" data-testid="next-move-reason">
+            · {t(`dash.reason.${current.recommend_reason}` as MessageKey)}
+          </span>
+        )}
       </div>
       <h2 className="font-display text-2xl leading-tight text-ink sm:text-3xl" data-testid="next-move-title">
         {current.title}
@@ -343,6 +357,11 @@ function NextMove({
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <DifficultyPips difficulty={current.difficulty} />
         <RewardChips rewards={current.attribute_rewards} />
+        {typeof current.projected_xp === "number" && current.projected_xp > 0 && (
+          <span className="tabnum font-display text-sm" style={{ color: "var(--color-goldhi)" }} title={t("dash.paysNowTitle")} data-testid="next-move-pays">
+            {t("dash.paysNow", { xp: current.projected_xp })}
+          </span>
+        )}
       </div>
       <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center">
         <Btn
@@ -362,6 +381,90 @@ function NextMove({
             <SkipForward size={15} /> {t("dash.notThisOne")}
           </Btn>
         )}
+      </div>
+    </motion.div>
+  );
+}
+
+// Campfire is the home screen once today's set is cleared: you are done.
+// The hero rests by the fire, the day is summarised once, the extras below
+// are muted, the nudge stands down. One tap picks tomorrow's first move
+// (the shutdown ritual) — dismissing it later costs nothing.
+function Campfire({ data }: { data: Dashboard }) {
+  const { t } = useI18n();
+  const setFirst = useSetFirstMove();
+  const clearFirst = useClearFirstMove();
+  const { data: dailies } = useQuests({ type: "daily" });
+  const tomorrow = data.first_move && !data.active_days.some((d) => d.today && d.day === data.first_move?.day) ? data.first_move : null;
+  const today = data.first_move && !tomorrow ? data.first_move : null;
+  const candidates = useMemo(() => {
+    const seen = new Set<number>();
+    const out: Quest[] = [];
+    for (const q of [...(dailies ?? []).filter((q) => q.status === "active" || q.status === "completed"), ...data.today_quests]) {
+      if (seen.has(q.id) || q.type === "boss" || (q.shared_quest_id !== undefined && !q.assigned_to_me)) continue;
+      seen.add(q.id);
+      out.push(q);
+      if (out.length >= 4) break;
+    }
+    return out;
+  }, [dailies, data.today_quests]);
+  const active = data.active_days.filter((d) => d.active).length;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="hud-panel clip-corner relative overflow-hidden p-5 sm:p-6"
+      style={{ background: "linear-gradient(120deg, rgba(255,140,40,0.12), rgba(255,176,0,0.05)), var(--color-panel)", borderColor: "rgba(255,160,60,0.45)" }}
+      data-testid="campfire"
+    >
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-4">
+          <PixelHero level={data.character.level} titled={!!data.character.title} mood="camp" size={56} />
+          <span className="campfire text-3xl" aria-hidden>
+            🔥
+          </span>
+          <div className="min-w-0">
+            <div className="font-display text-[11px] font-semibold uppercase tracking-[0.2em]" style={{ color: "#ffa23e" }}>
+              {t("dash.camp")}
+            </div>
+            <h2 className="font-display text-2xl leading-tight text-ink sm:text-3xl">{t("dash.campTitle")}</h2>
+            <p className="mt-1 text-sm text-muted">
+              {t("dash.campSummary", { xp: data.xp_today, done: data.daily_progress.dailies_done, goal: data.daily_progress.goal, days: active })}
+              {data.board_clear_today && <span style={{ color: "var(--color-goldhi)" }}> {t("dash.campBonus")}</span>}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 border-t border-edge/60 pt-4" data-testid="tomorrow-first">
+        <div className="font-display text-[11px] uppercase tracking-[0.18em] text-muted">{t("dash.tomorrowFirst")}</div>
+        {tomorrow ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm" style={{ borderColor: "var(--color-gold)", color: "var(--color-goldhi)" }} data-testid="tomorrow-picked">
+              <Star size={13} /> {tomorrow.quest.title}
+            </span>
+            <button onClick={() => clearFirst.mutate()} className="text-faint hover:text-ink" aria-label={t("dash.unpin")} title={t("dash.unpin")} data-testid="tomorrow-unpin">
+              <X size={14} />
+            </button>
+          </div>
+        ) : candidates.length === 0 ? (
+          <p className="mt-2 text-xs text-faint">{t("dash.noActiveQuestsHint")}</p>
+        ) : (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {candidates.map((q) => (
+              <button
+                key={q.id}
+                disabled={setFirst.isPending}
+                onClick={() => setFirst.mutate({ questId: q.id, tomorrow: true })}
+                className="rounded-full border border-edge px-3 py-1 text-sm text-muted transition-colors hover:border-[var(--color-gold)] hover:text-ink"
+                data-testid={`pick-first-${q.id}`}
+              >
+                {q.title}
+              </button>
+            ))}
+          </div>
+        )}
+        {today && <p className="mt-2 text-[11px] text-faint">{t("dash.firstMoveDone")}</p>}
       </div>
     </motion.div>
   );

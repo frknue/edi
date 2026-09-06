@@ -437,6 +437,7 @@ func (s *Service) completionResult(quest models.Quest, events []models.XPEvent, 
 		Crit:                 outcome.Crit,
 		ComboMultiplier:      outcome.ComboMultiplier,
 		Drop:                 outcome.Drop,
+		BoardClear:           outcome.BoardClear,
 		AchievementsUnlocked: orEmpty(unlocked),
 		Dashboard:            dash,
 	}, nil
@@ -659,6 +660,26 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 	if err != nil {
 		return models.Dashboard{}, err
 	}
+	dailiesDone, err := s.store.DailiesDoneToday(s.userID, time.Now())
+	if err != nil {
+		return models.Dashboard{}, err
+	}
+	boardClearToday, err := s.store.BoardClearPaidToday(s.userID, time.Now())
+	if err != nil {
+		return models.Dashboard{}, err
+	}
+	xpToday, err := s.store.XPToday(s.userID, time.Now())
+	if err != nil {
+		return models.Dashboard{}, err
+	}
+	pity, err := s.store.LootPity(s.userID)
+	if err != nil {
+		return models.Dashboard{}, err
+	}
+	firstMove, err := s.firstMove(time.Now())
+	if err != nil {
+		return models.Dashboard{}, err
+	}
 
 	var totalXP int64
 	for _, a := range attrs {
@@ -671,12 +692,34 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 	}
 
 	goal := dailyGoal(dailiesToday)
-	dailyRatio := float64(completedToday) / float64(goal)
+	// With no dailies on the board, any completion closes the day.
+	setDone := dailiesDone
+	if dailiesToday == 0 {
+		setDone = completedToday
+	}
+	dailyRatio := float64(setDone) / float64(goal)
 	if dailyRatio > 1 {
 		dailyRatio = 1
 	}
+	cleared := setDone >= goal
+	dayState := "open"
+	if cleared {
+		dayState = "camp"
+	}
 
-	recommended := recommendQuest(todayQuests, attrs)
+	// Live payout on every card, then the recommendation from the same numbers.
+	nth := completedToday + 1
+	for i := range todayQuests {
+		todayQuests[i].ProjectedXP = ProjectPayout(todayQuests[i], nth, buffs)
+	}
+	var firstMoveID int64
+	if firstMove != nil && firstMove.Day == localDate(time.Now()).Format("2006-01-02") {
+		firstMoveID = firstMove.Quest.ID
+	}
+	recommended, reason := recommendQuest(todayQuests, attrs, buffs, nth, firstMoveID)
+	if recommended != nil {
+		recommended.RecommendReason = reason
+	}
 
 	return models.Dashboard{
 		User:             user,
@@ -693,7 +736,12 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 		ActiveSession:    session,
 		RecentXPEvents:   orEmpty(events),
 		RecommendedQuest: recommended,
-		DailyProgress:    models.DailyProgress{CompletedToday: completedToday, Goal: goal, Ratio: dailyRatio, NextComboMultiplier: ComboMultiplier(completedToday + 1)},
+		DailyProgress:    models.DailyProgress{CompletedToday: completedToday, Goal: goal, DailiesDone: setDone, Cleared: cleared, Ratio: dailyRatio, NextComboMultiplier: ComboMultiplier(completedToday + 1)},
+		DayState:         dayState,
+		XPToday:          xpToday,
+		BoardClearToday:  boardClearToday,
+		LootPity:         pity,
+		FirstMove:        firstMove,
 		Suggestions:      orEmpty(suggestions),
 		ActiveBuffs:      orEmpty(buffs),
 		DecayedToday:     decayed,
@@ -737,42 +785,70 @@ func localDate(t time.Time) time.Time {
 	return time.Date(l.Year(), l.Month(), l.Day(), 0, 0, 0, 0, time.Local)
 }
 
-// recommendQuest picks the next useful active quest: prefer the one that best
-// rewards the weakest attribute, skipping boss quests (those are deliberate).
-func recommendQuest(quests []models.Quest, attrs []models.Attribute) *models.Quest {
+// recommendQuest picks the next move: the pre-chosen first move if it is
+// still active, else the non-boss quest with the best payout right now,
+// nudged toward closing a near-level attribute and the weakest attribute.
+// Bosses are deliberate, never a "pick something" answer. Returns the reason
+// key so the UI can say why.
+func recommendQuest(quests []models.Quest, attrs []models.Attribute, buffs []models.ActiveBuff, nth int, firstMoveID int64) (*models.Quest, string) {
 	if len(quests) == 0 {
-		return nil
+		return nil, ""
 	}
-	// weakest attribute key
+	if firstMoveID != 0 {
+		for i := range quests {
+			if quests[i].ID == firstMoveID && quests[i].AssignedToMe && quests[i].MyStatus == models.StatusActive {
+				return &quests[i], "first_move"
+			}
+		}
+	}
 	weakestKey := ""
 	var weakestXP int64 = -1
+	toNext := map[string]int64{}
 	for _, a := range attrs {
 		if weakestXP < 0 || a.TotalXP < weakestXP {
 			weakestXP = a.TotalXP
 			weakestKey = a.Key
 		}
+		toNext[a.Key] = a.XPForNextLevel - a.XPIntoLevel
+	}
+	nearLevel := func(q models.Quest) bool {
+		for k, v := range q.AttributeRewards {
+			if left, ok := toNext[k]; ok && left > 0 && v >= left {
+				return true
+			}
+		}
+		return false
 	}
 	var best *models.Quest
-	var bestReward int64 = -1
+	var bestScore int64 = -1
+	bestReason := ""
 	for i := range quests {
-		q := quests[i]
+		q := &quests[i]
 		if q.Type == models.QuestTypeBoss {
 			continue
 		}
-		r := q.AttributeRewards[weakestKey]
-		if r > bestReward {
-			bestReward = r
-			best = &quests[i]
+		score := ProjectPayout(*q, nth, buffs)
+		reason := "default"
+		switch {
+		case nearLevel(*q):
+			score += 40
+			reason = "near_level"
+		case buffApplies(*q, buffs):
+			reason = "buff"
+		case ComboMultiplier(nth) > 1.0:
+			reason = "combo"
+		case q.AttributeRewards[weakestKey] > 0:
+			reason = "weakest"
+		}
+		if q.AttributeRewards[weakestKey] > 0 {
+			score += 10
+		}
+		if score > bestScore {
+			bestScore, best, bestReason = score, q, reason
 		}
 	}
-	if best != nil && bestReward > 0 {
-		return best
+	if best != nil {
+		return best, bestReason
 	}
-	// Fallback: first non-boss active quest, else the first quest.
-	for i := range quests {
-		if quests[i].Type != models.QuestTypeBoss {
-			return &quests[i]
-		}
-	}
-	return &quests[0]
+	return &quests[0], "default"
 }

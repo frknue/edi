@@ -30,7 +30,8 @@ Just talk to me — "add a 20 min run as a daily", "I finished the tax return", 
 /ward &lt;attribute&gt; — 7-day decay shield (30g, hardcore mode only)
 /rest on|off — quiet mode: nudges stand down (and decay pauses in hardcore)
 /story — a narrated episode of your saga (AI)
-/boss — forge this week's boss quest (AI)
+/boss — forge this week's boss quest (AI), with phases as its HP bar
+/hit &lt;phase id&gt; — land a hit on a boss phase
 /briefing — get your briefing right now
 /briefing HH:MM — set your daily briefing time
 /nudge — check the nudge right now
@@ -71,7 +72,17 @@ func decayLines(attrs []models.Attribute) []string {
 func statusCore(d models.Dashboard) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Lv %d · streak %d🔥 · %dg\n", d.Character.Level, d.Streak.Current, d.GoldBalance)
-	fmt.Fprintf(&b, "%d quests open · %d/%d done today\n", len(d.TodayQuests), d.DailyProgress.CompletedToday, d.DailyProgress.Goal)
+	fmt.Fprintf(&b, "%d quests open · %d/%d done today", len(d.TodayQuests), d.DailyProgress.DailiesDone, d.DailyProgress.Goal)
+	if d.DailyProgress.Cleared {
+		b.WriteString(" · 🏕 camp")
+	}
+	b.WriteString("\n")
+	if p := d.LootPity; p.GuaranteedAfter > 0 {
+		fmt.Fprintf(&b, "🎁 loot %d/%d to guaranteed\n", p.Dropless, p.GuaranteedAfter)
+	}
+	if fm := d.FirstMove; fm != nil {
+		fmt.Fprintf(&b, "★ first move: %s\n", questLine(fm.Quest))
+	}
 	if s := d.ActiveSession; s != nil {
 		fmt.Fprintf(&b, "▶ running: %s · %s\n", html.EscapeString(s.Title), elapsedText(s.ElapsedSeconds))
 	}
@@ -98,6 +109,36 @@ func formatBriefing(d models.Dashboard) string {
 			b.WriteString(questLine(q) + "\n")
 		}
 		b.WriteString("\nComplete with /done <i>id</i>")
+	}
+	return b.String()
+}
+
+// formatBoss renders a boss quest with its HP bar (phases = hits).
+func formatBoss(q models.Quest) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "⚔️ <b>%s</b> <i>(#%d · %d XP)</i>\n", html.EscapeString(q.Title), q.ID, q.TotalReward())
+	if q.Description != "" {
+		fmt.Fprintf(&b, "<i>%s</i>\n", html.EscapeString(q.Description))
+	}
+	if n := len(q.Subtasks); n > 0 {
+		done := 0
+		for _, st := range q.Subtasks {
+			if st.Done {
+				done++
+			}
+		}
+		left := n - done
+		fmt.Fprintf(&b, "\nHP %s%s %d/%d\n", strings.Repeat("█", left), strings.Repeat("░", done), left, n)
+		for _, st := range q.Subtasks {
+			mark := "▢"
+			if st.Done {
+				mark = "✓"
+			}
+			fmt.Fprintf(&b, "%s #%d %s\n", mark, st.ID, html.EscapeString(st.Title))
+		}
+		fmt.Fprintf(&b, "\n/hit <i>id</i> lands a hit · /done %d when it falls", q.ID)
+	} else {
+		fmt.Fprintf(&b, "\n/done %d when you bring it down.", q.ID)
 	}
 	return b.String()
 }
@@ -129,7 +170,7 @@ var difficultyRank = map[string]int{"trivial": 0, "easy": 1, "medium": 2, "hard"
 // completion — that taught the app to go quiet exactly when momentum
 // existed. Easiest quest wins (difficulty, then lowest reward).
 func nudgeQuest(d models.Dashboard) (*models.Quest, bool) {
-	if d.RestMode || d.DailyProgress.CompletedToday >= d.DailyProgress.Goal || len(d.TodayQuests) == 0 {
+	if d.RestMode || d.DailyProgress.Cleared || len(d.TodayQuests) == 0 {
 		return nil, false
 	}
 	best := d.TodayQuests[0]
@@ -146,8 +187,8 @@ func nudgeQuest(d models.Dashboard) (*models.Quest, bool) {
 // smallest open quest and how to log it. Progress-aware — never "nothing
 // logged" when something was.
 func formatNudge(d models.Dashboard, q models.Quest) string {
-	done, goal := d.DailyProgress.CompletedToday, d.DailyProgress.Goal
-	if done > 0 {
+	done, goal := d.DailyProgress.DailiesDone, d.DailyProgress.Goal
+	if done > 0 || d.DailyProgress.CompletedToday > 0 {
 		return fmt.Sprintf("🌙 %d/%d today. One more?\n%s\n\n/done %d closes it.", done, goal, questLine(q), q.ID)
 	}
 	return fmt.Sprintf("🌙 Nothing logged today. Smallest step:\n%s\n\n/done %d and the streak lives.", questLine(q), q.ID)

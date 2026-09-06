@@ -173,6 +173,22 @@ export function useStopQuest() {
   });
 }
 
+export function useSetFirstMove() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ questId, tomorrow }: { questId: number; tomorrow: boolean }) => api.setFirstMove(questId, tomorrow),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["dashboard"] }),
+  });
+}
+
+export function useClearFirstMove() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.clearFirstMove(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["dashboard"] }),
+  });
+}
+
 export function useArchiveQuest() {
   const invalidate = useInvalidateAll();
   return useMutation({ mutationFn: (id: number) => api.archiveQuest(id), onSuccess: invalidate });

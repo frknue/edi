@@ -129,6 +129,8 @@ export const tr: Record<MessageKey, string> = {
   "hero.activeDaysTitle": "Geldiğin günler (son iki hafta). Boşluk sadece boşluktur.",
   "hero.streakSmall": "{n} art arda · en iyi {best}",
   "hero.mended": "onarıldı",
+  "hero.loot": "ganimet {n}/{total}",
+  "hero.lootTitle": "Ganimet sayacı: düşürmeden {n} tamamlamadan sonra bir sonraki garanti.",
 
   // --- attribute card -----------------------------------------------------
   "attrCard.wardedUntil": "{date} tarihine kadar korumalı",
@@ -149,6 +151,8 @@ export const tr: Record<MessageKey, string> = {
   "quest.start": "Başla",
   "quest.running": "devam ediyor",
   "quest.resume": "devam",
+  "quest.hp": "HP",
+  "quest.phases": "Aşamalar — her işaret bir vuruş",
   "quest.shared": "paylaşılan",
   "quest.waitingForOthers": "senin kısmın bitti",
 
@@ -191,6 +195,7 @@ export const tr: Record<MessageKey, string> = {
 
   // --- reward overlay -----------------------------------------------------
   "reward.questComplete": "Görev Tamamlandı",
+  "reward.boardClear": "Tahta temizlendi!",
   "reward.spontaneousWin": "Ani Zafer",
   "reward.journal": "Günlük",
   "reward.toolComplete": "Araç Tamamlandı",
@@ -244,6 +249,22 @@ export const tr: Record<MessageKey, string> = {
   "dash.landingPlaceholder": "örn. main.go dosyasında düzenleyiciyi aç",
   "dash.stopAndSave": "Durdur ve notu sakla",
   "dash.justStop": "Sadece durdur",
+  "dash.paysNow": "şimdi {xp} XP verir",
+  "dash.paysNowTitle": "Şimdi tamamlarsan ne kazanırsın: temel + kombo + aktif güçlendirmeler",
+  "dash.reason.first_move": "ilk hamlen",
+  "dash.reason.near_level": "bir seviye kapatır",
+  "dash.reason.buff": "bir güçlendirme aktif",
+  "dash.reason.combo": "kombo sıcak",
+  "dash.reason.weakest": "en zayıf özelliğini çalıştırır",
+  "dash.reason.default": "şu an en iyi getiri",
+  "dash.camp": "Kamp",
+  "dash.campTitle": "Bugün tamam.",
+  "dash.campSummary": "{done}/{goal} günlük görev bitti · bugün {xp} XP · 14 günün {days} tanesinde geldin.",
+  "dash.campBonus": "Tahta temizleme bonusu ödendi.",
+  "dash.extraCredit": "Ekstra",
+  "dash.tomorrowFirst": "Yarın ilk iş?",
+  "dash.firstMoveDone": "Bugünün ilk hamlesi ayarlı — yarın tahtanın tepesinde görüşürüz.",
+  "dash.unpin": "Kaldır (atlama sayılmaz)",
   "dash.restOn": "Dinlenme modu AÇIK — hatırlatmalar duraklatıldı. İyi dinlen.",
   "dash.wakeUp": "Uyan",
   "dash.degradation": "Hardcore: son ziyaretinden beri erimeyle {xp} XP kaybedildi.",

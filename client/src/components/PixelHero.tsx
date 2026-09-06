@@ -117,7 +117,7 @@ export function PixelHero({
 }: {
   level: number;
   titled?: boolean;
-  mood?: "idle" | "celebrate" | "crit" | "focus";
+  mood?: "idle" | "celebrate" | "crit" | "focus" | "camp";
   size?: number;
 }) {
   const colors: Record<string, string> = {
@@ -151,7 +151,15 @@ export function PixelHero({
   }
 
   const moodClass =
-    mood === "celebrate" ? "hero-celebrate" : mood === "crit" ? "hero-crit" : mood === "focus" ? "hero-focus" : "hero-idle";
+    mood === "celebrate"
+      ? "hero-celebrate"
+      : mood === "crit"
+        ? "hero-crit"
+        : mood === "focus"
+          ? "hero-focus"
+          : mood === "camp"
+            ? "hero-camp"
+            : "hero-idle";
 
   return (
     <div className={moodClass} style={{ width: size, height: (size * H) / W, position: "relative" }} data-testid="pixel-hero">
