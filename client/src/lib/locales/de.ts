@@ -342,7 +342,7 @@ export const de: Record<MessageKey, string> = {
   "agent.connectedAs": "Mit ChatGPT verbunden als {email}",
   "agent.connected": "Mit ChatGPT verbunden",
   "agent.title": "KI-Coach",
-  "agent.subtitle": "Vorschläge erzeugt dein eigenes ChatGPT-Modell.",
+  "agent.subtitle": "Chatte mit deinem Agenten und hol dir Quest-Vorschläge — alles über dein eigenes ChatGPT-Modell.",
   "agent.generate": "Erzeugen",
   "agent.pendingHint": "Annehmen, um daraus eine echte Quest zu machen.",
   "agent.pending": "Offen",
@@ -564,4 +564,18 @@ export const de: Record<MessageKey, string> = {
   "supps.added": "{name} zum Stack hinzugefügt",
   "supps.removed": "{name} entfernt (Verlauf bleibt)",
   "supps.updated": "Supplement aktualisiert",
+
+  // --- agent chat ----------------------------------------------------------
+  "chat.title": "Chat",
+  "chat.hint": "Sprich mit deinem Agenten — er handelt über dieselben Tools wie Telegram und die CLI.",
+  "chat.emptyTitle": "Sag es einfach. Zum Beispiel:",
+  "chat.example1": "füge 20 Minuten Laufen als Daily hinzu",
+  "chat.example2": "ich habe mein Magnesium genommen",
+  "chat.example3": "wie steht mein Streak?",
+  "chat.placeholder": "Nachricht an deinen Agenten…",
+  "chat.send": "Senden",
+  "chat.new": "Neues Gespräch",
+  "chat.thinking": "denkt nach…",
+  "chat.toolsUsed": "Verwendete Tools",
+  "chat.enterHint": "Enter sendet · Shift+Enter für eine neue Zeile",
 };

@@ -1,10 +1,11 @@
 import {
   useMutation,
+  useMutationState,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { api } from "./api";
-import type { MoodLog, QuestInput, ShopItemInput, SupplementInput, TelegramPushTimes } from "./types";
+import type { ChatResult, MoodLog, QuestInput, ShopItemInput, SupplementInput, TelegramPushTimes } from "./types";
 
 export const keys = {
   dashboard: ["dashboard"] as const,
@@ -288,6 +289,42 @@ export function useTelegramUnlink() {
     mutationFn: () => api.telegramUnlink(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["telegram-status"] }),
   });
+}
+
+// --- agent chat ---------------------------------------------------------------
+
+export interface ChatVars {
+  message: string;
+  session: string;
+  reset: boolean;
+  clientId?: string; // the caller's id for the optimistic user bubble (not sent)
+}
+
+const chatKey = ["agent-chat"] as const;
+
+// useChat sends one free-text message. Callbacks are hook-level so they still
+// fire when the Agent page was unmounted mid-reply (tab switch); the caller
+// persists the transcript itself. A reply can have moved anything (quests,
+// supplements, gold…), so every query is invalidated afterwards.
+export function useChat(opts?: {
+  onSuccess?: (res: ChatResult, vars: ChatVars) => void;
+  onError?: (err: Error, vars: ChatVars) => void;
+}) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: chatKey,
+    mutationFn: (vars: ChatVars) => api.chat(vars.message, vars.session, vars.reset),
+    onSuccess: (res, vars) => {
+      opts?.onSuccess?.(res, vars);
+      if (res.tools_used.length > 0) qc.invalidateQueries();
+    },
+    onError: (err, vars) => opts?.onError?.(err, vars),
+  });
+}
+
+// True while any chat request is in flight (survives remounts of the page).
+export function useChatPending(): boolean {
+  return useMutationState({ filters: { mutationKey: chatKey, status: "pending" } }).length > 0;
 }
 
 // --- supplements (daily stack) ----------------------------------------------

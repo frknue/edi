@@ -469,3 +469,20 @@ export interface SupplementDay {
   xp: number;
   names: string[];
 }
+
+// --- agent chat (free text over the same tool registry) -------------------------
+
+export interface ChatResult {
+  reply: string;
+  tools_used: string[];
+}
+
+// One visible line of the web transcript (kept per user in localStorage; the
+// server keeps its own in-memory history for the model).
+export interface ChatMessage {
+  id: string;
+  role: "user" | "agent";
+  text: string;
+  tools?: string[];
+  at: string;
+}

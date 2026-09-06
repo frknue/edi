@@ -342,7 +342,7 @@ export const tr: Record<MessageKey, string> = {
   "agent.connectedAs": "ChatGPT'ye {email} olarak bağlanıldı",
   "agent.connected": "ChatGPT'ye bağlanıldı",
   "agent.title": "YZ Koçu",
-  "agent.subtitle": "Öneriler kendi ChatGPT modelin tarafından üretilir.",
+  "agent.subtitle": "Ajanınla sohbet et ve görev önerileri al — hepsi kendi ChatGPT modelinle.",
   "agent.generate": "Üret",
   "agent.pendingHint": "Gerçek bir göreve dönüştürmek için kabul et.",
   "agent.pending": "Bekleyen",
@@ -564,4 +564,18 @@ export const tr: Record<MessageKey, string> = {
   "supps.added": "{name} sete eklendi",
   "supps.removed": "{name} kaldırıldı (geçmiş korunur)",
   "supps.updated": "Takviye güncellendi",
+
+  // --- agent chat ----------------------------------------------------------
+  "chat.title": "Sohbet",
+  "chat.hint": "Ajanınla konuş — Telegram ve CLI ile aynı araçlar üzerinden hareket eder.",
+  "chat.emptyTitle": "Sadece söyle. Örneğin:",
+  "chat.example1": "20 dakikalık koşuyu günlük görev olarak ekle",
+  "chat.example2": "magnezyumumu aldım",
+  "chat.example3": "serim nasıl gidiyor?",
+  "chat.placeholder": "Ajanına mesaj yaz…",
+  "chat.send": "Gönder",
+  "chat.new": "Yeni sohbet",
+  "chat.thinking": "düşünüyor…",
+  "chat.toolsUsed": "Kullanılan araçlar",
+  "chat.enterHint": "Enter gönderir · yeni satır için Shift+Enter",
 };

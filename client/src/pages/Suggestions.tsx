@@ -21,6 +21,7 @@ import {
   useForgeBoss,
 } from "../lib/queries";
 import { SuggestionCard } from "../components/SuggestionCard";
+import { AgentChat } from "../components/AgentChat";
 import { Btn, EmptyState, SectionTitle, Spinner } from "../components/ui";
 import { pushToast } from "../lib/toast";
 import type { OpenAIStatus } from "../lib/types";
@@ -83,6 +84,8 @@ export function SuggestionsPage() {
       ) : (
         <>
           {status && <ConnectedBar status={status} />}
+
+          <AgentChat />
 
           <OracleCard />
 

@@ -73,8 +73,8 @@ account invites), OpenAI connect/config,
 Telegram pairing/unlinking (identity + credentials stay UI/CLI-only), and
 multiplayer board creation/invites/joining (membership + one-time codes stay
 UI/CLI-only), and `POST /api/tools/{key}/assist` (the chat model already *is* the coach; the
-consent + crisis gating is a UI-path concern). Free-text chat is CLI +
-Telegram (the web has no chat box yet — an open gap, not a rule).
+consent + crisis gating is a UI-path concern). Free-text chat is web (the
+Chat card on the Agent page, `components/AgentChat.tsx`) + CLI + Telegram.
 
 Quick audit: `grep -oE 'add\("[a-z_]+"' server/internal/agent/agent.go`,
 `grep HandleFunc server/internal/handlers/router.go`, `edi-cli help`, and
@@ -332,8 +332,11 @@ poll loop (goroutine, per-session lock, typing indicator kept alive),
 account — it falls through to help) and escapes the
 model text whole (`SendMessage` is HTML). No connection → the connect hint;
 slash commands keep working without AI. The same loop is exposed as
-`POST /api/agent/chat {message, session?, reset?}` (`edi-cli chat`), gated
-like every AI feature (`ErrOpenAINotConnected` → 400). Offline tests inject a
+`POST /api/agent/chat {message, session?, reset?}` (`edi-cli chat`, and the
+web Chat card — session `web`, visible transcript kept per user in
+`localStorage edi.chat.<userId>`, cleared on sign-out; "New conversation"
+sends `reset:true` with the next message because the server rejects an empty
+one), gated like every AI feature (`ErrOpenAINotConnected` → 400). Offline tests inject a
 scripted `agent.LLM` (`chat_test.go`, `TestPresenceFreeTextChat`); the wire
 contract is checked by `TestLiveConverseToolCall` (`EDI_LIVE_TEST=1`).
 

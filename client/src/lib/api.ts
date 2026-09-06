@@ -30,6 +30,7 @@ import type {
   ShopItem,
   ShopItemInput,
   Subtask,
+  ChatResult,
   SupplementDay,
   SupplementInput,
   SupplementsToday,
@@ -76,6 +77,13 @@ export function hasToken(): boolean {
 // clearToken logs this device out (the token itself stays valid elsewhere).
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
+  // Forget per-user chat transcripts on this device too (the next person to
+  // paste a token here must not see them).
+  try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith("edi.chat.")) localStorage.removeItem(k);
+  } catch {
+    /* ignore */
+  }
 }
 
 // Installed to the home screen, the app runs in its own storage partition —
@@ -221,6 +229,10 @@ export const api = {
   openaiConfig: (cfg: { model?: string; effort?: string }) =>
     request<OpenAIStatus>("/openai/config", { method: "POST", body: JSON.stringify(cfg) }),
   openaiModels: () => request<{ models: OpenAIModel[] }>("/openai/models"),
+
+  // Free-text chat with the agent (same loop as Telegram / edi-cli chat).
+  chat: (message: string, session: string, reset: boolean) =>
+    request<ChatResult>("/agent/chat", { method: "POST", body: JSON.stringify({ message, session, reset }) }),
 
   // Supplements — the daily stack.
   listSupplements: () => request<SupplementsToday>("/supplements"),
