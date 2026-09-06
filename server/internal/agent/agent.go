@@ -142,6 +142,35 @@ func NewRegistry() *Registry {
 			return svc.CompleteQuest(id)
 		})
 
+	add("start_quest", "Start a quest in active mode: opens a timed session so the home screen shows it as running. Any other running session is closed first. No XP is awarded until complete_quest.",
+		idSchema("quest_id"),
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			id, err := decodeID(in, "quest_id")
+			if err != nil {
+				return nil, err
+			}
+			return svc.StartQuest(id)
+		})
+
+	add("stop_quest", "Stop the running quest session without completing it. Pass note = the user's answer to \"what is the next physical action?\" — it is stored on the quest as its resume note. Fails when nothing is running.",
+		`{"type":"object","properties":{"note":{"type":"string","description":"next physical action, one line"}}}`,
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			var p models.StopSessionInput
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			return svc.StopQuest(p)
+		})
+
+	add("get_active_session", "Return the quest currently running in active mode (with elapsed seconds), or null.",
+		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) {
+			sess, err := svc.ActiveSession()
+			if err != nil {
+				return nil, err
+			}
+			return map[string]any{"session": sess}, nil
+		})
+
 	add("skip_quest", "Skip a quest (increments its skip counter).",
 		idSchema("quest_id"),
 		func(svc *services.Service, in json.RawMessage) (any, error) {

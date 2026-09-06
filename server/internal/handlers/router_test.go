@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -94,5 +95,60 @@ func TestAgentChatEndpointGates(t *testing.T) {
 	defer resp2.Body.Close()
 	if resp2.StatusCode != http.StatusBadRequest {
 		t.Fatalf("empty message = %d, want 400", resp2.StatusCode)
+	}
+}
+
+// Active quest mode routes: start opens a session, GET /api/session shows
+// it, stop closes it with a note; client mistakes are 400s, not 500s.
+func TestQuestSessionRoutes(t *testing.T) {
+	srv := httptest.NewServer(newTestRouter(t, ""))
+	defer srv.Close()
+	get := func(path string) (int, map[string]any) {
+		resp, err := http.Get(srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var body map[string]any
+		_ = json.NewDecoder(resp.Body).Decode(&body)
+		return resp.StatusCode, body
+	}
+	post := func(path, payload string) (int, map[string]any) {
+		resp, err := http.Post(srv.URL+path, "application/json", strings.NewReader(payload))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var body map[string]any
+		_ = json.NewDecoder(resp.Body).Decode(&body)
+		return resp.StatusCode, body
+	}
+	if code, _ := post("/api/session/stop", `{"note":"x"}`); code != http.StatusBadRequest {
+		t.Fatalf("stop with nothing running = %d, want 400", code)
+	}
+	resp, err := http.Get(srv.URL + "/api/quests?status=active")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var quests []map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&quests)
+	resp.Body.Close()
+	id := int64(quests[0]["id"].(float64))
+	code, sess := post(fmt.Sprintf("/api/quests/%d/start", id), "")
+	if code != http.StatusOK || sess["running"] != true {
+		t.Fatalf("start = %d %v", code, sess)
+	}
+	if code, body := get("/api/session"); code != http.StatusOK || body["session"] == nil {
+		t.Fatalf("GET session = %d %v", code, body)
+	}
+	code, stopped := post("/api/session/stop", `{"note":"open the file"}`)
+	if code != http.StatusOK || stopped["note"] != "open the file" || stopped["reason"] != "stopped" {
+		t.Fatalf("stop = %d %v", code, stopped)
+	}
+	if code, body := get("/api/session"); code != http.StatusOK || body["session"] != nil {
+		t.Fatalf("GET session after stop = %d %v", code, body)
+	}
+	if code, _ := post("/api/quests/999999/start", ""); code != http.StatusNotFound {
+		t.Fatalf("start unknown = %d, want 404", code)
 	}
 }

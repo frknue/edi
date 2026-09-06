@@ -288,6 +288,37 @@ coaching), and the UI requires a one-time privacy opt-in (`lib/aiConsent.tsx`)
 before sending private entry text to OpenAI. AI assist is always optional; the
 tool works fully without a connection.
 
+## Active quest mode (sessions)
+
+Start opens a `quest_sessions` row (`services/session.go`: `StartQuest`,
+`StopQuest`, `ActiveSession`, `ListQuestSessions`; store
+`db/session_store.go`), the home screen becomes the running quest with a
+timer, Complete is the finisher, Stop asks the landing question ("what is
+the next physical action?") and stores the answer as `quests.resume_note`.
+Rules that must hold:
+- **Sessions never write XP.** The timer, the momentum bar and the reward
+  preview are cosmetic; completion is the only award. Don't turn ticks into
+  xp_events — it would make the timer a judge.
+- **One running session per user.** Starting another quest closes the
+  running one (reason `switched`) — choosing costs nothing, never a 400.
+  Starting the quest that already runs is idempotent.
+- **Completion closes the session and clears the resume note inside
+  `store.completeQuest`** (same tx, same per-user lock) so Stop can never
+  race Complete (`closeQuestSessionTx`).
+- **Stale sessions expire on read**: anything started before today's local
+  day start closes as `expired` in `ActiveQuestSession`, so no 19-hour
+  timer greets the user in the morning.
+- Client errors: start on a non-active quest → 400, stop with nothing
+  running → 400, another user's quest → 404 (`TestQuestSessionLifecycle`,
+  `TestQuestSessionExpiresAcrossDays`, `TestQuestSessionRoutes`,
+  `TestTenantIsolation`).
+- Parity: `POST /api/quests/{id}/start`, `POST /api/session/stop {note}`,
+  `GET /api/session`, `GET /api/sessions`; tools `start_quest` /
+  `stop_quest` / `get_active_session`; `edi-cli start|stop|now`; web
+  `RunningQuest` panel in `pages/Dashboard.tsx` (replaces the NEXT MOVE
+  panel while running), Start on `QuestCard`; Telegram `/go <id>` and
+  `/stop [note]`.
+
 ## Supplements (daily stack)
 
 The Supplements tool follows the Journal pattern (own tables, own service

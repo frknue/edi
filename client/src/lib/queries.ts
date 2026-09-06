@@ -149,6 +149,30 @@ export function useSkipQuest() {
   return useMutation({ mutationFn: (id: number) => api.skipQuest(id), onSuccess: invalidate });
 }
 
+// Active quest mode. Start/Stop touch the dashboard (active_session) and the
+// quest list (resume_note) but never XP.
+export function useStartQuest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.startQuest(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["quests"] });
+    },
+  });
+}
+
+export function useStopQuest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (note: string) => api.stopQuest(note),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["quests"] });
+    },
+  });
+}
+
 export function useArchiveQuest() {
   const invalidate = useInvalidateAll();
   return useMutation({ mutationFn: (id: number) => api.archiveQuest(id), onSuccess: invalidate });

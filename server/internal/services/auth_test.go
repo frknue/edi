@@ -217,6 +217,11 @@ func TestTenantIsolation(t *testing.T) {
 	if _, err := b.CompleteQuest(bQuest.ID); err != nil {
 		t.Fatalf("b complete: %v", err)
 	}
+	if seeded, _ := b.ListQuests("", "active"); len(seeded) > 0 {
+		if _, err := b.StartQuest(seeded[0].ID); err != nil {
+			t.Fatalf("b start: %v", err)
+		}
+	}
 	if _, err := b.CreateJournalEntry(models.JournalInput{Mood: 7, Energy: 7, Notes: "b private note"}); err != nil {
 		t.Fatalf("b journal: %v", err)
 	}
@@ -258,6 +263,9 @@ func TestTenantIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("a dashboard: %v", err)
 	}
+	if dash.ActiveSession != nil {
+		t.Errorf("A sees B's running session: %+v", dash.ActiveSession)
+	}
 	if dash.Character.TotalXP != 0 || dash.Streak.Current != 0 || len(dash.TodayQuests) != 0 {
 		t.Errorf("A's dashboard leaks B's state: xp=%d streak=%d quests=%d",
 			dash.Character.TotalXP, dash.Streak.Current, len(dash.TodayQuests))
@@ -266,6 +274,9 @@ func TestTenantIsolation(t *testing.T) {
 	// A cannot act on B's rows by id: everything 404s.
 	if _, err := a.CompleteQuest(bQuest.ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("A completing B's quest = %v, want ErrNotFound", err)
+	}
+	if _, err := a.StartQuest(bQuest.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("A starting B's quest = %v, want ErrNotFound", err)
 	}
 	if _, err := a.UpdateQuest(bQuest.ID, models.QuestPatch{}); !errors.Is(err, ErrNotFound) {
 		t.Errorf("A patching B's quest = %v, want ErrNotFound", err)

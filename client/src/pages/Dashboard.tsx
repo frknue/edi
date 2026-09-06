@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, Moon, Skull, Sparkles, SkipForward, Swords, Zap } from "lucide-react";
+import { ArrowRight, Check, CornerDownRight, Moon, Play, Skull, Sparkles, SkipForward, Square, Swords, Zap } from "lucide-react";
 import {
   useDashboard,
   useCompleteQuest,
@@ -9,10 +9,13 @@ import {
   useOpenAIStatus,
   useSetRestMode,
   useSetHardcoreMode,
+  useStartQuest,
+  useStopQuest,
 } from "../lib/queries";
 import { useReward } from "../lib/reward";
 import { getAttr, getType } from "../lib/theme";
 import { CharacterHeader } from "../components/CharacterHeader";
+import { PixelHero } from "../components/PixelHero";
 import { TrophyCase } from "../components/TrophyCase";
 import { AttributeCard } from "../components/AttributeCard";
 import { QuestCard } from "../components/QuestCard";
@@ -22,7 +25,7 @@ import { Btn, DifficultyPips, EmptyState, Fold, SectionTitle, Spinner, RewardChi
 import { pushToast } from "../lib/toast";
 import { formatTime } from "../lib/format";
 import { useI18n } from "../lib/i18n";
-import type { CompletionResult, Quest } from "../lib/types";
+import type { CompletionResult, Quest, QuestSession } from "../lib/types";
 
 export function DashboardPage({
   onGoToQuests,
@@ -39,6 +42,8 @@ export function DashboardPage({
   const accept = useAcceptSuggestion();
   const setRest = useSetRestMode();
   const setHardcore = useSetHardcoreMode();
+  const start = useStartQuest();
+  const stop = useStopQuest();
   const { celebrate } = useReward();
 
   if (isLoading) return <Spinner label={t("dash.loading")} />;
@@ -78,14 +83,26 @@ export function DashboardPage({
         activeDays={data.active_days}
       />
 
-      {/* THE next move — one quest, one button, above everything else. */}
-      <NextMove
-        quests={data.today_quests}
-        recommended={data.recommended_quest}
-        busy={complete.isPending}
-        onComplete={handleComplete}
-        onGoToQuests={onGoToQuests}
-      />
+      {/* THE next move — one quest, one button, above everything else.
+          While a quest runs, the panel IS the running quest: timer, finisher. */}
+      {data.active_session ? (
+        <RunningQuest
+          session={data.active_session}
+          level={data.character.level}
+          busy={complete.isPending || stop.isPending}
+          onComplete={handleComplete}
+          onStop={(note) => stop.mutate(note)}
+        />
+      ) : (
+        <NextMove
+          quests={data.today_quests}
+          recommended={data.recommended_quest}
+          busy={complete.isPending || start.isPending}
+          onComplete={handleComplete}
+          onStart={(id) => start.mutate(id)}
+          onGoToQuests={onGoToQuests}
+        />
+      )}
 
       <NearGoal attributes={data.attributes} />
 
@@ -148,7 +165,9 @@ export function DashboardPage({
                 key={q.id}
                 quest={q}
                 index={i}
-                busy={complete.isPending || skip.isPending}
+                busy={complete.isPending || skip.isPending || start.isPending}
+                running={data.active_session?.quest_id === q.id}
+                onStart={data.active_session ? undefined : (id) => start.mutate(id)}
                 onComplete={handleComplete}
                 onSkip={(id) => skip.mutate(id)}
               />
@@ -254,12 +273,14 @@ function NextMove({
   recommended,
   busy,
   onComplete,
+  onStart,
   onGoToQuests,
 }: {
   quests: Quest[];
   recommended: Quest | null;
   busy: boolean;
   onComplete: (id: number) => void;
+  onStart: (id: number) => void;
   onGoToQuests: () => void;
 }) {
   const { t } = useI18n();
@@ -310,6 +331,15 @@ function NextMove({
         {current.title}
       </h2>
       {current.description && <p className="mt-1 line-clamp-2 text-sm text-muted">{current.description}</p>}
+      {current.resume_note && (
+        <p className="mt-2 flex items-start gap-1.5 text-sm text-muted" data-testid="next-move-resume">
+          <CornerDownRight size={14} className="mt-0.5 shrink-0" style={{ color: "var(--color-phos)" }} />
+          <span>
+            <span className="font-display text-[10px] uppercase tracking-[0.18em] text-faint">{t("quest.resume")} </span>
+            {current.resume_note}
+          </span>
+        </p>
+      )}
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <DifficultyPips difficulty={current.difficulty} />
         <RewardChips rewards={current.attribute_rewards} />
@@ -319,10 +349,13 @@ function NextMove({
           variant="primary"
           className="!py-3 !text-base sm:min-w-[220px]"
           disabled={busy}
-          onClick={() => onComplete(current.id)}
-          data-testid="next-move-complete"
+          onClick={() => onStart(current.id)}
+          data-testid="next-move-start"
         >
-          <Zap size={18} /> {t("common.complete")}
+          <Play size={18} /> {t("dash.start")}
+        </Btn>
+        <Btn variant="ghost" disabled={busy} onClick={() => onComplete(current.id)} data-testid="next-move-complete" title={t("dash.alreadyDoneTitle")}>
+          <Check size={15} /> {t("dash.alreadyDone")}
         </Btn>
         {others > 0 && (
           <Btn variant="soft" onClick={() => setVetoed((v) => (candidates.length > 1 ? [...v, current.id] : []))} data-testid="next-move-veto">
@@ -332,6 +365,160 @@ function NextMove({
       </div>
     </motion.div>
   );
+}
+
+// RunningQuest is the home screen while a quest is in progress: the timer,
+// the reward waiting at the end, the hero at work. Complete is the finisher;
+// Stop asks the landing question ("what is the next physical action?") and
+// stores the answer on the quest as its resume note. The ticks are cosmetic
+// — no XP moves until Complete.
+function RunningQuest({
+  session,
+  level,
+  busy,
+  onComplete,
+  onStop,
+}: {
+  session: QuestSession;
+  level: number;
+  busy: boolean;
+  onComplete: (id: number) => void;
+  onStop: (note: string) => void;
+}) {
+  const { t } = useI18n();
+  const elapsed = useElapsed(session.started_at);
+  const [landing, setLanding] = useState(false);
+  const [note, setNote] = useState("");
+  const meta = getType(session.quest_type);
+  const focusBlock = 25 * 60; // one cosmetic "block" — the bar refills every 25 min
+  const block = (elapsed % focusBlock) / focusBlock;
+  const blocks = Math.floor(elapsed / focusBlock);
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="hud-panel clip-corner relative overflow-hidden p-5 sm:p-6"
+      style={{ background: "linear-gradient(120deg, rgba(75,255,126,0.10), rgba(53,224,255,0.05)), var(--color-panel)", borderColor: "rgba(75,255,126,0.45)" }}
+      data-testid="running-quest"
+      data-quest-id={session.quest_id}
+    >
+      <div className="absolute inset-y-0 left-0 w-1" style={{ background: meta.color }} />
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-4">
+          <PixelHero level={level} mood="focus" size={56} />
+          <div className="min-w-0">
+            <div className="mb-1 flex items-center gap-2">
+              <Play size={13} style={{ color: "var(--color-phos)" }} />
+              <span className="font-display text-[11px] font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--color-phos)" }}>
+                {t("dash.running")}
+              </span>
+              <TypeBadge type={session.quest_type} />
+            </div>
+            <h2 className="font-display text-2xl leading-tight text-ink sm:text-3xl" data-testid="running-title">
+              {session.title}
+            </h2>
+            {session.resume_note && !landing && (
+              <p className="mt-1 flex items-start gap-1.5 text-sm text-muted">
+                <CornerDownRight size={14} className="mt-0.5 shrink-0" style={{ color: "var(--color-phos)" }} />
+                {session.resume_note}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="sm:ml-auto sm:text-right">
+          <div className="timer-pulse tabnum font-display text-5xl leading-none" style={{ color: "var(--color-phos)" }} data-testid="running-timer">
+            {formatElapsed(elapsed)}
+          </div>
+          <div className="mt-1 font-display text-[10px] uppercase tracking-wider text-faint">
+            {blocks > 0 ? t("dash.blocks", { n: blocks }) : t("dash.elapsed")}
+          </div>
+        </div>
+      </div>
+
+      {/* cosmetic momentum bar — refills every 25 minutes; pays nothing */}
+      <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+        <div
+          className="h-full rounded-full"
+          style={{ width: `${Math.max(2, block * 100)}%`, background: "linear-gradient(90deg, rgba(75,255,126,0.5), var(--color-phos))", transition: "width 1s linear" }}
+        />
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
+        <span className="font-display text-[10px] uppercase tracking-[0.18em] text-faint">{t("dash.rewardWaiting")}</span>
+        <RewardChips rewards={session.attribute_rewards} />
+      </div>
+
+      {landing ? (
+        <form
+          className="mt-5 space-y-2"
+          data-testid="landing-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onStop(note.trim());
+          }}
+        >
+          <label className="block font-display text-[11px] uppercase tracking-[0.18em] text-muted" htmlFor="landing-note">
+            {t("dash.landingQuestion")}
+          </label>
+          <input
+            id="landing-note"
+            autoFocus
+            maxLength={280}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={t("dash.landingPlaceholder")}
+            className="w-full rounded-sm border border-edge bg-black/30 px-3 py-2 text-sm text-ink outline-none focus:border-[var(--color-phos)]"
+            data-testid="landing-input"
+          />
+          <div className="flex flex-wrap gap-2">
+            <Btn variant="primary" type="submit" disabled={busy} data-testid="landing-save">
+              <Square size={14} /> {note.trim() ? t("dash.stopAndSave") : t("dash.justStop")}
+            </Btn>
+            <Btn variant="soft" type="button" onClick={() => setLanding(false)}>
+              {t("common.cancel")}
+            </Btn>
+          </div>
+        </form>
+      ) : (
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Btn
+            variant="primary"
+            className="!py-3 !text-base sm:min-w-[220px]"
+            disabled={busy}
+            onClick={() => onComplete(session.quest_id)}
+            data-testid="running-complete"
+          >
+            <Zap size={18} /> {t("common.complete")}
+          </Btn>
+          <Btn variant="soft" disabled={busy} onClick={() => setLanding(true)} data-testid="running-stop">
+            <Square size={14} /> {t("dash.stop")}
+          </Btn>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+// useElapsed ticks once a second from a server timestamp — the client owns
+// the display, the server owns the truth (started_at).
+function useElapsed(startedAt: string): number {
+  const calc = () => Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000));
+  const [elapsed, setElapsed] = useState(calc);
+  useEffect(() => {
+    setElapsed(calc());
+    const id = window.setInterval(() => setElapsed(calc()), 1000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startedAt]);
+  return elapsed;
+}
+
+function formatElapsed(sec: number): string {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  const mm = String(m).padStart(2, "0");
+  const ss = String(s).padStart(2, "0");
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
 // NearGoal names the attribute closest to leveling — something is always

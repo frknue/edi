@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Archive, Check, CheckCircle2, Circle, Pencil, RotateCcw, SkipForward, Square, SquareCheckBig, Users } from "lucide-react";
+import { Archive, Check, CheckCircle2, Circle, CornerDownRight, Pencil, Play, RotateCcw, SkipForward, Square, SquareCheckBig, Users } from "lucide-react";
 import type { Quest } from "../lib/types";
 import { getType } from "../lib/theme";
 import { useToggleSubtask } from "../lib/queries";
@@ -11,6 +11,8 @@ interface QuestCardProps {
   quest: Quest;
   index?: number;
   onComplete?: (id: number) => void;
+  onStart?: (id: number) => void; // active quest mode: open a timed session
+  running?: boolean; // this quest is the running session
   onSkip?: (id: number) => void;
   onArchive?: (id: number) => void;
   onRestore?: (id: number) => void;
@@ -22,6 +24,8 @@ export function QuestCard({
   quest,
   index = 0,
   onComplete,
+  onStart,
+  running = false,
   onSkip,
   onArchive,
   onRestore,
@@ -53,10 +57,13 @@ export function QuestCard({
         !isActive ? "opacity-60" : ""
       }`}
       style={
-        isRecovery
-          ? { background: "linear-gradient(180deg, rgba(46,230,200,0.06), rgba(255,255,255,0)), var(--color-panel)" }
-          : undefined
+        running
+          ? { borderColor: "var(--color-phos)", boxShadow: "0 0 18px -6px rgba(75,255,126,0.7)" }
+          : isRecovery
+            ? { background: "linear-gradient(180deg, rgba(46,230,200,0.06), rgba(255,255,255,0)), var(--color-panel)" }
+            : undefined
       }
+      data-running={running ? "1" : "0"}
     >
       {/* left accent rail */}
       <div className="absolute inset-y-0 left-0 w-1" style={{ background: accent }} />
@@ -79,6 +86,11 @@ export function QuestCard({
               {isDone && (
                 <span className="inline-flex items-center gap-1 text-[10px] text-[var(--color-health)]">
                   <CheckCircle2 size={11} /> {t("quest.done")}
+                </span>
+              )}
+              {running && (
+                <span className="inline-flex items-center gap-1 font-display text-[10px] uppercase tracking-wider text-[var(--color-phos)]" data-testid={`running-${quest.id}`}>
+                  <Play size={10} /> {t("quest.running")}
                 </span>
               )}
               {myDone && !quest.all_completed && (
@@ -127,10 +139,32 @@ export function QuestCard({
           </div>
         )}
 
+        {quest.resume_note && isActive && (
+          <div className="mt-2 flex items-start gap-1.5 text-xs text-muted" data-testid={`resume-${quest.id}`}>
+            <CornerDownRight size={12} className="mt-0.5 shrink-0" style={{ color: "var(--color-phos)" }} />
+            <span>
+              <span className="font-display text-[9px] uppercase tracking-[0.18em] text-faint">{t("quest.resume")} </span>
+              {quest.resume_note}
+            </span>
+          </div>
+        )}
+
         {quest.subtasks.length > 0 && <SubtaskList quest={quest} interactive={myActive} />}
 
-        {(onComplete || onSkip || onArchive || onEdit) && isActive && (
+        {(onComplete || onStart || onSkip || onArchive || onEdit) && isActive && (
           <div className="mt-4 flex items-center gap-2">
+            {onStart && myActive && !running && (
+              <Btn
+                variant="ghost"
+                className="flex-1"
+                disabled={busy}
+                onClick={() => onStart(quest.id)}
+                data-testid={`start-${quest.id}`}
+              >
+                <Play size={15} />
+                {t("quest.start")}
+              </Btn>
+            )}
             {onComplete && (
               <Btn
                 variant="primary"

@@ -13,6 +13,9 @@
 //	add --title T [flags]           Create a quest (--type --difficulty --desc --reward k=v)
 //	win --title T [flags]           Record an unplanned quest as already completed
 //	complete <id>                   Complete a quest (shows XP + level-ups)
+//	start <id>                      Start a quest in active mode (timed session, no XP yet)
+//	stop [note]                     Stop the running session; note = next physical action
+//	now                             Show the running quest and elapsed time
 //	skip <id> | archive <id>        Skip / archive a quest
 //	journal                         List recent reflections
 //	journal [--q text]              List / search reflections
@@ -140,6 +143,12 @@ func run(c *apiclient.Client, cmd string, args []string) error {
 		return cmdRest(c, args)
 	case "hardcore":
 		return cmdHardcore(c, args)
+	case "start":
+		return cmdStart(c, args)
+	case "stop":
+		return cmdStop(c, args)
+	case "now":
+		return cmdNow(c)
 	case "story":
 		return cmdStory(c)
 	case "boss":
@@ -815,6 +824,57 @@ func cmdWard(c *apiclient.Client, args []string) error {
 	fmt.Printf("Warded %s until %s. Balance: %dg\n",
 		res.Ward.AttributeKey, res.Ward.ExpiresAt.Local().Format("2006-01-02 15:04"), res.Balance)
 	return nil
+}
+
+func cmdStart(c *apiclient.Client, args []string) error {
+	id, err := argID(args)
+	if err != nil {
+		return err
+	}
+	sess, err := c.StartQuest(id)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s started %q — go. (%s when done, %s to pause)\n", green("▶"), sess.Title, bold("complete "+strconv.FormatInt(sess.QuestID, 10)), bold("stop"))
+	if sess.ResumeNote != "" {
+		fmt.Printf("  resume: %s\n", sess.ResumeNote)
+	}
+	return nil
+}
+
+func cmdStop(c *apiclient.Client, args []string) error {
+	sess, err := c.StopQuest(strings.Join(args, " "))
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s stopped %q after %s\n", green("■"), sess.Title, elapsedStr(sess.ElapsedSeconds))
+	if sess.Note != "" {
+		fmt.Printf("  next: %s\n", sess.Note)
+	}
+	return nil
+}
+
+func cmdNow(c *apiclient.Client) error {
+	sess, err := c.ActiveSession()
+	if err != nil {
+		return err
+	}
+	if sess == nil {
+		fmt.Println("Nothing running. Pick one: edi-cli start <id>")
+		return nil
+	}
+	fmt.Printf("%s %q · %s\n", green("▶"), sess.Title, elapsedStr(sess.ElapsedSeconds))
+	if sess.ResumeNote != "" {
+		fmt.Printf("  resume: %s\n", sess.ResumeNote)
+	}
+	return nil
+}
+
+func elapsedStr(sec int64) string {
+	if sec < 60 {
+		return fmt.Sprintf("%ds", sec)
+	}
+	return fmt.Sprintf("%dm %02ds", sec/60, sec%60)
 }
 
 func cmdHardcore(c *apiclient.Client, args []string) error {

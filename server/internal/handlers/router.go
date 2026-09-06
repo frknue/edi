@@ -48,6 +48,11 @@ func NewRouter(h *Handlers, clientDir string, tokenMode bool) http.Handler {
 	mux.HandleFunc("POST /api/quests/{id}/skip", h.skipQuest)
 	mux.HandleFunc("POST /api/quests/{id}/archive", h.archiveQuest)
 	mux.HandleFunc("POST /api/quests/{id}/subtasks/{sid}/toggle", h.toggleSubtask)
+	// Active quest mode: one running session per user, cosmetic timer only.
+	mux.HandleFunc("POST /api/quests/{id}/start", h.startQuest)
+	mux.HandleFunc("GET /api/session", h.activeSession)
+	mux.HandleFunc("POST /api/session/stop", h.stopQuest)
+	mux.HandleFunc("GET /api/sessions", h.listSessions)
 
 	mux.HandleFunc("GET /api/xp-events", h.getXPEvents)
 

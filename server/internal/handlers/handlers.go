@@ -696,6 +696,55 @@ func (h *Handlers) wardAttribute(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+func (h *Handlers) startQuest(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	sess, err := h.forUser(r).StartQuest(id)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, sess)
+}
+
+func (h *Handlers) stopQuest(w http.ResponseWriter, r *http.Request) {
+	var in models.StopSessionInput
+	if r.ContentLength != 0 {
+		if err := decodeBody(r, &in); err != nil {
+			writeError(w, err)
+			return
+		}
+	}
+	sess, err := h.forUser(r).StopQuest(in)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, sess)
+}
+
+func (h *Handlers) activeSession(w http.ResponseWriter, r *http.Request) {
+	sess, err := h.forUser(r).ActiveSession()
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"session": sess})
+}
+
+func (h *Handlers) listSessions(w http.ResponseWriter, r *http.Request) {
+	limit := queryInt(r, "limit", 20)
+	out, err := h.forUser(r).ListQuestSessions(limit)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 func (h *Handlers) getHardcore(w http.ResponseWriter, r *http.Request) {
 	st, err := h.forUser(r).HardcoreState()
 	if err != nil {

@@ -12,6 +12,8 @@ import {
   useCreateQuestBoardInvite,
   useJoinQuestBoard,
   useMultiplayerStatus,
+  useStartQuest,
+  useDashboard,
 } from "../lib/queries";
 import { useReward } from "../lib/reward";
 import { pushToast } from "../lib/toast";
@@ -48,6 +50,8 @@ export function QuestsPage() {
   const complete = useCompleteQuest();
   const skip = useSkipQuest();
   const archive = useArchiveQuest();
+  const startQuest = useStartQuest();
+  const { data: dash } = useDashboard();
   const { celebrate } = useReward();
 
   const busy = create.isPending || recordWin.isPending || update.isPending || complete.isPending || skip.isPending || archive.isPending;
@@ -175,6 +179,12 @@ export function QuestsPage() {
                 index={i}
                 busy={busy}
                 onComplete={q.status === "active" && q.assigned_to_me && q.my_status === "active" ? handleComplete : undefined}
+                running={dash?.active_session?.quest_id === q.id}
+                onStart={
+                  q.status === "active" && q.assigned_to_me && q.my_status === "active"
+                    ? (id) => startQuest.mutate(id, { onSuccess: (s) => pushToast(t("quests.started", { title: s.title }), "success") })
+                    : undefined
+                }
                 onEdit={openEdit}
                 onSkip={q.status === "active" && q.assigned_to_me && q.my_status === "active" ? (id) => skip.mutate(id) : undefined}
                 onArchive={q.status !== "archived" ? (id) => archive.mutate(id) : undefined}

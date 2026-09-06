@@ -241,6 +241,10 @@ Base: `/api`
 | POST | `/quests/:id/skip` | Skip (increments skip counter) |
 | POST | `/quests/:id/archive` | Archive |
 | POST | `/quests/:id/subtasks/:sid/toggle` | Check/uncheck a bonus objective (while active) |
+| POST | `/quests/:id/start` | Active mode: start a timed session on a quest (closes any other running one); no XP until complete |
+| GET | `/session` | The running session (`{session:null}` when none; stale ones expire at the local day boundary) |
+| POST | `/session/stop` | Stop the running session; `{note}` is stored as the quest's resume note ("next physical action") |
+| GET | `/sessions?limit=` | Recent sessions, newest first |
 | GET | `/xp-events?limit=` | Recent XP audit events |
 | GET | `/journal?limit=&q=` | Recent reflections (optional full-text search over notes) |
 | POST | `/journal` | Add a reflection (mood/energy 1–10 + notes); first entry of the day awards XP |

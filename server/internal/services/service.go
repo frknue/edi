@@ -655,6 +655,10 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 	if err != nil {
 		return models.Dashboard{}, err
 	}
+	session, err := s.ActiveSession()
+	if err != nil {
+		return models.Dashboard{}, err
+	}
 
 	var totalXP int64
 	for _, a := range attrs {
@@ -686,6 +690,7 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 		Hardcore:         hardcore,
 		DailyPenaltyXP:   dailyPenaltyXP,
 		ActiveDays:       activeDays,
+		ActiveSession:    session,
 		RecentXPEvents:   orEmpty(events),
 		RecommendedQuest: recommended,
 		DailyProgress:    models.DailyProgress{CompletedToday: completedToday, Goal: goal, Ratio: dailyRatio, NextComboMultiplier: ComboMultiplier(completedToday + 1)},

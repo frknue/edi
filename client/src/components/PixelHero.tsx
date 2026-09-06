@@ -2,7 +2,8 @@
 // (crisp on the CRT), who VISIBLY grows with the player: tunic color upgrades
 // by level band, a sword appears at Lv 3, a shield at Lv 6, a helmet at
 // Lv 10, a crown at Lv 15, and earned titles give an aura. Idle bob + blink
-// by default; "celebrate" jumps, "crit" shakes (see index.css keyframes).
+// by default; "celebrate" jumps, "crit" shakes, "focus" leans in and works
+// (active quest mode) — see index.css keyframes.
 
 import { t } from "../lib/i18n";
 
@@ -116,7 +117,7 @@ export function PixelHero({
 }: {
   level: number;
   titled?: boolean;
-  mood?: "idle" | "celebrate" | "crit";
+  mood?: "idle" | "celebrate" | "crit" | "focus";
   size?: number;
 }) {
   const colors: Record<string, string> = {
@@ -149,7 +150,8 @@ export function PixelHero({
     }
   }
 
-  const moodClass = mood === "celebrate" ? "hero-celebrate" : mood === "crit" ? "hero-crit" : "hero-idle";
+  const moodClass =
+    mood === "celebrate" ? "hero-celebrate" : mood === "crit" ? "hero-crit" : mood === "focus" ? "hero-focus" : "hero-idle";
 
   return (
     <div className={moodClass} style={{ width: size, height: (size * H) / W, position: "relative" }} data-testid="pixel-hero">

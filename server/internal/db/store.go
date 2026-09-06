@@ -212,7 +212,7 @@ func scanQuest(scanner interface{ Scan(...any) error }) (models.Quest, error) {
 	var srcSug sql.NullInt64
 	var sharedQuestID sql.NullInt64
 	err := scanner.Scan(&q.ID, &q.UserID, &q.Title, &q.Description, &q.Type, &q.Difficulty,
-		&q.Status, &rewards, &q.SkipCount, &srcSug, &q.CreatedAt, &completed, &due, &sharedQuestID)
+		&q.Status, &rewards, &q.SkipCount, &srcSug, &q.CreatedAt, &completed, &due, &sharedQuestID, &q.ResumeNote)
 	if err != nil {
 		return q, err
 	}
@@ -230,7 +230,7 @@ func scanQuest(scanner interface{ Scan(...any) error }) (models.Quest, error) {
 	return q, nil
 }
 
-const questColumns = `id, user_id, title, description, type, difficulty, status, attribute_rewards, skip_count, source_suggestion_id, created_at, completed_at, due_date, shared_quest_id`
+const questColumns = `id, user_id, title, description, type, difficulty, status, attribute_rewards, skip_count, source_suggestion_id, created_at, completed_at, due_date, shared_quest_id, resume_note`
 
 func (s *Store) GetQuest(userID, id int64) (models.Quest, error) {
 	row := s.db.QueryRow(`SELECT `+questColumns+` FROM quests WHERE id = $1 AND user_id = $2`, id, userID)
@@ -832,6 +832,11 @@ func (s *Store) completeQuest(userID, questID int64, spontaneous *models.QuestIn
 	}
 
 	if err := updateStreakTx(tx, userID, now); err != nil {
+		return fail(err)
+	}
+	// Active mode: completing is the finisher — close the running session and
+	// clear the resume note in the same tx so Stop can never race Complete.
+	if err := closeQuestSessionTx(tx, userID, questID, now); err != nil {
 		return fail(err)
 	}
 

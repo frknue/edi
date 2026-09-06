@@ -247,7 +247,7 @@ func insertSubtasksTx(tx *sql.Tx, userID, questID int64, subtasks []models.Subta
 func (s *Store) ListVisibleQuests(userID int64, questType, status string) ([]models.Quest, error) {
 	const qcols = `q.id, q.user_id, q.title, q.description, q.type, q.difficulty, q.status,
 		q.attribute_rewards, q.skip_count, q.source_suggestion_id, q.created_at,
-		q.completed_at, q.due_date, q.shared_quest_id`
+		q.completed_at, q.due_date, q.shared_quest_id, q.resume_note`
 	query := `SELECT ` + qcols + ` FROM quests q WHERE
 		((q.user_id = $1 AND q.shared_quest_id IS NULL) OR
 		 (q.shared_quest_id IS NOT NULL AND EXISTS (

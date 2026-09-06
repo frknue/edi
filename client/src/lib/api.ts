@@ -42,6 +42,7 @@ import type {
   WardResult,
   XPEvent,
   HardcoreState,
+  QuestSession,
 } from "./types";
 
 // Base path is relative; the Vite dev proxy (and the Go static server in prod)
@@ -159,6 +160,10 @@ export const api = {
   toggleSubtask: (questId: number, subtaskId: number) =>
     request<Subtask>(`/quests/${questId}/subtasks/${subtaskId}/toggle`, { method: "POST" }),
   skipQuest: (id: number) => request<Quest>(`/quests/${id}/skip`, { method: "POST" }),
+  startQuest: (id: number) => request<QuestSession>(`/quests/${id}/start`, { method: "POST" }),
+  stopQuest: (note: string) =>
+    request<QuestSession>("/session/stop", { method: "POST", body: JSON.stringify({ note }) }),
+  activeSession: () => request<{ session: QuestSession | null }>("/session"),
   archiveQuest: (id: number) => request<Quest>(`/quests/${id}/archive`, { method: "POST" }),
 
   getXPEvents: (limit = 50) => request<XPEvent[]>(`/xp-events?limit=${limit}`),

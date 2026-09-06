@@ -310,6 +310,25 @@ input[type="range"]::-webkit-slider-thumb {
   80% { transform: translate(1px, 1px) rotate(2deg); }
 }
 
+/* focus: leaning in, working — quick, purposeful bob while a quest runs */
+.hero-focus {
+  animation: hero-work 0.9s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+@keyframes hero-work {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50% { transform: translateY(-2px) rotate(-6deg); }
+}
+
+/* the running-quest timer breathes */
+.timer-pulse {
+  animation: timer-glow 2.4s ease-in-out infinite;
+}
+@keyframes timer-glow {
+  0%, 100% { text-shadow: 0 0 10px rgba(75,255,126,0.35); }
+  50% { text-shadow: 0 0 22px rgba(75,255,126,0.75); }
+}
+
 /* the title aura pulses slowly */
 .hero-aura {
   animation: aura-pulse 3s ease-in-out infinite;

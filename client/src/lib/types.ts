@@ -62,6 +62,22 @@ export interface HardcoreState {
   since?: string;
 }
 
+// One run of a quest in active mode. Presence only — never XP.
+export interface QuestSession {
+  id: number;
+  quest_id: number;
+  title: string;
+  quest_type: QuestType;
+  attribute_rewards: Record<string, number>;
+  resume_note: string;
+  started_at: string;
+  ended_at?: string;
+  reason: "" | "stopped" | "completed" | "switched" | "expired";
+  note: string;
+  elapsed_seconds: number;
+  running: boolean;
+}
+
 // One local day of the 14-day activity strip on the dashboard.
 export interface ActiveDay {
   day: string; // YYYY-MM-DD
@@ -104,6 +120,7 @@ export interface Quest {
   attribute_rewards: Record<string, number>;
   subtasks: Subtask[];
   skip_count: number;
+  resume_note: string; // "next physical action" captured at Stop; cleared on completion
   created_at: string;
   completed_at: string | null;
   due_date: string | null;
@@ -288,6 +305,7 @@ export interface Dashboard {
   decayed_today: number;
   daily_penalty_xp: number;
   active_days: ActiveDay[];
+  active_session: QuestSession | null;
   recent_xp_events: XPEvent[];
   recommended_quest: Quest | null;
   daily_progress: DailyProgress;

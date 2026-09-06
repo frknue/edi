@@ -157,6 +157,26 @@ func (c *Client) ToggleSubtask(questID, subtaskID int64) (models.Subtask, error)
 	return st, err
 }
 
+func (c *Client) StartQuest(id int64) (models.QuestSession, error) {
+	var sess models.QuestSession
+	err := c.do(http.MethodPost, fmt.Sprintf("/api/quests/%d/start", id), nil, &sess)
+	return sess, err
+}
+
+func (c *Client) StopQuest(note string) (models.QuestSession, error) {
+	var sess models.QuestSession
+	err := c.do(http.MethodPost, "/api/session/stop", models.StopSessionInput{Note: note}, &sess)
+	return sess, err
+}
+
+func (c *Client) ActiveSession() (*models.QuestSession, error) {
+	var out struct {
+		Session *models.QuestSession `json:"session"`
+	}
+	err := c.do(http.MethodGet, "/api/session", nil, &out)
+	return out.Session, err
+}
+
 func (c *Client) SkipQuest(id int64) (models.Quest, error) {
 	var qst models.Quest
 	err := c.do(http.MethodPost, fmt.Sprintf("/api/quests/%d/skip", id), nil, &qst)

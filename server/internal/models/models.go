@@ -113,6 +113,7 @@ type Quest struct {
 	AttributeRewards map[string]int64 `json:"attribute_rewards"`
 	Subtasks         []Subtask        `json:"subtasks"`
 	SkipCount        int              `json:"skip_count"`
+	ResumeNote       string           `json:"resume_note"` // "next physical action" captured at Stop; cleared on completion
 	CreatedAt        time.Time        `json:"created_at"`
 	CompletedAt      *time.Time       `json:"completed_at"`
 	DueDate          *time.Time       `json:"due_date"`
@@ -372,6 +373,7 @@ type Dashboard struct {
 	DecayedToday     int64             `json:"decayed_today"`    // XP removed by this request's decay catch-up (hardcore only)
 	DailyPenaltyXP   int64             `json:"daily_penalty_xp"` // XP removed today for missed daily quests (hardcore only)
 	ActiveDays       []ActiveDay       `json:"active_days"`      // last 14 local days, oldest first
+	ActiveSession    *QuestSession     `json:"active_session"`   // the running quest, if any
 	RecentXPEvents   []XPEvent         `json:"recent_xp_events"`
 	RecommendedQuest *Quest            `json:"recommended_quest"`
 	DailyProgress    DailyProgress     `json:"daily_progress"`
@@ -570,6 +572,29 @@ type RestState struct {
 type HardcoreState struct {
 	On    bool       `json:"on"`
 	Since *time.Time `json:"since,omitempty"`
+}
+
+// QuestSession is one run of a quest in active mode: Start opens it,
+// Stop / Complete / expiry closes it. Presence during the action only — a
+// session never writes XP (the client ticks cosmetically; completion pays).
+type QuestSession struct {
+	ID               int64            `json:"id"`
+	QuestID          int64            `json:"quest_id"`
+	Title            string           `json:"title"`
+	QuestType        string           `json:"quest_type"`
+	AttributeRewards map[string]int64 `json:"attribute_rewards"`
+	ResumeNote       string           `json:"resume_note"`
+	StartedAt        time.Time        `json:"started_at"`
+	EndedAt          *time.Time       `json:"ended_at,omitempty"`
+	Reason           string           `json:"reason"` // "" running | stopped | completed | switched | expired
+	Note             string           `json:"note"`
+	ElapsedSeconds   int64            `json:"elapsed_seconds"`
+	Running          bool             `json:"running"`
+}
+
+// StopSessionInput carries the landing question's answer.
+type StopSessionInput struct {
+	Note string `json:"note"`
 }
 
 // ActiveDay is one local day of the recent-activity strip on the dashboard.
