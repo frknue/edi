@@ -374,8 +374,15 @@ Telegram runs **in-process** (`internal/presence`, enabled by
 code (web UI → `POST /api/telegram/pair-code`) and sends `/pair <code>` (or the
 `t.me/<bot>?start=<code>` deep link) to the bot; `telegram_links` maps chat ↔
 user, and every command runs on `svc.ForUser(linked)`. Commands: /status
-/quests /done /supps /ward /rest /briefing /nudge /story /boss /new /unpair — plus
-free-text chat (below). Pushes: per-user briefing + conditional nudge at
+/quests /done /go /stop /now /supps /ward /rest /briefing /nudge /story /boss
+/new /unpair — plus free-text chat (below). **Every scheduled nudge carries
+inline buttons** (Start / Done / Not this one / Not tonight): the client
+(`internal/telegram`) sends `reply_markup`, polls `callback_query` updates,
+answers them (`AnswerCallbackQuery`) and rewrites the nudge into a receipt
+without buttons (`EditMessageText`) so a stale keyboard can never
+double-act — `Runner.handleCallback` / `applyCallback`
+(`TestPresenceNudgeButtons`, `TestButtonsAndCallbacks`). Button payloads
+are `go:<id>`, `done:<id>`, `another:<id>`, `snooze`. Pushes: per-user briefing + conditional nudge at
 per-user times (app_settings, read/written by every client through
 `GET|POST /api/telegram/push-times` / `edi-cli push-times` / the
 `set_push_times` tool / `/briefing HH:MM`; `""` = server default) falling

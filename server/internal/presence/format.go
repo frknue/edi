@@ -22,6 +22,9 @@ Just talk to me — "add a 20 min run as a daily", "I finished the tax return", 
 /status — level, streak, gold, quests, decay
 /quests — active quests with IDs
 /done &lt;id&gt; — complete a quest
+/go &lt;id&gt; — start a quest (timer on the dashboard)
+/stop [next step] — pause it, optionally noting the next physical action
+/now — what's running
 /supps — today's supplement stack
 /supps &lt;name&gt; — take one (full stack = bonus XP)
 /ward &lt;attribute&gt; — 7-day decay shield (30g, hardcore mode only)
@@ -69,6 +72,9 @@ func statusCore(d models.Dashboard) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Lv %d · streak %d🔥 · %dg\n", d.Character.Level, d.Streak.Current, d.GoldBalance)
 	fmt.Fprintf(&b, "%d quests open · %d/%d done today\n", len(d.TodayQuests), d.DailyProgress.CompletedToday, d.DailyProgress.Goal)
+	if s := d.ActiveSession; s != nil {
+		fmt.Fprintf(&b, "▶ running: %s · %s\n", html.EscapeString(s.Title), elapsedText(s.ElapsedSeconds))
+	}
 	if d.RestMode {
 		b.WriteString("☾ rest mode ON — nudges stand down\n")
 	}
@@ -145,6 +151,18 @@ func formatNudge(d models.Dashboard, q models.Quest) string {
 		return fmt.Sprintf("🌙 %d/%d today. One more?\n%s\n\n/done %d closes it.", done, goal, questLine(q), q.ID)
 	}
 	return fmt.Sprintf("🌙 Nothing logged today. Smallest step:\n%s\n\n/done %d and the streak lives.", questLine(q), q.ID)
+}
+
+// elapsedText renders seconds as "42s" / "12m 05s" / "1h 03m".
+func elapsedText(sec int64) string {
+	switch {
+	case sec < 60:
+		return fmt.Sprintf("%ds", sec)
+	case sec < 3600:
+		return fmt.Sprintf("%dm %02ds", sec/60, sec%60)
+	default:
+		return fmt.Sprintf("%dh %02dm", sec/3600, (sec%3600)/60)
+	}
 }
 
 // nextFire returns the next local occurrence of hhmm ("15:04") after now.

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"edi/internal/agent"
+	"edi/internal/models"
 	"edi/internal/services"
 	"edi/internal/telegram"
 )
@@ -96,6 +97,10 @@ func (r *Runner) pollLoop(ctx context.Context) {
 		}
 		for _, u := range updates {
 			offset = u.UpdateID + 1
+			if u.CallbackQuery != nil {
+				r.handleCallback(u.CallbackQuery)
+				continue
+			}
 			if u.Message == nil {
 				continue
 			}
@@ -225,6 +230,48 @@ func (r *Runner) handleCommand(svc *services.Service, chatID int64, cmd, arg str
 			return "⚠ " + html.EscapeString(userMessage(err))
 		}
 		return formatQuests(quests)
+
+	case "go":
+		id, err := strconv.ParseInt(arg, 10, 64)
+		if err != nil {
+			return "Usage: /go <i>id</i> — start a quest (ids from /quests)"
+		}
+		sess, err := svc.StartQuest(id)
+		if err != nil {
+			return "⚠ " + html.EscapeString(userMessage(err))
+		}
+		reply := fmt.Sprintf("▶ <b>%s</b> is running — go.\n/done %d when finished · /stop when you pause", html.EscapeString(sess.Title), sess.QuestID)
+		if sess.ResumeNote != "" {
+			reply += "\n↳ " + html.EscapeString(sess.ResumeNote)
+		}
+		return reply
+
+	case "stop", "pause":
+		sess, err := svc.StopQuest(models.StopSessionInput{Note: arg})
+		if err != nil {
+			return "⚠ " + html.EscapeString(userMessage(err))
+		}
+		reply := fmt.Sprintf("■ <b>%s</b> paused after %s.", html.EscapeString(sess.Title), elapsedText(sess.ElapsedSeconds))
+		if sess.Note != "" {
+			reply += "\n↳ next: " + html.EscapeString(sess.Note)
+		} else {
+			reply += "\nTip: /stop <i>next physical action</i> saves a resume note."
+		}
+		return reply
+
+	case "now":
+		sess, err := svc.ActiveSession()
+		if err != nil {
+			return "⚠ " + html.EscapeString(userMessage(err))
+		}
+		if sess == nil {
+			return "Nothing running. /quests then /go <i>id</i>."
+		}
+		reply := fmt.Sprintf("▶ <b>%s</b> · %s", html.EscapeString(sess.Title), elapsedText(sess.ElapsedSeconds))
+		if sess.ResumeNote != "" {
+			reply += "\n↳ " + html.EscapeString(sess.ResumeNote)
+		}
+		return reply
 
 	case "done":
 		id, err := strconv.ParseInt(arg, 10, 64)
@@ -436,7 +483,13 @@ func (r *Runner) pushLoop(ctx context.Context) {
 
 // tick advances one (user, kind) schedule: initializes the next fire on first
 // sight, fires when due (retrying 3× at 30s spacing), and skips stale fires.
-func (r *Runner) tick(now time.Time, userID, chatID int64, kind, defaultHHMM string, build func(*services.Service) (string, error)) {
+// push is one outgoing scheduled message: text plus optional inline buttons.
+type push struct {
+	text    string
+	buttons [][]telegram.Button
+}
+
+func (r *Runner) tick(now time.Time, userID, chatID int64, kind, defaultHHMM string, build func(*services.Service) (push, error)) {
 	svc := r.svc.ForUser(userID)
 	hhmm, err := svc.TelegramPushTime(kind)
 	if err != nil || hhmm == "" {
@@ -463,11 +516,11 @@ func (r *Runner) tick(now time.Time, userID, chatID int64, kind, defaultHHMM str
 		log.Printf("telegram %s for user %d skipped: woke %s past fire time", kind, userID, now.Sub(f.at).Round(time.Second))
 	} else if msg, err := build(svc); err != nil {
 		log.Printf("telegram %s for user %d failed to build: %v", kind, userID, err)
-	} else if msg != "" { // "" = nothing to push (e.g. nudge stands down)
+	} else if msg.text != "" { // "" = nothing to push (e.g. nudge stands down)
 		// The message is built ONCE (an LLM narration must not re-bill);
 		// only the Telegram send retries.
 		for attempt := 0; attempt < 3; attempt++ {
-			if err = r.tg.SendMessage(chatID, msg); err == nil {
+			if err = r.tg.SendMessageWithButtons(chatID, msg.text, msg.buttons); err == nil {
 				break
 			}
 			if attempt < 2 {
@@ -486,27 +539,108 @@ func (r *Runner) tick(now time.Time, userID, chatID int64, kind, defaultHHMM str
 // buildBriefing renders the morning briefing, opening with a narrated
 // episode when the user has AI connected (fail-soft: any narration problem
 // falls back to the plain briefing).
-func (r *Runner) buildBriefing(svc *services.Service) (string, error) {
+func (r *Runner) buildBriefing(svc *services.Service) (push, error) {
 	d, err := svc.GetDashboard()
 	if err != nil {
-		return "", err
+		return push{}, err
 	}
 	msg := formatBriefing(d)
 	if story, err := r.narrate(svc); err == nil && story != "" {
 		msg = "📜 <i>" + html.EscapeString(story) + "</i>\n\n" + msg
 	}
-	return msg, nil
+	return push{text: msg}, nil
 }
 
-// buildNudge renders the evening nudge — "" when it stands down.
-func (r *Runner) buildNudge(svc *services.Service) (string, error) {
+// buildNudge renders the evening nudge as ONE question with buttons —
+// empty when it stands down. Every push is answerable from the lock
+// screen: Start, Done, Not this one, Not tonight.
+func (r *Runner) buildNudge(svc *services.Service) (push, error) {
 	d, err := svc.GetDashboard()
 	if err != nil {
-		return "", err
+		return push{}, err
 	}
 	q, ok := nudgeQuest(d)
 	if !ok {
-		return "", nil
+		return push{}, nil
 	}
-	return formatNudge(d, *q), nil
+	return push{text: formatNudge(d, *q), buttons: nudgeButtons(*q)}, nil
+}
+
+// nudgeButtons is the keyboard under a nudge for quest q.
+func nudgeButtons(q models.Quest) [][]telegram.Button {
+	id := strconv.FormatInt(q.ID, 10)
+	return [][]telegram.Button{
+		{{Text: "▶ Start", Data: "go:" + id}, {Text: "✓ Done", Data: "done:" + id}},
+		{{Text: "↷ Not this one", Data: "another:" + id}, {Text: "🌙 Not tonight", Data: "snooze"}},
+	}
+}
+
+// handleCallback answers an inline-button press: acts on the linked user,
+// acknowledges the tap, and rewrites the nudge into a receipt (buttons
+// gone) so a stale keyboard can never double-act.
+func (r *Runner) handleCallback(cb *telegram.CallbackQuery) {
+	if cb.Message == nil {
+		_ = r.tg.AnswerCallbackQuery(cb.ID, "")
+		return
+	}
+	chatID, msgID := cb.Message.Chat.ID, cb.Message.MessageID
+	userID, err := r.svc.UserIDForTelegramChat(chatID)
+	if err != nil {
+		_ = r.tg.AnswerCallbackQuery(cb.ID, "This chat isn't linked — /pair first")
+		return
+	}
+	toast, text, buttons := r.applyCallback(r.svc.ForUser(userID), cb.Data, cb.Message.Text)
+	_ = r.tg.AnswerCallbackQuery(cb.ID, toast)
+	if text != "" {
+		if err := r.tg.EditMessageText(chatID, msgID, text, buttons); err != nil {
+			log.Printf("telegram editMessageText: %v", err)
+		}
+	}
+}
+
+// applyCallback executes one button payload ("go:12", "done:12",
+// "another:12", "snooze") for svc and returns the toast, the new message
+// text (HTML; "" = leave as is) and its keyboard (nil = remove buttons).
+func (r *Runner) applyCallback(svc *services.Service, data, original string) (toast, text string, buttons [][]telegram.Button) {
+	action, arg, _ := strings.Cut(data, ":")
+	id, _ := strconv.ParseInt(arg, 10, 64)
+	receipt := html.EscapeString(original)
+	switch action {
+	case "go":
+		sess, err := svc.StartQuest(id)
+		if err != nil {
+			return "⚠ " + userMessage(err), "", nil
+		}
+		return "▶ Started — go.", fmt.Sprintf("%s\n\n▶ <b>%s</b> is running. /done %d when finished, /stop when you pause.", receipt, html.EscapeString(sess.Title), sess.QuestID), nil
+	case "done":
+		result, err := svc.CompleteQuest(id)
+		if err != nil {
+			return "⚠ " + userMessage(err), "", nil
+		}
+		var xp int64
+		for _, e := range result.XPEvents {
+			xp += e.Amount
+		}
+		return fmt.Sprintf("✓ +%d XP", xp), fmt.Sprintf("%s\n\n✓ <b>%s</b> complete · +%d XP · %d/%d today", receipt, html.EscapeString(result.Quest.Title), xp, result.Dashboard.DailyProgress.CompletedToday, result.Dashboard.DailyProgress.Goal), nil
+	case "another":
+		d, err := svc.GetDashboard()
+		if err != nil {
+			return "⚠ " + userMessage(err), "", nil
+		}
+		var rest []models.Quest
+		for _, q := range d.TodayQuests {
+			if q.ID != id {
+				rest = append(rest, q)
+			}
+		}
+		d.TodayQuests = rest
+		q, ok := nudgeQuest(d)
+		if !ok {
+			return "That was the last one — rest well.", receipt + "\n\n🌙 Nothing else open. Rest well.", nil
+		}
+		return "Here's another.", formatNudge(d, *q), nudgeButtons(*q)
+	case "snooze":
+		return "Rest well. Tomorrow is a new board.", receipt + "\n\n🌙 Not tonight. Tomorrow is a new board.", nil
+	}
+	return "", "", nil
 }

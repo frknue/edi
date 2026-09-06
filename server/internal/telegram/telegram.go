@@ -1,6 +1,7 @@
 // Package telegram is a minimal Telegram Bot API client — exactly what the
-// edi presence bot needs (long-poll getUpdates + sendMessage) and nothing
-// more. Plain net/http; the Bot API is HTTPS + JSON, no SDK required.
+// edi presence bot needs (long-poll getUpdates, sendMessage with inline
+// buttons, callback answers, message edits) and nothing more. Plain
+// net/http; the Bot API is HTTPS + JSON, no SDK required.
 package telegram
 
 import (
@@ -30,20 +31,47 @@ func New(token string) *Client {
 	}
 }
 
-// UpdateMessage is the (only) part of an incoming message the bot reads.
-type UpdateMessage struct {
-	Text string `json:"text"`
-	Chat struct {
-		ID   int64  `json:"id"`
-		Type string `json:"type"` // "private" | "group" | "supergroup" | "channel"
-	} `json:"chat"`
+// Chat identifies where a message lives.
+type Chat struct {
+	ID   int64  `json:"id"`
+	Type string `json:"type"` // "private" | "group" | "supergroup" | "channel"
 }
 
-// Update is one entry from getUpdates. Message is nil for non-message
-// updates (edits, joins, …), which the bot ignores.
+// UpdateMessage is the (only) part of an incoming message the bot reads.
+type UpdateMessage struct {
+	MessageID int64  `json:"message_id"`
+	Text      string `json:"text"`
+	Chat      Chat   `json:"chat"`
+}
+
+// CallbackQuery is an inline-button press. Data is the button's payload
+// (what the bot put there); Message is the message carrying the keyboard.
+type CallbackQuery struct {
+	ID      string         `json:"id"`
+	Data    string         `json:"data"`
+	Message *UpdateMessage `json:"message"`
+}
+
+// Update is one entry from getUpdates: a message, a button press, or
+// something the bot ignores (both nil).
 type Update struct {
-	UpdateID int64          `json:"update_id"`
-	Message  *UpdateMessage `json:"message"`
+	UpdateID      int64          `json:"update_id"`
+	Message       *UpdateMessage `json:"message"`
+	CallbackQuery *CallbackQuery `json:"callback_query"`
+}
+
+// Button is one inline keyboard button; Data comes back as CallbackQuery.Data.
+type Button struct {
+	Text string `json:"text"`
+	Data string `json:"callback_data"`
+}
+
+func markup(rows [][]Button) string {
+	if len(rows) == 0 {
+		return ""
+	}
+	b, _ := json.Marshal(map[string]any{"inline_keyboard": rows})
+	return string(b)
 }
 
 type apiResponse struct {
@@ -93,7 +121,7 @@ func (c *Client) GetUpdates(offset int64, timeoutSec int) ([]Update, error) {
 	params := url.Values{
 		"offset":          {strconv.FormatInt(offset, 10)},
 		"timeout":         {strconv.Itoa(timeoutSec)},
-		"allowed_updates": {`["message"]`},
+		"allowed_updates": {`["message","callback_query"]`},
 	}
 	var updates []Update
 	err := c.call("getUpdates", params, &updates)
@@ -109,6 +137,45 @@ func (c *Client) SendMessage(chatID int64, html string) error {
 		"parse_mode": {"HTML"},
 	}
 	return c.call("sendMessage", params, nil)
+}
+
+// SendMessageWithButtons sends HTML text with an inline keyboard (rows of
+// buttons). An empty rows slice sends a plain message.
+func (c *Client) SendMessageWithButtons(chatID int64, html string, rows [][]Button) error {
+	params := url.Values{
+		"chat_id":    {strconv.FormatInt(chatID, 10)},
+		"text":       {html},
+		"parse_mode": {"HTML"},
+	}
+	if m := markup(rows); m != "" {
+		params.Set("reply_markup", m)
+	}
+	return c.call("sendMessage", params, nil)
+}
+
+// EditMessageText rewrites a message the bot sent (text + keyboard). Passing
+// no rows removes the buttons — how a pressed nudge becomes a receipt.
+func (c *Client) EditMessageText(chatID, messageID int64, html string, rows [][]Button) error {
+	params := url.Values{
+		"chat_id":    {strconv.FormatInt(chatID, 10)},
+		"message_id": {strconv.FormatInt(messageID, 10)},
+		"text":       {html},
+		"parse_mode": {"HTML"},
+	}
+	if m := markup(rows); m != "" {
+		params.Set("reply_markup", m)
+	}
+	return c.call("editMessageText", params, nil)
+}
+
+// AnswerCallbackQuery acknowledges a button press (stops the client's
+// spinner) with an optional short toast.
+func (c *Client) AnswerCallbackQuery(id, text string) error {
+	params := url.Values{"callback_query_id": {id}}
+	if text != "" {
+		params.Set("text", text)
+	}
+	return c.call("answerCallbackQuery", params, nil)
 }
 
 // SendTyping shows the "typing…" indicator in a chat for ~5s (best effort —

@@ -25,9 +25,18 @@ func stubTelegram(t *testing.T) (*telegram.Client, *[]string) {
 	t.Helper()
 	var sent []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/sendMessage") {
+		if strings.HasSuffix(r.URL.Path, "/sendMessage") || strings.HasSuffix(r.URL.Path, "/editMessageText") {
 			_ = r.ParseForm()
-			sent = append(sent, r.Form.Get("text"))
+			// Edits are recorded with a marker so tests can tell receipts
+			// from fresh sends; a keyboard is appended as its raw JSON.
+			text := r.Form.Get("text")
+			if strings.HasSuffix(r.URL.Path, "/editMessageText") {
+				text = "EDIT:" + text
+			}
+			if m := r.Form.Get("reply_markup"); m != "" {
+				text += "\nKEYBOARD:" + m
+			}
+			sent = append(sent, text)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if strings.HasSuffix(r.URL.Path, "/getMe") {
@@ -308,7 +317,7 @@ func TestPresenceScheduleFollowsServiceSetting(t *testing.T) {
 	r.handleMessage(chat, "/pair "+code.Code)
 	user := svc.UserID()
 	now := time.Date(2026, 8, 20, 9, 0, 0, 0, time.Local)
-	noop := func(*services.Service) (string, error) { return "", nil }
+	noop := func(*services.Service) (push, error) { return push{}, nil }
 
 	r.tick(now, user, chat, "briefing", "08:00", noop) // anchors on default
 	if f := r.fires[fireKey{user, "briefing"}]; f.hhmm != "08:00" || f.at.Hour() != 8 {
@@ -372,4 +381,99 @@ func TestPresenceSupplementCommands(t *testing.T) {
 	if got := r.handleMessage(chat, "/supps"); !strings.Contains(got, "✓ Magnesium") || !strings.Contains(got, "bonus paid") {
 		t.Fatalf("/supps after = %q", got)
 	}
+}
+
+// Active quest mode from the pocket: /go starts (the dashboard shows it
+// running), /now reports it, /stop pauses with an optional resume note.
+func TestPresenceActiveModeCommands(t *testing.T) {
+	r, svc, _ := newTestRunner(t)
+	const chat = int64(4242)
+	code, _ := svc.CreateTelegramPairCode()
+	r.handleMessage(chat, "/pair "+code.Code)
+	quests, _ := svc.ListQuests("", "active")
+	id := strconv.FormatInt(quests[0].ID, 10)
+
+	if got := r.handleMessage(chat, "/now"); !strings.Contains(got, "Nothing running") {
+		t.Fatalf("/now idle = %q", got)
+	}
+	if got := r.handleMessage(chat, "/go "+id); !strings.Contains(got, "is running") {
+		t.Fatalf("/go = %q", got)
+	}
+	if d, _ := svc.GetDashboard(); d.ActiveSession == nil || d.ActiveSession.QuestID != quests[0].ID {
+		t.Fatalf("dashboard session after /go = %+v", d.ActiveSession)
+	}
+	if got := r.handleMessage(chat, "/status"); !strings.Contains(got, "▶ running: "+quests[0].Title) {
+		t.Errorf("/status lacks the running quest: %q", got)
+	}
+	if got := r.handleMessage(chat, "/stop find the shoes"); !strings.Contains(got, "paused") || !strings.Contains(got, "find the shoes") {
+		t.Fatalf("/stop = %q", got)
+	}
+	if all, _ := svc.ListQuests("", "active"); all[0].ID != quests[0].ID || all[0].ResumeNote != "find the shoes" {
+		t.Errorf("resume note on %d = %q", all[0].ID, all[0].ResumeNote)
+	}
+	if got := r.handleMessage(chat, "/stop"); !strings.Contains(got, "⚠") {
+		t.Errorf("/stop with nothing running = %q, want a warning", got)
+	}
+	if got := r.handleMessage(chat, "/go abc"); !strings.Contains(got, "Usage") {
+		t.Errorf("/go abc = %q", got)
+	}
+}
+
+// The scheduled nudge carries buttons; a tap acts on the linked user and
+// turns the nudge into a receipt without buttons.
+func TestPresenceNudgeButtons(t *testing.T) {
+	r, svc, sent := newTestRunner(t)
+	const chat = int64(5151)
+	code, _ := svc.CreateTelegramPairCode()
+	r.handleMessage(chat, "/pair "+code.Code)
+
+	p, err := r.buildNudge(svc)
+	if err != nil || p.text == "" || len(p.buttons) != 2 || !strings.HasPrefix(p.buttons[0][0].Data, "go:") || !strings.HasPrefix(p.buttons[0][1].Data, "done:") {
+		t.Fatalf("nudge push = %+v, %v", p, err)
+	}
+	// Fire it through the scheduler path: the send carries the keyboard.
+	now := time.Now()
+	build := func(*services.Service) (push, error) { return p, nil }
+	r.fires[fireKey{svc.UserID(), "nudge"}] = fire{at: now.Add(-time.Second), hhmm: "20:00"}
+	r.tick(now, svc.UserID(), chat, "nudge", "20:00", build)
+	if len(*sent) != 1 || !strings.Contains((*sent)[0], "KEYBOARD:") || !strings.Contains((*sent)[0], `"go:`) {
+		t.Fatalf("scheduled nudge send = %v, want text + keyboard", *sent)
+	}
+
+	// Tap "Start": the message becomes a running receipt, no keyboard.
+	goData := p.buttons[0][0].Data
+	r.handleCallback(&telegram.CallbackQuery{ID: "cb1", Data: goData, Message: &telegram.UpdateMessage{MessageID: 77, Text: "nudge", Chat: telegram.Chat{ID: chat, Type: "private"}}})
+	if last := (*sent)[len(*sent)-1]; !strings.HasPrefix(last, "EDIT:") || !strings.Contains(last, "is running") || strings.Contains(last, "KEYBOARD:") {
+		t.Fatalf("after Start tap = %q", last)
+	}
+	if d, _ := svc.GetDashboard(); d.ActiveSession == nil {
+		t.Fatal("Start tap did not open a session")
+	}
+	// Tap "Done": completes, receipt shows XP and progress; the session closed.
+	doneData := p.buttons[0][1].Data
+	before, _ := svc.GetDashboard()
+	r.handleCallback(&telegram.CallbackQuery{ID: "cb2", Data: doneData, Message: &telegram.UpdateMessage{MessageID: 77, Text: "nudge", Chat: telegram.Chat{ID: chat, Type: "private"}}})
+	after, _ := svc.GetDashboard()
+	if after.DailyProgress.CompletedToday != before.DailyProgress.CompletedToday+1 || after.ActiveSession != nil {
+		t.Fatalf("Done tap: completed %d -> %d, session %+v", before.DailyProgress.CompletedToday, after.DailyProgress.CompletedToday, after.ActiveSession)
+	}
+	if last := (*sent)[len(*sent)-1]; !strings.Contains(last, "complete ·") {
+		t.Errorf("Done receipt = %q", last)
+	}
+	// A second tap on the same stale keyboard is a no-op with a warning toast.
+	r.handleCallback(&telegram.CallbackQuery{ID: "cb3", Data: doneData, Message: &telegram.UpdateMessage{MessageID: 77, Text: "nudge", Chat: telegram.Chat{ID: chat, Type: "private"}}})
+	if final, _ := svc.GetDashboard(); final.DailyProgress.CompletedToday != after.DailyProgress.CompletedToday {
+		t.Error("stale Done tap double-completed")
+	}
+	// "Not this one" rotates to another quest WITH a keyboard; "Not tonight" closes it.
+	r.handleCallback(&telegram.CallbackQuery{ID: "cb4", Data: "another:" + strings.TrimPrefix(doneData, "done:"), Message: &telegram.UpdateMessage{MessageID: 77, Text: "nudge", Chat: telegram.Chat{ID: chat, Type: "private"}}})
+	if last := (*sent)[len(*sent)-1]; !strings.Contains(last, "KEYBOARD:") || strings.Contains(last, strings.TrimPrefix(doneData, "done:")+`"`) {
+		t.Errorf("another = %q, want a different quest with buttons", last)
+	}
+	r.handleCallback(&telegram.CallbackQuery{ID: "cb5", Data: "snooze", Message: &telegram.UpdateMessage{MessageID: 77, Text: "nudge", Chat: telegram.Chat{ID: chat, Type: "private"}}})
+	if last := (*sent)[len(*sent)-1]; !strings.Contains(last, "Not tonight") || strings.Contains(last, "KEYBOARD:") {
+		t.Errorf("snooze = %q", last)
+	}
+	// An unlinked chat's tap does nothing.
+	r.handleCallback(&telegram.CallbackQuery{ID: "cb6", Data: doneData, Message: &telegram.UpdateMessage{MessageID: 1, Text: "x", Chat: telegram.Chat{ID: 999, Type: "private"}}})
 }

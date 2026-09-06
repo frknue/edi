@@ -208,7 +208,8 @@ A quest for Both closes only after both players finish it.
   **rest mode** (pauses decay for every attribute at once, for planned downtime).
 - **Presence:** the in-server Telegram channel pushes each linked user a
   morning briefing and an evening nudge and
-  answers `/status /quests /done /ward /rest`, and `edi-cli status` prints a
+  answers `/status /quests /done /go /stop /now /ward /rest` (the nudge comes
+  with Start / Done / Not this one / Not tonight buttons), and `edi-cli status` prints a
   fail-silent stats block for your shell prompt — the CLI is a thin client over
   the same REST API as everything else.
 
