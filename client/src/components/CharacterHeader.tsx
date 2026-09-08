@@ -147,8 +147,8 @@ export function CharacterHeader({
         </div>
 
         {/* showed-up strip + today + gold */}
-        <div className="flex items-center gap-5 border-t border-edge pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-          <div>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-edge pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+          <div className="basis-full sm:basis-auto">
             <ActiveDays days={activeDays} />
             <div className="mt-1 flex items-center gap-1.5 text-[11px] text-faint" data-testid="streak-small">
               <span className={streak.current > 0 ? "flame-flicker inline-flex" : "inline-flex"}>
@@ -171,7 +171,7 @@ export function CharacterHeader({
               </div>
             )}
           </div>
-          <div className="text-center" data-testid="header-gold">
+          <div className="ml-auto text-center sm:ml-0" data-testid="header-gold">
             <div className="flex items-center justify-center gap-1.5">
               <Coins size={18} style={{ color: "var(--color-gold)" }} />
               <span className="tabnum text-xl font-bold text-ink">{gold}</span>

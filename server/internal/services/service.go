@@ -45,6 +45,16 @@ type Service struct {
 	oauth    *oauthRuntime
 	telegram *telegramRuntime
 	hooks    *hookRuntime
+
+	// completer, when set, replaces the live ChatGPT call — the offline test
+	// seam for every JSON-parsing AI path (boss phases, break-down, shrink,
+	// narration). Nil in production.
+	completer func(instructions, prompt string) (string, error)
+}
+
+// SetCompleterForTest injects a canned model (tests only).
+func (s *Service) SetCompleterForTest(fn func(instructions, prompt string) (string, error)) {
+	s.completer = fn
 }
 
 // New builds a Service bound to the given user (the dev-fallback user 1 for

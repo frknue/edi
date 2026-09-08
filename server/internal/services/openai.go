@@ -439,6 +439,9 @@ func (s *Service) accessToken() (token, accountID string, err error) {
 // completeWithOpenAI runs one prompt through the subscription model, refreshing
 // the token once on a 401.
 func (s *Service) completeWithOpenAI(instructions, prompt string) (string, error) {
+	if s.completer != nil {
+		return s.completer(instructions, prompt)
+	}
 	var out string
 	err := s.withOpenAI(func(token, accountID, model, effort string) error {
 		var err error

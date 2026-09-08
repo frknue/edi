@@ -162,6 +162,10 @@ func (s *Service) ForgeBoss() (models.Quest, error) {
 		}
 		phases = append(phases, models.SubtaskInput{Title: title, AttributeRewards: ph.AttributeRewards})
 	}
+	phases, err = s.pruneUnknownRewards(phases)
+	if err != nil {
+		return models.Quest{}, err
+	}
 	in := models.QuestInput{
 		Title:            strings.TrimSpace(parsed.Title),
 		Description:      strings.TrimSpace(parsed.Description),

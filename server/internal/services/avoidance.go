@@ -68,6 +68,10 @@ func (s *Service) BreakDownQuest(id int64) (models.Quest, error) {
 		}
 		steps = append(steps, st)
 	}
+	steps, err = s.pruneUnknownRewards(steps)
+	if err != nil {
+		return models.Quest{}, err
+	}
 	if err := s.validateSubtasks(steps); err != nil {
 		return models.Quest{}, err
 	}
@@ -138,6 +142,26 @@ func (s *Service) replaceQuest(oldID int64, in models.QuestInput) (models.Quest,
 // ArchiveQuest; the name is the point — nothing is lost, nothing is counted.
 func (s *Service) RetireQuest(id int64) (models.Quest, error) {
 	return s.ArchiveQuest(id)
+}
+
+// pruneUnknownRewards drops reward keys the model invented ("fitness") so
+// one hallucinated key degrades to "no bonus on that step" instead of a 400
+// that throws the whole boss forge / break-down away.
+func (s *Service) pruneUnknownRewards(subs []models.SubtaskInput) ([]models.SubtaskInput, error) {
+	known, err := s.store.AttributeNames(s.userID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range subs {
+		clean := map[string]int64{}
+		for k, v := range subs[i].AttributeRewards {
+			if _, ok := known[k]; ok && v > 0 {
+				clean[k] = v
+			}
+		}
+		subs[i].AttributeRewards = clean
+	}
+	return subs, nil
 }
 
 func (s *Service) attributeKeys() ([]string, error) {
