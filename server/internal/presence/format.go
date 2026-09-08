@@ -9,10 +9,12 @@ import (
 	"fmt"
 	"html"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"edi/internal/models"
+	"edi/internal/telegram"
 )
 
 const helpText = `<b>edi</b> — your Life RPG, in your pocket
@@ -20,7 +22,7 @@ const helpText = `<b>edi</b> — your Life RPG, in your pocket
 Just talk to me — "add a 20 min run as a daily", "I finished the tax return", "how's my streak?" (needs your ChatGPT connection).
 /new — clear our conversation
 /status — level, streak, gold, quests, decay
-/quests — active quests with IDs
+/quests — active quests with IDs (⏰ shows an if-then trigger)
 /done &lt;id&gt; — complete a quest
 /go &lt;id&gt; — start a quest (timer on the dashboard)
 /stop [next step] — pause it, optionally noting the next physical action
@@ -83,6 +85,9 @@ func statusCore(d models.Dashboard) string {
 	if fm := d.FirstMove; fm != nil {
 		fmt.Fprintf(&b, "★ first move: %s\n", questLine(fm.Quest))
 	}
+	if p := d.PartnerSession; p != nil {
+		fmt.Fprintf(&b, "🤝 %s is on “%s” · %s\n", html.EscapeString(p.Name), html.EscapeString(p.Title), elapsedText(p.ElapsedSeconds))
+	}
 	if s := d.ActiveSession; s != nil {
 		fmt.Fprintf(&b, "▶ running: %s · %s\n", html.EscapeString(s.Title), elapsedText(s.ElapsedSeconds))
 	}
@@ -111,6 +116,24 @@ func formatBriefing(d models.Dashboard) string {
 		b.WriteString("\nComplete with /done <i>id</i>")
 	}
 	return b.String()
+}
+
+// formatTrigger renders an if-then prompt: the cue, the quest, one question.
+func formatTrigger(q models.Quest) string {
+	cue := q.Trigger
+	if cue == "" {
+		cue = q.TriggerAt
+	}
+	return fmt.Sprintf("⏰ %s → %s\nStart?", html.EscapeString(cue), questLine(q))
+}
+
+// triggerButtons is the keyboard under a trigger prompt.
+func triggerButtons(q models.Quest) [][]telegram.Button {
+	id := strconv.FormatInt(q.ID, 10)
+	return [][]telegram.Button{
+		{{Text: "▶ Start", Data: "go:" + id}, {Text: "✓ Done", Data: "done:" + id}},
+		{{Text: "Not now", Data: "snooze"}},
+	}
 }
 
 // formatBoss renders a boss quest with its HP bar (phases = hits).

@@ -212,7 +212,7 @@ func scanQuest(scanner interface{ Scan(...any) error }) (models.Quest, error) {
 	var srcSug sql.NullInt64
 	var sharedQuestID sql.NullInt64
 	err := scanner.Scan(&q.ID, &q.UserID, &q.Title, &q.Description, &q.Type, &q.Difficulty,
-		&q.Status, &rewards, &q.SkipCount, &srcSug, &q.CreatedAt, &completed, &due, &sharedQuestID, &q.ResumeNote)
+		&q.Status, &rewards, &q.SkipCount, &srcSug, &q.CreatedAt, &completed, &due, &sharedQuestID, &q.ResumeNote, &q.Trigger, &q.TriggerAt)
 	if err != nil {
 		return q, err
 	}
@@ -230,7 +230,7 @@ func scanQuest(scanner interface{ Scan(...any) error }) (models.Quest, error) {
 	return q, nil
 }
 
-const questColumns = `id, user_id, title, description, type, difficulty, status, attribute_rewards, skip_count, source_suggestion_id, created_at, completed_at, due_date, shared_quest_id, resume_note`
+const questColumns = `id, user_id, title, description, type, difficulty, status, attribute_rewards, skip_count, source_suggestion_id, created_at, completed_at, due_date, shared_quest_id, resume_note, trigger_text, trigger_at`
 
 func (s *Store) GetQuest(userID, id int64) (models.Quest, error) {
 	row := s.db.QueryRow(`SELECT `+questColumns+` FROM quests WHERE id = $1 AND user_id = $2`, id, userID)
@@ -484,10 +484,10 @@ func (s *Store) DailyQuestPenaltyToday(userID int64, now time.Time) (int64, erro
 func (s *Store) InsertQuest(userID int64, in models.QuestInput, sourceSuggestionID *int64) (models.Quest, error) {
 	var id int64
 	err := s.db.QueryRow(
-		`INSERT INTO quests(user_id, title, description, type, difficulty, status, attribute_rewards, skip_count, source_suggestion_id, created_at, due_date)
-		 VALUES($1, $2, $3, $4, $5, 'active', $6, 0, $7, $8, $9) RETURNING id`,
+		`INSERT INTO quests(user_id, title, description, type, difficulty, status, attribute_rewards, skip_count, source_suggestion_id, created_at, due_date, trigger_text, trigger_at)
+		 VALUES($1, $2, $3, $4, $5, 'active', $6, 0, $7, $8, $9, $10, $11) RETURNING id`,
 		userID, in.Title, in.Description, in.Type, in.Difficulty, marshalRewards(in.AttributeRewards),
-		nullInt64(sourceSuggestionID), time.Now().UTC(), nullTime(in.DueDate)).Scan(&id)
+		nullInt64(sourceSuggestionID), time.Now().UTC(), nullTime(in.DueDate), in.Trigger, in.TriggerAt).Scan(&id)
 	if err != nil {
 		return models.Quest{}, err
 	}
@@ -528,6 +528,12 @@ func (s *Store) UpdateQuest(userID, id int64, p models.QuestPatch) (models.Quest
 	if p.DueDate != nil {
 		set("due_date", nullTime(p.DueDate))
 	}
+	if p.Trigger != nil {
+		set("trigger_text", *p.Trigger)
+	}
+	if p.TriggerAt != nil {
+		set("trigger_at", *p.TriggerAt)
+	}
 	if len(sets) > 0 {
 		args = append(args, id, userID)
 		q := fmt.Sprintf(`UPDATE quests SET %s WHERE id = $%d AND user_id = $%d`,
@@ -548,6 +554,70 @@ func (s *Store) UpdateQuest(userID, id int64, p models.QuestPatch) (models.Quest
 func (s *Store) SetQuestStatus(userID, id int64, status string) error {
 	_, err := s.db.Exec(`UPDATE quests SET status = $1 WHERE id = $2 AND user_id = $3`, status, id, userID)
 	return err
+}
+
+// ReplaceQuest archives oldID and creates in (the smaller version) in ONE
+// per-user tx — a double-tap on "shrink" can never leave two copies. The
+// replacement inherits the original's trigger when it has none.
+func (s *Store) ReplaceQuest(userID, oldID int64, in models.QuestInput) (models.Quest, error) {
+	tx, err := s.beginUserTx(userID)
+	if err != nil {
+		return models.Quest{}, err
+	}
+	defer tx.Rollback() //nolint:errcheck
+	var status, trigger, triggerAt string
+	if err := tx.QueryRow(`SELECT status, trigger_text, trigger_at FROM quests WHERE id = $1 AND user_id = $2`, oldID, userID).Scan(&status, &trigger, &triggerAt); err != nil {
+		if err == sql.ErrNoRows {
+			return models.Quest{}, ErrNotFound
+		}
+		return models.Quest{}, err
+	}
+	if status != models.StatusActive && status != models.StatusSkipped {
+		return models.Quest{}, ErrQuestNotCompletable
+	}
+	if in.Trigger == "" {
+		in.Trigger, in.TriggerAt = trigger, triggerAt
+	}
+	if _, err := tx.Exec(`UPDATE quests SET status = 'archived' WHERE id = $1 AND user_id = $2`, oldID, userID); err != nil {
+		return models.Quest{}, err
+	}
+	var id int64
+	if err := tx.QueryRow(
+		`INSERT INTO quests(user_id, title, description, type, difficulty, status, attribute_rewards, skip_count, created_at, due_date, trigger_text, trigger_at)
+		 VALUES($1, $2, $3, $4, $5, 'active', $6, 0, $7, $8, $9, $10) RETURNING id`,
+		userID, in.Title, in.Description, in.Type, in.Difficulty, marshalRewards(in.AttributeRewards),
+		time.Now().UTC(), nullTime(in.DueDate), in.Trigger, in.TriggerAt).Scan(&id); err != nil {
+		return models.Quest{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return models.Quest{}, err
+	}
+	if len(in.Subtasks) > 0 {
+		if err := s.replaceSubtasks(userID, id, in.Subtasks); err != nil {
+			return models.Quest{}, err
+		}
+	}
+	return s.GetQuest(userID, id)
+}
+
+// DueTriggers returns the user's active quests whose clock anchor is hhmm
+// (local) — the scheduler's per-minute question.
+func (s *Store) DueTriggers(userID int64, hhmm string) ([]models.Quest, error) {
+	rows, err := s.db.Query(`SELECT `+questColumns+` FROM quests
+		WHERE user_id = $1 AND status = 'active' AND trigger_at = $2 ORDER BY id`, userID, hhmm)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []models.Quest
+	for rows.Next() {
+		q, err := scanQuest(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, q)
+	}
+	return out, rows.Err()
 }
 
 // SkipQuest marks a quest skipped and increments its skip counter.

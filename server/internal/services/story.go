@@ -48,6 +48,13 @@ func (s *Service) StoryNarration() (string, error) {
 	for _, e := range events {
 		fmt.Fprintf(&b, "- %+d %s (%s: %s)\n", e.Amount, e.AttributeKey, e.Source, e.Note)
 	}
+	// Memory: the last chapters, so the saga continues instead of restarting.
+	if prev, err := s.store.ListStoryChapters(s.userID, 3); err == nil && len(prev) > 0 {
+		b.WriteString("Previous chapters (newest first) — continue from them, never repeat them:\n")
+		for _, ch := range prev {
+			fmt.Fprintf(&b, "- Chapter %d: %s\n", ch.Number, ch.Text)
+		}
+	}
 	for _, a := range dash.Attributes {
 		if a.Decay != nil && a.Decay.State == "decaying" {
 			// Hardcore only: the player opted into stakes, so the narrator may name them.
@@ -70,7 +77,19 @@ func (s *Service) StoryNarration() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(out), nil
+	text := strings.TrimSpace(out)
+	if text != "" {
+		if _, err := s.store.InsertStoryChapter(s.userID, text, time.Now().UTC()); err != nil {
+			return "", err
+		}
+	}
+	return text, nil
+}
+
+// ListStoryChapters returns the saga so far, newest first.
+func (s *Service) ListStoryChapters(limit int) ([]models.StoryChapter, error) {
+	out, err := s.store.ListStoryChapters(s.userID, limit)
+	return orEmpty(out), err
 }
 
 const forgeBossInstructions = `You are the dungeon-master of "edi", a life-RPG where real-life actions are ` +

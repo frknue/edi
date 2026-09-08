@@ -114,6 +114,8 @@ type Quest struct {
 	Subtasks         []Subtask        `json:"subtasks"`
 	SkipCount        int              `json:"skip_count"`
 	ResumeNote       string           `json:"resume_note"` // "next physical action" captured at Stop; cleared on completion
+	Trigger          string           `json:"trigger"`     // if-then cue in plain words ("after coffee")
+	TriggerAt        string           `json:"trigger_at"`  // HH:MM local clock anchor ("" = none)
 	// Derived on the dashboard (never stored): what completing it pays RIGHT
 	// NOW (base + combo + buffs, no crit) and why it is recommended.
 	ProjectedXP     int64           `json:"projected_xp,omitempty"`
@@ -217,6 +219,8 @@ type QuestInput struct {
 	AttributeRewards map[string]int64 `json:"attribute_rewards"`
 	Subtasks         []SubtaskInput   `json:"subtasks,omitempty"`
 	DueDate          *time.Time       `json:"due_date,omitempty"`
+	Trigger          string           `json:"trigger,omitempty"`    // if-then cue ("after coffee")
+	TriggerAt        string           `json:"trigger_at,omitempty"` // HH:MM local anchor for the prompt
 	// Omitted means a personal quest. A non-empty list creates one linked copy
 	// per selected member on the user's shared board.
 	AssigneeIDs []int64 `json:"assignee_ids,omitempty"`
@@ -314,8 +318,26 @@ type QuestPatch struct {
 	Status           *string           `json:"status,omitempty"`
 	AttributeRewards *map[string]int64 `json:"attribute_rewards,omitempty"`
 	// Subtasks, when present, replaces the quest's subtask list (done flags reset).
-	Subtasks *[]SubtaskInput `json:"subtasks,omitempty"`
-	DueDate  *time.Time      `json:"due_date,omitempty"`
+	Subtasks  *[]SubtaskInput `json:"subtasks,omitempty"`
+	DueDate   *time.Time      `json:"due_date,omitempty"`
+	Trigger   *string         `json:"trigger,omitempty"`
+	TriggerAt *string         `json:"trigger_at,omitempty"`
+}
+
+// StoryChapter is one narrated episode of the hero's saga.
+type StoryChapter struct {
+	ID        int64     `json:"id"`
+	Number    int       `json:"number"`
+	Text      string    `json:"text"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// PartnerSession is what the board partner is working on right now
+// ("working alongside").
+type PartnerSession struct {
+	Name           string `json:"name"`
+	Title          string `json:"title"`
+	ElapsedSeconds int64  `json:"elapsed_seconds"`
 }
 
 // JournalInput is the payload for creating a journal entry.
@@ -386,7 +408,9 @@ type Dashboard struct {
 	XPToday          int64             `json:"xp_today"`         // positive XP earned today
 	BoardClearToday  bool              `json:"board_clear_today"`
 	LootPity         LootPity          `json:"loot_pity"`
-	FirstMove        *FirstMove        `json:"first_move"` // the pre-chosen first quest (today or tomorrow)
+	FirstMove        *FirstMove        `json:"first_move"`      // the pre-chosen first quest (today or tomorrow)
+	PartnerSession   *PartnerSession   `json:"partner_session"` // the board partner's running quest, if any
+	LatestChapter    *StoryChapter     `json:"latest_chapter"`  // the newest saga episode, if any
 	RecentXPEvents   []XPEvent         `json:"recent_xp_events"`
 	RecommendedQuest *Quest            `json:"recommended_quest"`
 	DailyProgress    DailyProgress     `json:"daily_progress"`

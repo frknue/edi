@@ -3,11 +3,55 @@ package services
 import (
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	"edi/internal/db"
 	"edi/internal/models"
 )
+
+// hookRuntime holds process-wide callbacks fired after a quest starts —
+// the body-double ping: presence tells the board partner. Shared by every
+// ForUser copy (pointer), like the OAuth and Telegram runtimes.
+type hookRuntime struct {
+	mu      sync.Mutex
+	onStart []func(userID int64, sess models.QuestSession)
+}
+
+// OnQuestStart registers a callback run (in its own goroutine) after a
+// session opens. Transports use it; it never affects the result.
+func (s *Service) OnQuestStart(fn func(userID int64, sess models.QuestSession)) {
+	s.hooks.mu.Lock()
+	defer s.hooks.mu.Unlock()
+	s.hooks.onStart = append(s.hooks.onStart, fn)
+}
+
+func (s *Service) fireStartHooks(sess models.QuestSession) {
+	s.hooks.mu.Lock()
+	fns := append([]func(int64, models.QuestSession){}, s.hooks.onStart...)
+	s.hooks.mu.Unlock()
+	for _, fn := range fns {
+		go fn(s.userID, sess)
+	}
+}
+
+// BoardPartner returns the other member of the user's quest board.
+func (s *Service) BoardPartner() (int64, string, bool, error) {
+	return s.store.BoardPartner(s.userID)
+}
+
+// partnerSession is what the board partner is working on right now.
+func (s *Service) partnerSession() (*models.PartnerSession, error) {
+	partnerID, name, ok, err := s.store.BoardPartner(s.userID)
+	if err != nil || !ok {
+		return nil, err
+	}
+	sess, err := s.store.ActiveQuestSession(partnerID, time.Now().UTC())
+	if err != nil || sess == nil {
+		return nil, err
+	}
+	return &models.PartnerSession{Name: name, Title: sess.Title, ElapsedSeconds: sess.ElapsedSeconds}, nil
+}
 
 // Active quest mode: Start opens a session on a quest (the home screen
 // becomes the running quest with a timer), Stop closes it and asks for the
@@ -43,8 +87,11 @@ func (s *Service) StartQuest(id int64) (models.QuestSession, error) {
 		return models.QuestSession{}, ErrNotFound
 	case errors.Is(err, db.ErrQuestNotCompletable):
 		return models.QuestSession{}, validationErr("only an active quest can be started")
+	case err != nil:
+		return models.QuestSession{}, err
 	}
-	return sess, err
+	s.fireStartHooks(sess)
+	return sess, nil
 }
 
 // StopQuest closes the running session and stores the landing note ("next

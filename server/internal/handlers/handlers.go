@@ -745,6 +745,43 @@ func (h *Handlers) listSessions(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+func (h *Handlers) breakDownQuest(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	q, err := h.forUser(r).BreakDownQuest(id)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, q)
+}
+
+func (h *Handlers) shrinkQuest(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	q, err := h.forUser(r).ShrinkQuest(id)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, q)
+}
+
+func (h *Handlers) listStoryChapters(w http.ResponseWriter, r *http.Request) {
+	out, err := h.forUser(r).ListStoryChapters(queryInt(r, "limit", 10))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 func (h *Handlers) setFirstMove(w http.ResponseWriter, r *http.Request) {
 	var in models.FirstMoveInput
 	if err := decodeBody(r, &in); err != nil {

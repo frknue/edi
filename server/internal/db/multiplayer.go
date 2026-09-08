@@ -211,10 +211,10 @@ func (s *Store) InsertSharedQuest(userID int64, in models.QuestInput, assigneeID
 		var questID int64
 		if err := tx.QueryRow(
 			`INSERT INTO quests(user_id, title, description, type, difficulty, status, attribute_rewards,
-			 skip_count, created_at, due_date, shared_quest_id)
-			 VALUES($1, $2, $3, $4, $5, 'active', $6, 0, $7, $8, $9) RETURNING id`,
+			 skip_count, created_at, due_date, shared_quest_id, trigger_text, trigger_at)
+			 VALUES($1, $2, $3, $4, $5, 'active', $6, 0, $7, $8, $9, $10, $11) RETURNING id`,
 			assigneeID, in.Title, in.Description, in.Type, in.Difficulty, marshalRewards(in.AttributeRewards),
-			now, nullTime(in.DueDate), sharedID).Scan(&questID); err != nil {
+			now, nullTime(in.DueDate), sharedID, in.Trigger, in.TriggerAt).Scan(&questID); err != nil {
 			return models.Quest{}, err
 		}
 		if firstQuestID == 0 {
@@ -247,7 +247,7 @@ func insertSubtasksTx(tx *sql.Tx, userID, questID int64, subtasks []models.Subta
 func (s *Store) ListVisibleQuests(userID int64, questType, status string) ([]models.Quest, error) {
 	const qcols = `q.id, q.user_id, q.title, q.description, q.type, q.difficulty, q.status,
 		q.attribute_rewards, q.skip_count, q.source_suggestion_id, q.created_at,
-		q.completed_at, q.due_date, q.shared_quest_id, q.resume_note`
+		q.completed_at, q.due_date, q.shared_quest_id, q.resume_note, q.trigger_text, q.trigger_at`
 	query := `SELECT ` + qcols + ` FROM quests q WHERE
 		((q.user_id = $1 AND q.shared_quest_id IS NULL) OR
 		 (q.shared_quest_id IS NOT NULL AND EXISTS (
@@ -625,4 +625,23 @@ func (s *Store) SkipSharedQuestAssignment(userID, questID int64) error {
 		return ErrQuestNotCompletable
 	}
 	return tx.Commit()
+}
+
+// BoardPartner returns the other member of the user's board (id, name), or
+// ok=false when the user has no board or no partner yet.
+func (s *Store) BoardPartner(userID int64) (int64, string, bool, error) {
+	var id int64
+	var name string
+	err := s.db.QueryRow(
+		`SELECT u.id, u.name FROM quest_board_members me
+		 JOIN quest_board_members other ON other.board_id = me.board_id AND other.user_id <> me.user_id
+		 JOIN users u ON u.id = other.user_id
+		 WHERE me.user_id = $1 LIMIT 1`, userID).Scan(&id, &name)
+	if err == sql.ErrNoRows {
+		return 0, "", false, nil
+	}
+	if err != nil {
+		return 0, "", false, err
+	}
+	return id, name, true, nil
 }

@@ -177,6 +177,24 @@ func (c *Client) ActiveSession() (*models.QuestSession, error) {
 	return out.Session, err
 }
 
+func (c *Client) BreakDownQuest(id int64) (models.Quest, error) {
+	var q models.Quest
+	err := c.do(http.MethodPost, fmt.Sprintf("/api/quests/%d/breakdown", id), nil, &q)
+	return q, err
+}
+
+func (c *Client) ShrinkQuest(id int64) (models.Quest, error) {
+	var q models.Quest
+	err := c.do(http.MethodPost, fmt.Sprintf("/api/quests/%d/shrink", id), nil, &q)
+	return q, err
+}
+
+func (c *Client) ListStoryChapters(limit int) ([]models.StoryChapter, error) {
+	var out []models.StoryChapter
+	err := c.do(http.MethodGet, fmt.Sprintf("/api/story/chapters?limit=%d", limit), nil, &out)
+	return out, err
+}
+
 func (c *Client) SetFirstMove(questID int64, tomorrow bool) (*models.FirstMove, error) {
 	var fm models.FirstMove
 	err := c.do(http.MethodPost, "/api/first-move", models.FirstMoveInput{QuestID: questID, Tomorrow: tomorrow}, &fm)

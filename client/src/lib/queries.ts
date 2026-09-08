@@ -189,6 +189,21 @@ export function useClearFirstMove() {
   });
 }
 
+// The avoidance kit (AI-gated): tiny first steps, or a smaller version.
+export function useBreakDownQuest() {
+  const invalidate = useInvalidateAll();
+  return useMutation({ mutationFn: (id: number) => api.breakDownQuest(id), onSuccess: invalidate });
+}
+
+export function useShrinkQuest() {
+  const invalidate = useInvalidateAll();
+  return useMutation({ mutationFn: (id: number) => api.shrinkQuest(id), onSuccess: invalidate });
+}
+
+export function useStoryChapters(limit = 10) {
+  return useQuery({ queryKey: ["story-chapters", limit], queryFn: () => api.listStoryChapters(limit) });
+}
+
 export function useArchiveQuest() {
   const invalidate = useInvalidateAll();
   return useMutation({ mutationFn: (id: number) => api.archiveQuest(id), onSuccess: invalidate });

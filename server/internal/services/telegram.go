@@ -132,6 +132,18 @@ func (s *Service) UserIDForTelegramChat(chatID int64) (int64, error) {
 }
 
 // ListTelegramLinks feeds the push scheduler.
+// TelegramChatIDForUser returns the paired chat of a user (ok=false when unpaired).
+func (s *Service) TelegramChatIDForUser(userID int64) (int64, bool, error) {
+	link, err := s.store.GetTelegramLinkByUser(userID)
+	if errors.Is(err, db.ErrNotFound) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	return link.ChatID, true, nil
+}
+
 func (s *Service) ListTelegramLinks() ([]db.TelegramLink, error) {
 	return s.store.ListTelegramLinks()
 }

@@ -17,6 +17,8 @@
 //	stop [note]                     Stop the running session; note = next physical action
 //	now                             Show the running quest and elapsed time
 //	first <id> [--tomorrow]         Pin a quest as the first move of today / tomorrow
+//	breakdown <id> | shrink <id>    AI: tiny first steps / a smaller version of an avoided quest
+//	chapters                        The saga so far (story chapters, newest first)
 //	skip <id> | archive <id>        Skip / archive a quest
 //	journal                         List recent reflections
 //	journal [--q text]              List / search reflections
@@ -152,6 +154,12 @@ func run(c *apiclient.Client, cmd string, args []string) error {
 		return cmdNow(c)
 	case "first":
 		return cmdFirst(c, args)
+	case "breakdown":
+		return cmdBreakdown(c, args)
+	case "shrink":
+		return cmdShrink(c, args)
+	case "chapters":
+		return cmdChapters(c)
 	case "story":
 		return cmdStory(c)
 	case "boss":
@@ -869,6 +877,50 @@ func cmdNow(c *apiclient.Client) error {
 	fmt.Printf("%s %q · %s\n", green("▶"), sess.Title, elapsedStr(sess.ElapsedSeconds))
 	if sess.ResumeNote != "" {
 		fmt.Printf("  resume: %s\n", sess.ResumeNote)
+	}
+	return nil
+}
+
+func cmdBreakdown(c *apiclient.Client, args []string) error {
+	id, err := argID(args)
+	if err != nil {
+		return err
+	}
+	q, err := c.BreakDownQuest(id)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s %q now has a foothold:\n", green("✓"), q.Title)
+	for _, st := range q.Subtasks {
+		fmt.Printf("  ▢ #%d %s %s\n", st.ID, st.Title, dim(rewardStr(st.AttributeRewards)))
+	}
+	return nil
+}
+
+func cmdShrink(c *apiclient.Client, args []string) error {
+	id, err := argID(args)
+	if err != nil {
+		return err
+	}
+	q, err := c.ShrinkQuest(id)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s shrunk into #%d %q %s\n", green("✓"), q.ID, q.Title, dim(rewardStr(q.AttributeRewards)))
+	return nil
+}
+
+func cmdChapters(c *apiclient.Client) error {
+	chapters, err := c.ListStoryChapters(10)
+	if err != nil {
+		return err
+	}
+	if len(chapters) == 0 {
+		fmt.Println("No chapters yet — `edi-cli story` narrates the first one.")
+		return nil
+	}
+	for _, ch := range chapters {
+		fmt.Printf("%s %s\n  %s\n", bold(fmt.Sprintf("Chapter %d", ch.Number)), dim(ch.CreatedAt.Local().Format("Jan 2")), ch.Text)
 	}
 	return nil
 }

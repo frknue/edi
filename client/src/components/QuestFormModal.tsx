@@ -30,6 +30,8 @@ export function QuestFormModal({ open, initial, mode = "quest", busy, error, boa
   const [difficulty, setDifficulty] = useState<Difficulty>("easy");
   const [rewards, setRewards] = useState<Record<string, number>>({});
   const [subtasks, setSubtasks] = useState<SubtaskInput[]>([]);
+  const [trigger, setTrigger] = useState("");
+  const [triggerAt, setTriggerAt] = useState("");
   const [expandedSub, setExpandedSub] = useState<number | null>(null);
   const [draftReason, setDraftReason] = useState<string | null>(null);
   const [assigneeIDs, setAssigneeIDs] = useState<number[] | null>(null);
@@ -77,6 +79,8 @@ export function QuestFormModal({ open, initial, mode = "quest", busy, error, boa
     setSubtasks(
       initial?.subtasks?.map((st) => ({ title: st.title, attribute_rewards: { ...st.attribute_rewards } })) ?? [],
     );
+    setTrigger(initial?.trigger ?? "");
+    setTriggerAt(initial?.trigger_at ?? "");
     setExpandedSub(null);
     setAssigneeIDs(initial?.shared_quest_id ? initial.assignees.map((a) => a.user_id) : null);
   }, [open, initial, mode]);
@@ -126,6 +130,10 @@ export function QuestFormModal({ open, initial, mode = "quest", busy, error, boa
         attribute_rewards: cleaned,
         subtasks: mode === "spontaneous" ? [] : cleanedSubs,
     };
+    if (mode !== "spontaneous") {
+      input.trigger = trigger.trim();
+      input.trigger_at = triggerAt.trim();
+    }
     if (!initial && mode !== "spontaneous" && assigneeIDs !== null) input.assignee_ids = assigneeIDs;
     onSubmit(input, initial?.id);
   };
@@ -223,6 +231,31 @@ export function QuestFormModal({ open, initial, mode = "quest", busy, error, boa
                   className="w-full resize-none rounded-lg border border-edge bg-white/[0.03] px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-[var(--color-gold)] focus:outline-none"
                 />
               </div>
+
+              {mode !== "spontaneous" && (
+                <div data-testid="quest-trigger">
+                  <label className="mb-1 block text-xs font-medium text-muted">{t("qf.trigger")}</label>
+                  <div className="flex gap-2">
+                    <input
+                      value={trigger}
+                      onChange={(e) => setTrigger(e.target.value)}
+                      maxLength={120}
+                      placeholder={t("qf.triggerPlaceholder")}
+                      className="min-w-0 flex-1 rounded-lg border border-edge bg-white/[0.03] px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-[var(--color-gold)] focus:outline-none"
+                      data-testid="quest-trigger-text"
+                    />
+                    <input
+                      type="time"
+                      value={triggerAt}
+                      onChange={(e) => setTriggerAt(e.target.value)}
+                      className="w-[7.5rem] rounded-lg border border-edge bg-white/[0.03] px-2 py-2 text-sm text-ink focus:border-[var(--color-gold)] focus:outline-none"
+                      title={t("qf.triggerAtTitle")}
+                      data-testid="quest-trigger-at"
+                    />
+                  </div>
+                  <p className="mt-1 text-[10px] text-faint">{t("qf.triggerHint")}</p>
+                </div>
+              )}
 
               {aiEnabled && (
                 <div className="space-y-1.5">

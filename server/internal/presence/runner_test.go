@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -26,6 +27,10 @@ func stubTelegram(t *testing.T) (*telegram.Client, *[]string) {
 	var sent []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/sendMessage") || strings.HasSuffix(r.URL.Path, "/editMessageText") {
+			// Async senders (the body-double ping) race the test's reads;
+			// stubMu + sentSnapshot make those reads race-free.
+			stubMu.Lock()
+			defer stubMu.Unlock()
 			_ = r.ParseForm()
 			// Edits are recorded with a marker so tests can tell receipts
 			// from fresh sends; a keyboard is appended as its raw JSON.
@@ -49,6 +54,16 @@ func stubTelegram(t *testing.T) (*telegram.Client, *[]string) {
 	tg := telegram.New("test-token")
 	tg.BaseURL = srv.URL
 	return tg, &sent
+}
+
+// stubMu guards every stub's sent slice against asynchronous senders.
+var stubMu sync.Mutex
+
+// sentSnapshot copies the recorded sends under the lock.
+func sentSnapshot(sent *[]string) []string {
+	stubMu.Lock()
+	defer stubMu.Unlock()
+	return append([]string(nil), (*sent)...)
 }
 
 func newTestRunner(t *testing.T) (*Runner, *services.Service, *[]string) {
@@ -476,4 +491,82 @@ func TestPresenceNudgeButtons(t *testing.T) {
 	}
 	// An unlinked chat's tap does nothing.
 	r.handleCallback(&telegram.CallbackQuery{ID: "cb6", Data: doneData, Message: &telegram.UpdateMessage{MessageID: 1, Text: "x", Chat: telegram.Chat{ID: 999, Type: "private"}}})
+}
+
+// An if-then trigger fires ONE prompt with buttons at its clock anchor,
+// once per day; a linked board partner hears "starting now" when a member
+// starts a quest; the briefing stands down after an empty day.
+func TestPresenceTriggersBodyDoubleAndBriefing(t *testing.T) {
+	r, svc, sent := newTestRunner(t)
+	const chat = int64(6161)
+	code, _ := svc.CreateTelegramPairCode()
+	r.handleMessage(chat, "/pair "+code.Code)
+
+	now := time.Now()
+	q, err := svc.CreateQuest(models.QuestInput{Title: "Tax letter", Trigger: "after coffee", TriggerAt: now.Local().Format("15:04"), AttributeRewards: map[string]int64{"wealth": 20}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.tickTriggers(now, svc.UserID(), chat)
+	if len(*sent) != 1 || !strings.Contains((*sent)[0], "after coffee") || !strings.Contains((*sent)[0], "Tax letter") || !strings.Contains((*sent)[0], "KEYBOARD:") {
+		t.Fatalf("trigger push = %v", *sent)
+	}
+	r.tickTriggers(now.Add(20*time.Second), svc.UserID(), chat)
+	if len(*sent) != 1 {
+		t.Fatalf("trigger fired twice: %v", *sent)
+	}
+	_ = q
+
+	// Body double: a second user on the same board, paired to another chat,
+	// hears when user 1 starts a quest.
+	t.Setenv("EDI_INVITE_CODE", "sesame")
+	created, err := svc.RegisterUser(models.RegisterInput{Name: "Partner", InviteCode: "sesame"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	partner := svc.ForUser(created.User.ID)
+	if _, err := svc.CreateQuestBoard("duo"); err != nil {
+		t.Fatal(err)
+	}
+	invite, err := svc.CreateQuestBoardInvite()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := partner.JoinQuestBoard(invite.Code); err != nil {
+		t.Fatal(err)
+	}
+	pcode, _ := partner.CreateTelegramPairCode()
+	r.handleMessage(7272, "/pair "+pcode.Code)
+	before := len(sentSnapshot(sent))
+	quests, _ := svc.ListQuests("", "active")
+	if _, err := svc.StartQuest(quests[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	got := sentSnapshot(sent)
+	for len(got) == before && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+		got = sentSnapshot(sent)
+	}
+	if len(got) == before || !strings.Contains(got[len(got)-1], "just started") {
+		t.Fatalf("no body-double ping: %v", got[before:])
+	}
+	if d, _ := partner.GetDashboard(); d.PartnerSession == nil || d.PartnerSession.Title != quests[0].Title {
+		t.Errorf("partner dashboard lacks the running session: %+v", d.PartnerSession)
+	}
+
+	// Briefing: yesterday was empty for the partner → stands down entirely.
+	p, err := r.buildBriefing(partner)
+	if err != nil || p.text != "" {
+		t.Errorf("briefing after an empty day = %q, %v; want nothing", p.text, err)
+	}
+	// With a pinned first move it sends just that line, with buttons.
+	pq, _ := partner.CreateQuest(models.QuestInput{Title: "Partner's first", AttributeRewards: map[string]int64{"focus": 10}})
+	if _, err := partner.SetFirstMove(models.FirstMoveInput{QuestID: pq.ID}); err != nil {
+		t.Fatal(err)
+	}
+	p, _ = r.buildBriefing(partner)
+	if !strings.Contains(p.text, "First move today") || len(p.buttons) == 0 {
+		t.Errorf("briefing with first move = %+v", p)
+	}
 }

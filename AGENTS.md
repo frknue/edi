@@ -219,6 +219,38 @@ caught and fixed — keep using it.
   `recommend_reason` key the UI translates.
 - **Loot pity is visible** (`Dashboard.LootPity`, `store.LootPity`): the
   header meter and `/status` show `dropless/guaranteed_after`.
+- **If-then triggers** (`services/triggers.go`): `quests.trigger_text` (the
+  cue, ≤120 chars) and `quests.trigger_at` (HH:MM local, validated) on
+  create/update (`create_quest`/`update_quest` tools, the quest form, CLI
+  via invoke). The presence scheduler (`Runner.tickTriggers`, every minute
+  per paired user) sends ONE line with Start / Done / Not now buttons when
+  the anchor is this minute — once per quest per local day
+  (`trigger_fired_<id>` setting) and at most `maxTriggerFiresPerDay` (5)
+  per user (`TestTriggersDueOncePerDay`,
+  `TestPresenceTriggersBodyDoubleAndBriefing`). On a shared quest the
+  trigger lives on the caller's copy. Never a penalty: "Not now" is snooze.
+- **The avoidance kit** (`services/avoidance.go`) replaces the visible skip
+  counter: a quest with `skip_count >= StrugglingSkips` (2) shows "Too big?"
+  with `BreakDownQuest` (AI writes 3-5 tiny steps as subtasks, first under 2
+  min), `ShrinkQuest` (AI proposes a smaller version; `store.ReplaceQuest`
+  archives the original and creates the replacement in ONE `beginUserTx`,
+  inheriting the trigger — `TestReplaceQuestAtomicAndShrinkGated`), and
+  `RetireQuest` (archive with dignity). AI paths are gated on the ChatGPT
+  connection; retire always works. Parity: `POST /api/quests/{id}/breakdown
+  | /shrink`, tools `break_down_quest` / `shrink_quest` / `retire_quest`,
+  `edi-cli breakdown|shrink`, `AvoidanceKit` in `QuestCard.tsx`, and the
+  chat instructions ("too much" → offer the three exits).
+- **Story chapters have memory** (`story_chapters`, `db/story_store.go`):
+  every `StoryNarration` appends a chapter and feeds the last 3 into the
+  prompt. `GET /api/story/chapters`, `list_story_chapters`, `edi-cli
+  chapters`, the Saga fold on the dashboard, `Dashboard.latest_chapter`.
+- **The morning briefing is a reward, not a report.** `buildBriefing` sends
+  the chapter + board only after an active day (`yesterdayActive`); after
+  an empty day it sends only the pinned first move (with buttons) or
+  nothing at all.
+- **Body double** (`Service.OnQuestStart` hooks, fired async after
+  `StartQuest`): presence pings the board partner's Telegram ("X just
+  started …"); `Dashboard.partner_session` shows what the partner is on.
 - **Boss phases are the HP bar.** `ForgeBoss` asks the model for 3-5 ordered
   phases and stores them as subtasks; the boss card renders HP from
   subtasks left (`BossHP` in `QuestCard.tsx`), Telegram `/boss` prints the
@@ -405,8 +437,8 @@ Telegram runs **in-process** (`internal/presence`, enabled by
 code (web UI → `POST /api/telegram/pair-code`) and sends `/pair <code>` (or the
 `t.me/<bot>?start=<code>` deep link) to the bot; `telegram_links` maps chat ↔
 user, and every command runs on `svc.ForUser(linked)`. Commands: /status
-/quests /done /go /stop /now /supps /ward /rest /briefing /nudge /story /boss
-/new /unpair — plus free-text chat (below). **Every scheduled nudge carries
+/quests /done /go /stop /now /hit /supps /ward /rest /briefing /nudge /story
+/boss /new /unpair — plus free-text chat (below). **Every scheduled nudge carries
 inline buttons** (Start / Done / Not this one / Not tonight): the client
 (`internal/telegram`) sends `reply_markup`, polls `callback_query` updates,
 answers them (`AnswerCallbackQuery`) and rewrites the nudge into a receipt

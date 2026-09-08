@@ -208,8 +208,9 @@ A quest for Both closes only after both players finish it.
   **rest mode** (pauses decay for every attribute at once, for planned downtime).
 - **Presence:** the in-server Telegram channel pushes each linked user a
   morning briefing and an evening nudge and
-  answers `/status /quests /done /go /stop /now /ward /rest` (the nudge comes
-  with Start / Done / Not this one / Not tonight buttons), and `edi-cli status` prints a
+  answers `/status /quests /done /go /stop /now /hit /ward /rest` (the nudge
+  comes with Start / Done / Not this one / Not tonight buttons; a quest with an
+  if-then trigger time gets a one-line "Start?" at that minute), and `edi-cli status` prints a
   fail-silent stats block for your shell prompt — the CLI is a thin client over
   the same REST API as everything else.
 
@@ -248,6 +249,9 @@ Base: `/api`
 | GET | `/sessions?limit=` | Recent sessions, newest first |
 | POST | `/first-move` | Pin `{quest_id, tomorrow}` as the first move of today/tomorrow (the shutdown ritual); never a skip |
 | DELETE | `/first-move` | Drop the pin |
+| POST | `/quests/:id/breakdown` | AI: write 3-5 tiny first steps as the quest's subtasks (avoidance kit) |
+| POST | `/quests/:id/shrink` | AI: replace the quest with a smaller version atomically (original archived) |
+| GET | `/story/chapters?limit=` | The saga so far (narrated chapters, newest first) |
 | GET | `/xp-events?limit=` | Recent XP audit events |
 | GET | `/journal?limit=&q=` | Recent reflections (optional full-text search over notes) |
 | POST | `/journal` | Add a reflection (mood/energy 1–10 + notes); first entry of the day awards XP |

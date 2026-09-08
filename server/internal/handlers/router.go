@@ -53,6 +53,9 @@ func NewRouter(h *Handlers, clientDir string, tokenMode bool) http.Handler {
 	mux.HandleFunc("GET /api/session", h.activeSession)
 	mux.HandleFunc("POST /api/session/stop", h.stopQuest)
 	mux.HandleFunc("GET /api/sessions", h.listSessions)
+	mux.HandleFunc("POST /api/quests/{id}/breakdown", h.breakDownQuest)
+	mux.HandleFunc("POST /api/quests/{id}/shrink", h.shrinkQuest)
+	mux.HandleFunc("GET /api/story/chapters", h.listStoryChapters)
 	mux.HandleFunc("POST /api/first-move", h.setFirstMove)
 	mux.HandleFunc("DELETE /api/first-move", h.clearFirstMove)
 

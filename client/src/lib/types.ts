@@ -121,6 +121,8 @@ export interface Quest {
   subtasks: Subtask[];
   skip_count: number;
   resume_note: string; // "next physical action" captured at Stop; cleared on completion
+  trigger: string; // if-then cue ("after coffee")
+  trigger_at: string; // HH:MM local anchor, "" = none
   projected_xp?: number; // dashboard only: what completing it pays right now
   recommend_reason?: RecommendReason; // dashboard only, on the recommended quest
   created_at: string;
@@ -210,7 +212,22 @@ export interface QuestInput {
   attribute_rewards: Record<string, number>;
   subtasks?: SubtaskInput[];
   due_date?: string | null;
+  trigger?: string;
+  trigger_at?: string;
   assignee_ids?: number[];
+}
+
+export interface StoryChapter {
+  id: number;
+  number: number;
+  text: string;
+  created_at: string;
+}
+
+export interface PartnerSession {
+  name: string;
+  title: string;
+  elapsed_seconds: number;
 }
 
 // What the AI proposes for a half-typed quest. A suggestion only — the user
@@ -327,6 +344,8 @@ export interface Dashboard {
   board_clear_today: boolean;
   loot_pity: LootPity;
   first_move: FirstMove | null;
+  partner_session: PartnerSession | null;
+  latest_chapter: StoryChapter | null;
   recent_xp_events: XPEvent[];
   recommended_quest: Quest | null;
   daily_progress: DailyProgress;

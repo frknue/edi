@@ -44,12 +44,13 @@ type Service struct {
 	// ChatGPT" connect state (openai.go) and Telegram pairing (telegram.go).
 	oauth    *oauthRuntime
 	telegram *telegramRuntime
+	hooks    *hookRuntime
 }
 
 // New builds a Service bound to the given user (the dev-fallback user 1 for
 // the base service; per-request services come from ForUser).
 func New(store *db.Store, userID int64) *Service {
-	return &Service{store: store, userID: userID, tools: tools.NewRegistry(), oauth: &oauthRuntime{}, telegram: &telegramRuntime{}}
+	return &Service{store: store, userID: userID, tools: tools.NewRegistry(), oauth: &oauthRuntime{}, telegram: &telegramRuntime{}, hooks: &hookRuntime{}}
 }
 
 // UserID returns the user this service copy is bound to.
@@ -162,6 +163,9 @@ func (s *Service) validateQuestInput(in *models.QuestInput) error {
 		in.AttributeRewards = map[string]int64{}
 	}
 	if err := s.validateRewards(in.AttributeRewards); err != nil {
+		return err
+	}
+	if err := validateTrigger(&in.Trigger, &in.TriggerAt); err != nil {
 		return err
 	}
 	return s.validateSubtasks(in.Subtasks)
@@ -325,8 +329,17 @@ func (s *Service) UpdateQuest(id int64, p models.QuestPatch) (models.Quest, erro
 			return models.Quest{}, err
 		}
 	}
+	if err := validateTrigger(p.Trigger, p.TriggerAt); err != nil {
+		return models.Quest{}, err
+	}
 	if !isShared {
 		return s.store.UpdateQuest(s.userID, id, p)
+	}
+	// Triggers are personal cues: on a shared quest they live on the caller's copy.
+	if p.Trigger != nil || p.TriggerAt != nil {
+		if _, err := s.store.UpdateQuest(s.userID, id, models.QuestPatch{Trigger: p.Trigger, TriggerAt: p.TriggerAt}); err != nil {
+			return models.Quest{}, err
+		}
 	}
 	contentChange := p.Title != nil || p.Description != nil || p.Type != nil || p.Difficulty != nil || p.AttributeRewards != nil || p.Subtasks != nil || p.DueDate != nil
 	if contentChange {
@@ -680,6 +693,18 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 	if err != nil {
 		return models.Dashboard{}, err
 	}
+	partner, err := s.partnerSession()
+	if err != nil {
+		return models.Dashboard{}, err
+	}
+	chapters, err := s.store.ListStoryChapters(s.userID, 1)
+	if err != nil {
+		return models.Dashboard{}, err
+	}
+	var latest *models.StoryChapter
+	if len(chapters) > 0 {
+		latest = &chapters[0]
+	}
 
 	var totalXP int64
 	for _, a := range attrs {
@@ -742,6 +767,8 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 		BoardClearToday:  boardClearToday,
 		LootPity:         pity,
 		FirstMove:        firstMove,
+		PartnerSession:   partner,
+		LatestChapter:    latest,
 		Suggestions:      orEmpty(suggestions),
 		ActiveBuffs:      orEmpty(buffs),
 		DecayedToday:     decayed,

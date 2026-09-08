@@ -64,7 +64,7 @@ func NewRegistry() *Registry {
 		})
 
 	add("create_quest", "Create a personal or shared quest with attribute XP rewards. For a shared quest, call get_quest_board and pass one or both member ids as assignee_ids; each assignee completes and earns rewards independently.",
-		`{"type":"object","required":["title"],"properties":{"title":{"type":"string"},"description":{"type":"string"},"type":{"type":"string","enum":["daily","weekly","main","side","boss","recovery"]},"difficulty":{"type":"string","enum":["trivial","easy","medium","hard","boss"]},"attribute_rewards":{"type":"object","additionalProperties":{"type":"integer"}},"assignee_ids":{"type":"array","minItems":1,"maxItems":2,"items":{"type":"integer"}},"subtasks":{"type":"array","items":{"type":"object","required":["title"],"properties":{"title":{"type":"string"},"attribute_rewards":{"type":"object","additionalProperties":{"type":"integer"}}}}}}}`,
+		`{"type":"object","required":["title"],"properties":{"title":{"type":"string"},"description":{"type":"string"},"type":{"type":"string","enum":["daily","weekly","main","side","boss","recovery"]},"difficulty":{"type":"string","enum":["trivial","easy","medium","hard","boss"]},"attribute_rewards":{"type":"object","additionalProperties":{"type":"integer"}},"assignee_ids":{"type":"array","minItems":1,"maxItems":2,"items":{"type":"integer"}},"trigger":{"type":"string","description":"if-then cue in the user's words, e.g. 'after coffee'"},"trigger_at":{"type":"string","description":"HH:MM local clock anchor for a one-line Start prompt (optional)"},"subtasks":{"type":"array","items":{"type":"object","required":["title"],"properties":{"title":{"type":"string"},"attribute_rewards":{"type":"object","additionalProperties":{"type":"integer"}}}}}}}`,
 		func(svc *services.Service, in json.RawMessage) (any, error) {
 			var p models.QuestInput
 			if err := decode(in, &p); err != nil {
@@ -109,8 +109,8 @@ func NewRegistry() *Registry {
 			return svc.ToggleSubtask(p.QuestID, p.SubtaskID)
 		})
 
-	add("update_quest", "Update fields of an existing quest by id.",
-		`{"type":"object","required":["id"],"properties":{"id":{"type":"integer"},"title":{"type":"string"},"description":{"type":"string"},"type":{"type":"string"},"difficulty":{"type":"string"},"status":{"type":"string"},"attribute_rewards":{"type":"object","additionalProperties":{"type":"integer"}}}}`,
+	add("update_quest", "Update fields of an existing quest by id (including its if-then trigger and HH:MM trigger_at).",
+		`{"type":"object","required":["id"],"properties":{"id":{"type":"integer"},"title":{"type":"string"},"description":{"type":"string"},"type":{"type":"string"},"difficulty":{"type":"string"},"status":{"type":"string"},"attribute_rewards":{"type":"object","additionalProperties":{"type":"integer"}},"trigger":{"type":"string"},"trigger_at":{"type":"string","description":"HH:MM local, \"\" clears"}}}`,
 		func(svc *services.Service, in json.RawMessage) (any, error) {
 			var p struct {
 				ID    int64 `json:"id"`
@@ -169,6 +169,46 @@ func NewRegistry() *Registry {
 				return nil, err
 			}
 			return map[string]any{"session": sess}, nil
+		})
+
+	add("break_down_quest", "For a quest the user keeps avoiding: the AI writes 3-5 tiny ordered steps (first one under 2 minutes) as the quest's subtasks. The quest stays; it gets a foothold. Requires a connected ChatGPT account.",
+		idSchema("quest_id"),
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			id, err := decodeID(in, "quest_id")
+			if err != nil {
+				return nil, err
+			}
+			return svc.BreakDownQuest(id)
+		})
+
+	add("shrink_quest", "For a quest that is too big: the AI proposes a smaller version of the same activity; the original is archived and the smaller one created atomically. Use when the user says a quest is too much. Requires a connected ChatGPT account.",
+		idSchema("quest_id"),
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			id, err := decodeID(in, "quest_id")
+			if err != nil {
+				return nil, err
+			}
+			return svc.ShrinkQuest(id)
+		})
+
+	add("retire_quest", "Archive a quest as a deliberate choice (no XP loss, no counter). Use when the user wants to let a quest go with dignity.",
+		idSchema("quest_id"),
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			id, err := decodeID(in, "quest_id")
+			if err != nil {
+				return nil, err
+			}
+			return svc.RetireQuest(id)
+		})
+
+	add("list_story_chapters", "List the hero's saga so far (narrated chapters, newest first).",
+		`{"type":"object","properties":{"limit":{"type":"integer"}}}`,
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			var p struct{ Limit int }
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			return svc.ListStoryChapters(p.Limit)
 		})
 
 	add("set_first_move", "Pin a quest as the first move of today or tomorrow (the shutdown ritual: \"what's the first thing tomorrow?\"). The dashboard and morning briefing lead with it; it is never a commitment that counts as a skip.",

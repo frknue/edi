@@ -14,6 +14,8 @@ import {
   useSetFirstMove,
   useClearFirstMove,
   useQuests,
+  useArchiveQuest,
+  useStoryChapters,
 } from "../lib/queries";
 import { useReward } from "../lib/reward";
 import { getAttr, getType } from "../lib/theme";
@@ -48,6 +50,7 @@ export function DashboardPage({
   const setHardcore = useSetHardcoreMode();
   const start = useStartQuest();
   const stop = useStopQuest();
+  const archive = useArchiveQuest();
   const { celebrate } = useReward();
 
   if (isLoading) return <Spinner label={t("dash.loading")} />;
@@ -111,6 +114,19 @@ export function DashboardPage({
           onStart={(id) => start.mutate(id)}
           onGoToQuests={onGoToQuests}
         />
+      )}
+
+      {data.partner_session && (
+        <div
+          className="flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm"
+          style={{ borderColor: "rgba(255,140,200,0.4)", background: "rgba(255,140,200,0.06)" }}
+          data-testid="partner-session"
+        >
+          <span aria-hidden>🤝</span>
+          <span className="text-muted">
+            {t("dash.alongside", { name: data.partner_session.name, title: data.partner_session.title, min: Math.floor(data.partner_session.elapsed_seconds / 60) })}
+          </span>
+        </div>
       )}
 
       <NearGoal attributes={data.attributes} />
@@ -179,6 +195,7 @@ export function DashboardPage({
                 onStart={data.active_session ? undefined : (id) => start.mutate(id)}
                 onComplete={handleComplete}
                 onSkip={(id) => skip.mutate(id)}
+                onArchive={q.skip_count >= 2 ? (id) => archive.mutate(id, { onSuccess: () => pushToast(t("quest.retired"), "success") }) : undefined}
               />
             ))}
           </div>
@@ -231,6 +248,10 @@ export function DashboardPage({
 
       <Fold id="trophies" title={t("dash.trophies")} hint={t("dash.trophiesHint")}>
         <TrophyCase />
+      </Fold>
+
+      <Fold id="saga" title={t("dash.saga")} hint={t("dash.sagaHint")} defaultOpen={!!data.latest_chapter}>
+        <Saga latest={data.latest_chapter} />
       </Fold>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -383,6 +404,26 @@ function NextMove({
         )}
       </div>
     </motion.div>
+  );
+}
+
+// Saga: the narrator's chapters, newest first — the hero returns with a story.
+function Saga({ latest }: { latest: Dashboard["latest_chapter"] }) {
+  const { t } = useI18n();
+  const { data: chapters } = useStoryChapters(5);
+  const list = chapters ?? (latest ? [latest] : []);
+  if (list.length === 0) return <EmptyState title={t("dash.noChapters")} hint={t("dash.noChaptersHint")} />;
+  return (
+    <div className="space-y-2" data-testid="saga">
+      {list.map((ch) => (
+        <div key={ch.id} className="hud-panel p-3.5">
+          <div className="font-display text-[10px] uppercase tracking-[0.2em]" style={{ color: "var(--color-goldhi)" }}>
+            {t("dash.chapter", { n: ch.number })}
+          </div>
+          <p className="mt-1 text-sm italic leading-relaxed text-ink">{ch.text}</p>
+        </div>
+      ))}
+    </div>
   );
 }
 

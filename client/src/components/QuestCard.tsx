@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Archive, Check, CheckCircle2, Circle, CornerDownRight, Pencil, Play, RotateCcw, SkipForward, Square, SquareCheckBig, Users } from "lucide-react";
+import { AlarmClock, Archive, Check, CheckCircle2, Circle, CornerDownRight, Pencil, Play, RotateCcw, Scissors, SkipForward, Sparkles, Square, SquareCheckBig, Users } from "lucide-react";
 import type { Quest } from "../lib/types";
 import { getType } from "../lib/theme";
-import { useToggleSubtask } from "../lib/queries";
+import { useBreakDownQuest, useOpenAIStatus, useShrinkQuest, useToggleSubtask } from "../lib/queries";
+import { pushToast } from "../lib/toast";
 import { Btn, DifficultyPips, RewardChips, TypeBadge } from "./ui";
 import { useI18n } from "../lib/i18n";
 import type { MessageKey } from "../lib/locales/en";
@@ -154,6 +155,17 @@ export function QuestCard({
           </div>
         )}
 
+        {(quest.trigger || quest.trigger_at) && isActive && (
+          <div className="mt-2 flex items-center gap-1.5 text-[11px] text-muted" data-testid={`trigger-${quest.id}`}>
+            <AlarmClock size={12} style={{ color: "var(--color-focus)" }} />
+            <span>
+              {quest.trigger_at && <span className="tabnum font-semibold text-ink">{quest.trigger_at}</span>}
+              {quest.trigger_at && quest.trigger && " · "}
+              {quest.trigger}
+            </span>
+          </div>
+        )}
+
         {quest.resume_note && isActive && (
           <div className="mt-2 flex items-start gap-1.5 text-xs text-muted" data-testid={`resume-${quest.id}`}>
             <CornerDownRight size={12} className="mt-0.5 shrink-0" style={{ color: "var(--color-phos)" }} />
@@ -165,6 +177,10 @@ export function QuestCard({
         )}
 
         {quest.subtasks.length > 0 && <SubtaskList quest={quest} interactive={myActive} boss={isBoss} />}
+
+        {quest.skip_count >= 2 && myActive && !isBoss && (
+          <AvoidanceKit quest={quest} onRetire={onArchive} busy={busy} />
+        )}
 
         {(onComplete || onStart || onSkip || onArchive || onEdit) && isActive && (
           <div className="mt-4 flex items-center gap-2">
@@ -227,6 +243,65 @@ export function QuestCard({
         )}
       </div>
     </motion.div>
+  );
+}
+
+// AvoidanceKit: a quest skipped or missed twice is a step that is too big,
+// not a lazy person. Three exits, no counter shown: tiny first steps (AI),
+// a smaller version (AI), or retiring it with dignity.
+function AvoidanceKit({ quest, onRetire, busy }: { quest: Quest; onRetire?: (id: number) => void; busy?: boolean }) {
+  const { t } = useI18n();
+  const { data: openai } = useOpenAIStatus();
+  const breakDown = useBreakDownQuest();
+  const shrink = useShrinkQuest();
+  const ai = !!openai?.connected;
+  const pending = breakDown.isPending || shrink.isPending;
+  return (
+    <div className="mt-3 rounded-lg border border-dashed border-edge px-2.5 py-2" data-testid={`avoidance-${quest.id}`}>
+      <div className="font-display text-[9px] uppercase tracking-[0.18em] text-faint">{t("quest.tooBig")}</div>
+      <div className="mt-1.5 flex flex-wrap gap-1.5">
+        <button
+          disabled={!ai || pending || busy}
+          title={ai ? t("quest.breakDownTitle") : t("quest.needsAi")}
+          onClick={(e) => {
+            e.stopPropagation();
+            breakDown.mutate(quest.id, { onSuccess: () => pushToast(t("quest.brokenDown"), "success") });
+          }}
+          className="inline-flex items-center gap-1 rounded-md border border-edge px-2 py-1 text-[11px] text-muted transition-colors hover:text-ink disabled:opacity-40"
+          data-testid={`breakdown-${quest.id}`}
+        >
+          <Sparkles size={11} /> {t("quest.breakDown")}
+        </button>
+        {!quest.shared_quest_id && (
+          <button
+            disabled={!ai || pending || busy}
+            title={ai ? t("quest.shrinkTitle") : t("quest.needsAi")}
+            onClick={(e) => {
+              e.stopPropagation();
+              shrink.mutate(quest.id, { onSuccess: (q) => pushToast(t("quest.shrunk", { title: q.title }), "success") });
+            }}
+            className="inline-flex items-center gap-1 rounded-md border border-edge px-2 py-1 text-[11px] text-muted transition-colors hover:text-ink disabled:opacity-40"
+            data-testid={`shrink-${quest.id}`}
+          >
+            <Scissors size={11} /> {t("quest.shrink")}
+          </button>
+        )}
+        {onRetire && (
+          <button
+            disabled={busy}
+            title={t("quest.retireTitle")}
+            onClick={(e) => {
+              e.stopPropagation();
+              onRetire(quest.id);
+            }}
+            className="inline-flex items-center gap-1 rounded-md border border-edge px-2 py-1 text-[11px] text-muted transition-colors hover:text-ink"
+            data-testid={`retire-${quest.id}`}
+          >
+            <Archive size={11} /> {t("quest.retire")}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 

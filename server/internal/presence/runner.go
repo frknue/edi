@@ -51,10 +51,36 @@ type fireKey struct {
 
 // New builds a runner. defaultBriefing/defaultNudge must be valid HH:MM.
 func New(svc *services.Service, tg *telegram.Client, registry *agent.Registry, defaultBriefing, defaultNudge string) *Runner {
-	return &Runner{
+	r := &Runner{
 		svc: svc, tg: tg, registry: registry, sessions: agent.NewSessions(),
 		llmFor:          func(s *services.Service) agent.LLM { return s.OpenAIConverse },
 		defaultBriefing: defaultBriefing, defaultNudge: defaultNudge, fires: map[fireKey]fire{},
+	}
+	// Body double: when a board member starts a quest, the partner hears it.
+	svc.OnQuestStart(r.pingPartner)
+	return r
+}
+
+// pingPartner sends the board partner a "starting now" line — the cheapest
+// form of body doubling. Silent when there is no board or no paired chat.
+func (r *Runner) pingPartner(userID int64, sess models.QuestSession) {
+	me := r.svc.ForUser(userID)
+	partnerID, _, ok, err := me.BoardPartner()
+	if err != nil || !ok {
+		return
+	}
+	chatID, linked, err := r.svc.TelegramChatIDForUser(partnerID)
+	if err != nil || !linked {
+		return
+	}
+	self, err := r.svc.ForUser(userID).GetDashboard()
+	if err != nil {
+		return
+	}
+	msg := fmt.Sprintf("🤝 <b>%s</b> just started “%s”. Work alongside? /quests then /go <i>id</i>.",
+		html.EscapeString(self.User.Name), html.EscapeString(sess.Title))
+	if err := r.tg.SendMessage(chatID, msg); err != nil {
+		log.Printf("telegram body-double ping: %v", err)
 	}
 }
 
@@ -511,6 +537,7 @@ func (r *Runner) pushLoop(ctx context.Context) {
 		for _, l := range links {
 			r.tick(now, l.UserID, l.ChatID, "briefing", r.defaultBriefing, r.buildBriefing)
 			r.tick(now, l.UserID, l.ChatID, "nudge", r.defaultNudge, r.buildNudge)
+			r.tickTriggers(now, l.UserID, l.ChatID)
 		}
 	}
 }
@@ -570,19 +597,53 @@ func (r *Runner) tick(now time.Time, userID, chatID int64, kind, defaultHHMM str
 	r.mu.Unlock()
 }
 
-// buildBriefing renders the morning briefing, opening with a narrated
-// episode when the user has AI connected (fail-soft: any narration problem
-// falls back to the plain briefing).
+// tickTriggers fires the if-then prompts whose clock anchor is this minute:
+// one line, Start / Done / Not now buttons, once per quest per day.
+func (r *Runner) tickTriggers(now time.Time, userID, chatID int64) {
+	svc := r.svc.ForUser(userID)
+	due, err := svc.DueTriggers(now)
+	if err != nil {
+		log.Printf("telegram triggers for user %d: %v", userID, err)
+		return
+	}
+	for _, q := range due {
+		if err := r.tg.SendMessageWithButtons(chatID, formatTrigger(q), triggerButtons(q)); err != nil {
+			log.Printf("telegram trigger for user %d: %v", userID, err)
+			continue
+		}
+		if err := svc.MarkTriggerFired(q.ID, now); err != nil {
+			log.Printf("telegram mark trigger %d: %v", q.ID, err)
+		}
+	}
+}
+
+// buildBriefing renders the morning briefing. It is a REWARD for showing
+// up: on a morning after an active day it opens with the next chapter of
+// the saga (AI, fail-soft) and the board; after an empty day it sends only
+// the pinned first move, or nothing at all — never a report of absence.
 func (r *Runner) buildBriefing(svc *services.Service) (push, error) {
 	d, err := svc.GetDashboard()
 	if err != nil {
 		return push{}, err
+	}
+	if !yesterdayActive(d) {
+		if d.FirstMove != nil {
+			return push{text: "★ First move today: " + questLine(d.FirstMove.Quest) + "\n/go " + strconv.FormatInt(d.FirstMove.Quest.ID, 10) + " when you're ready.", buttons: nudgeButtons(d.FirstMove.Quest)}, nil
+		}
+		return push{}, nil
 	}
 	msg := formatBriefing(d)
 	if story, err := r.narrate(svc); err == nil && story != "" {
 		msg = "📜 <i>" + html.EscapeString(story) + "</i>\n\n" + msg
 	}
 	return push{text: msg}, nil
+}
+
+// yesterdayActive reports whether the user showed up on the previous local
+// day (the activity strip's second-to-last entry).
+func yesterdayActive(d models.Dashboard) bool {
+	n := len(d.ActiveDays)
+	return n >= 2 && d.ActiveDays[n-2].Active
 }
 
 // buildNudge renders the evening nudge as ONE question with buttons —
