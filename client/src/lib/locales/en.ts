@@ -601,7 +601,7 @@ export const en = {
   "nav.supplementsShort": "Supps",
   "supps.overline": "Supplements · daily stack",
   "supps.title": "Your stack",
-  "supps.subtitle": "Tick off what you took today. Every supplement earns a little XP; the whole stack earns a bonus.",
+  "supps.subtitle": "Add your supplements once; they stay on your list every day. Checkmarks reset daily. Every supplement earns a little XP; the whole stack earns a bonus.",
   "supps.progress": "{taken}/{total} taken today",
   "supps.perItem": "per supplement",
   "supps.fullStack": "full stack",

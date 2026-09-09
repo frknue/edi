@@ -603,7 +603,7 @@ export const de: Record<MessageKey, string> = {
   "nav.supplementsShort": "Supps",
   "supps.overline": "Supplements · Tages-Stack",
   "supps.title": "Dein Stack",
-  "supps.subtitle": "Hake ab, was du heute genommen hast. Jedes Supplement bringt etwas XP, der ganze Stack einen Bonus.",
+  "supps.subtitle": "Füge deine Supplements einmal hinzu; sie bleiben jeden Tag auf deiner Liste. Die Häkchen werden täglich zurückgesetzt. Jedes Supplement bringt etwas XP, der ganze Stack einen Bonus.",
   "supps.progress": "{taken}/{total} heute genommen",
   "supps.perItem": "pro Supplement",
   "supps.fullStack": "ganzer Stack",

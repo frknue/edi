@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"edi/internal/models"
 )
@@ -121,6 +122,72 @@ func TestSupplementBonusOncePerDay(t *testing.T) {
 	}
 	if len(hist) != 1 || hist[0].Taken != 3 || !hist[0].Bonus || hist[0].XP != 24 {
 		t.Errorf("history = %+v, want one day, 3 taken, bonus, 24 XP", hist)
+	}
+}
+
+// The saved stack recurs without re-adding items, even after days away. Only
+// today's intake state and bonus reset; previous intakes and XP stay intact.
+func TestSupplementsReappearDaily(t *testing.T) {
+	for _, daysAgo := range []int{1, 3} {
+		t.Run((time.Duration(daysAgo) * 24 * time.Hour).String(), func(t *testing.T) {
+			svc := newTestService(t)
+			a := addSupp(t, svc, "Vitamin D")
+			b := addSupp(t, svc, "Magnesium")
+			for _, sp := range []models.Supplement{a, b} {
+				if _, err := svc.TakeSupplement(sp.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			// Move the completed day's intakes into the past to simulate returning
+			// on a new local day without changing the wall clock or erasing history.
+			past := time.Now().AddDate(0, 0, -daysAgo)
+			if _, err := svc.store.DB().Exec(
+				`UPDATE supplement_intakes SET taken_on = $1, created_at = $2 WHERE user_id = $3`,
+				localDay(past), past, svc.userID); err != nil {
+				t.Fatal(err)
+			}
+
+			today, err := svc.ListSupplements()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if today.Day != localDay(time.Now()) || today.Total != 2 || len(today.Supplements) != 2 || today.Taken != 0 || today.AllTaken || today.BonusAwarded {
+				t.Fatalf("new day = %+v, want same two supplements with no takes or bonus", today)
+			}
+			for i, original := range []models.Supplement{a, b} {
+				sp := today.Supplements[i]
+				if sp.ID != original.ID || sp.Name != original.Name || sp.Taken || sp.TakenAt != nil {
+					t.Fatalf("supplement = %+v, want original %+v available again", sp, original)
+				}
+				res, err := svc.TakeSupplement(sp.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if res.BonusAwarded != (i == 1) {
+					t.Errorf("take %d bonus = %v, want bonus only on the last take", i, res.BonusAwarded)
+				}
+			}
+			if _, err := svc.TakeSupplement(a.ID); !errors.Is(err, ErrValidation) {
+				t.Fatalf("repeat take on new day = %v, want validation error", err)
+			}
+			history, err := svc.SupplementHistory(7)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(history) != 2 {
+				t.Fatalf("history = %+v, want both days preserved", history)
+			}
+			for i, day := range []string{today.Day, localDay(past)} {
+				h := history[i]
+				if h.Day != day || h.Taken != 2 || !h.Bonus || h.XP != 21 {
+					t.Errorf("history day = %+v, want %s with two takes and 21 XP", h, day)
+				}
+			}
+			if auditDrift(t, svc) != 0 {
+				t.Error("XP audit invariant violated across days")
+			}
+		})
 	}
 }
 

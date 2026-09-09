@@ -385,11 +385,23 @@ export function useChatPending(): boolean {
 // --- supplements (daily stack) ----------------------------------------------
 
 export function useSupplements() {
-  return useQuery({ queryKey: keys.supplements, queryFn: api.listSupplements });
+  return useQuery({
+    queryKey: keys.supplements,
+    queryFn: api.listSupplements,
+    // The server owns the local day. Refresh an open page across midnight,
+    // and when returning to a sleeping/background tab, to clear yesterday's ticks.
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  });
 }
 
 export function useSupplementHistory(days = 70) {
-  return useQuery({ queryKey: [...keys.supplementHistory, days], queryFn: () => api.supplementHistory(days) });
+  return useQuery({
+    queryKey: [...keys.supplementHistory, days],
+    queryFn: () => api.supplementHistory(days),
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  });
 }
 
 function useInvalidateSupplements() {

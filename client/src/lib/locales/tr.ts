@@ -603,7 +603,7 @@ export const tr: Record<MessageKey, string> = {
   "nav.supplementsShort": "Takviye",
   "supps.overline": "Takviyeler · günlük set",
   "supps.title": "Setin",
-  "supps.subtitle": "Bugün aldıklarını işaretle. Her takviye biraz XP kazandırır; setin tamamı bonus verir.",
+  "supps.subtitle": "Takviyelerini bir kez ekle; her gün listende kalırlar. İşaretler her gün sıfırlanır. Her takviye biraz XP kazandırır; setin tamamı bonus verir.",
   "supps.progress": "bugün {taken}/{total} alındı",
   "supps.perItem": "takviye başına",
   "supps.fullStack": "tam set",
