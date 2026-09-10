@@ -11,7 +11,10 @@ import type {
   Attribute,
   AgentSuggestion,
   CompletionResult,
+  CosmeticCatalog,
+  CosmeticPurchaseResult,
   Dashboard,
+  EquippedCosmetic,
   GoldEvent,
   JournalCreateResult,
   JournalEntry,
@@ -194,6 +197,14 @@ export const api = {
     request<{ archived: boolean }>(`/shop/${id}/archive`, { method: "POST" }),
   purchaseShopItem: (id: number) =>
     request<PurchaseResult>(`/shop/${id}/purchase`, { method: "POST" }),
+  // cosmetics (hero gear)
+  listCosmetics: () => request<CosmeticCatalog>("/cosmetics"),
+  buyCosmetic: (key: string) =>
+    request<CosmeticPurchaseResult>(`/cosmetics/${encodeURIComponent(key)}/buy`, { method: "POST" }),
+  equipCosmetic: (key: string) =>
+    request<EquippedCosmetic[]>(`/cosmetics/${encodeURIComponent(key)}/equip`, { method: "POST" }),
+  unequipCosmetic: (slot: string) =>
+    request<EquippedCosmetic[]>("/cosmetics/unequip", { method: "POST", body: JSON.stringify({ slot }) }),
   listGoldEvents: (limit = 30, source?: string) =>
     request<GoldEvent[]>(`/gold/events?limit=${limit}${source ? `&source=${encodeURIComponent(source)}` : ""}`),
 

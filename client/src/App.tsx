@@ -5,7 +5,7 @@ import { DashboardPage } from "./pages/Dashboard";
 import { QuestsPage } from "./pages/Quests";
 import { JournalPage } from "./pages/Journal";
 import { SuggestionsPage } from "./pages/Suggestions";
-import { ShopPage } from "./pages/Shop";
+import { ShopPage, rememberShopTab } from "./pages/Shop";
 import { DailyMoodLog } from "./components/DailyMoodLog";
 import { Supplements } from "./components/Supplements";
 import { LanguageToggle, Logo, Sidebar, ThemeToggle } from "./components/Sidebar";
@@ -74,7 +74,14 @@ export default function App() {
       {/* Main content */}
       <main className="flex-1 px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-10 lg:pt-8">
         {view === "dashboard" && (
-          <DashboardPage onGoToQuests={() => setView("quests")} onGoToAgent={() => setView("agent")} />
+          <DashboardPage
+            onGoToQuests={() => setView("quests")}
+            onGoToAgent={() => setView("agent")}
+            onGoToWardrobe={() => {
+              rememberShopTab("gear");
+              setView("shop");
+            }}
+          />
         )}
         {view === "quests" && <QuestsPage />}
         {view === "shop" && <ShopPage />}

@@ -93,6 +93,7 @@ export function QuestsPage() {
           drop: res.drop,
           achievements: res.achievements_unlocked,
           level: res.dashboard.character.level,
+          loadout: res.dashboard.loadout,
         }),
     });
 

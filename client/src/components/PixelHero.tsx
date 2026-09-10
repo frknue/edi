@@ -7,138 +7,53 @@
 
 import { palette } from "../lib/themes";
 import { t } from "../lib/i18n";
-
-const W = 16;
-const H = 15;
-
-// Legend: . empty · h hair · s skin · e eye · b tunic · d boots/belt
-//         w blade · g hilt · p shield · m helmet · c crown
-const baseMap = [
-  "................",
-  ".....hhhhhh.....",
-  "....hhhhhhhh....",
-  "....hssssssh....",
-  "....hsessesh....",
-  "....hssssssh....",
-  ".....ssssss.....",
-  "....bbbbbbbb....",
-  "...sbbbbbbbbs...",
-  "...sbbbdbbbbs...",
-  "....bbbbbbbb....",
-  "....dd....dd....",
-  "....dd....dd....",
-  "...ddd....ddd...",
-  "................",
-];
-
-const swordMap = [
-  "..............w.",
-  "..............w.",
-  "..............w.",
-  "..............w.",
-  "..............w.",
-  "..............w.",
-  "..............w.",
-  ".............gwg",
-  "..............g.",
-  "..............g.",
-  "................",
-  "................",
-  "................",
-  "................",
-  "................",
-];
-
-const shieldMap = [
-  "................",
-  "................",
-  "................",
-  "................",
-  "................",
-  "................",
-  ".pp.............",
-  "pppp............",
-  "pppp............",
-  "pppp............",
-  ".pp.............",
-  "................",
-  "................",
-  "................",
-  "................",
-];
-
-const helmetMap = [
-  "................",
-  ".....mmmmmm.....",
-  "....mmmmmmmm....",
-  "....mm....mm....",
-  "................",
-  "................",
-  "................",
-  "................",
-  "................",
-  "................",
-  "................",
-  "................",
-  "................",
-  "................",
-  "................",
-];
-
-const crownMap = [
-  ".....c..c..c....",
-  ".....cccccc.....",
-  "................",
-  "................",
-  "................",
-  "................",
-  "................",
-  "................",
-  "................",
-  "................",
-  "................",
-  "................",
-  "................",
-  "................",
-  "................",
-];
-
-function tunicColor(level: number): string {
-  if (level >= 15) return palette().gold; // gold
-  if (level >= 10) return "#b98aff"; // epic purple
-  if (level >= 5) return "#34d0ff"; // rare blue
-  return "#2fbf5f"; // starter green
-}
+import type { EquippedCosmetic } from "../lib/types";
+import {
+  SPRITE_H as H,
+  SPRITE_W as W,
+  baseMap,
+  crownMap,
+  helmetMap,
+  heroColors,
+  resolveLook,
+  shieldMap,
+  swordMap,
+  tunicColor,
+} from "../lib/heroSprite";
 
 export function PixelHero({
   level,
   titled = false,
   mood = "idle",
   size = 72,
+  loadout,
 }: {
   level: number;
   titled?: boolean;
   mood?: "idle" | "celebrate" | "crit" | "focus" | "camp";
   size?: number;
+  loadout?: EquippedCosmetic[];
 }) {
+  // Bought gear recolors the matching layer; the 3D hero renders the real
+  // shapes, this fallback keeps the silhouette and borrows the colors.
+  const look = resolveLook(level, loadout);
   const colors: Record<string, string> = {
-    h: "#8b5a2b",
-    s: "#ffd9a0",
-    e: "#0b1210",
-    b: tunicColor(level),
-    d: "#123020",
-    w: "#cfd8dc",
-    g: palette().gold,
-    p: "#34d0ff",
-    m: "#b0bec5",
-    c: "#ffd700",
+    h: heroColors.hair,
+    s: heroColors.skin,
+    e: heroColors.eye,
+    b: look.body?.color ?? tunicColor(level),
+    d: heroColors.boots,
+    w: look.weapon?.color ?? heroColors.steel,
+    g: look.weapon?.accent ?? palette().gold,
+    p: look.offhand?.color ?? heroColors.shieldBlue,
+    m: look.head?.color ?? heroColors.helmSteel,
+    c: look.head?.color ?? heroColors.crownGold,
   };
 
   const layers: string[][] = [baseMap];
-  if (level >= 3) layers.push(swordMap);
-  if (level >= 6) layers.push(shieldMap);
-  if (level >= 10) layers.push(helmetMap);
-  if (level >= 15) layers.push(crownMap);
+  if (look.weapon) layers.push(swordMap);
+  if (look.offhand) layers.push(shieldMap);
+  if (look.head) layers.push(look.head.shape === "crown" ? crownMap : helmetMap);
 
   // Later layers overwrite earlier pixels (helmet over hair).
   const grid: string[][] = Array.from({ length: H }, () => Array(W).fill("."));

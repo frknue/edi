@@ -8,9 +8,9 @@ import {
   type ReactNode,
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { PixelHero } from "../components/PixelHero";
+import { Hero } from "../components/Hero";
 import { ArrowUpRight, Coins, X } from "lucide-react";
-import type { Achievement, ItemDrop, LevelUp, XPEvent } from "./types";
+import type { Achievement, EquippedCosmetic, ItemDrop, LevelUp, XPEvent } from "./types";
 import { getAttr, rarityColor } from "./theme";
 import { t } from "./i18n";
 import type { MessageKey } from "./locales/en";
@@ -28,6 +28,7 @@ export interface RewardPayload {
   drop?: ItemDrop; // loot, if the dice smiled
   achievements?: Achievement[]; // badges unlocked by this action
   level?: number; // character level, for the hero cameo
+  loadout?: EquippedCosmetic[]; // the hero's gear, so the cameo wears it
 }
 
 interface RewardContextValue {
@@ -118,12 +119,14 @@ function RewardOverlay({
               <X size={18} />
             </button>
 
-            <div className="mx-auto mb-3 flex justify-center">
-              <PixelHero
+            <div className="mx-auto -mt-2 mb-1 flex justify-center">
+              <Hero
                 level={result.level ?? 1}
                 titled={result.crit === true}
                 mood={result.crit ? "crit" : "celebrate"}
-                size={60}
+                size={150}
+                loadout={result.loadout}
+                frame="wide"
               />
             </div>
 

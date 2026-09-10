@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
-import { PixelHero } from "./PixelHero";
+import { Hero } from "./Hero";
 import { Coins, Flame, Gift } from "lucide-react";
-import type { ActiveDay, CharacterSummary, DailyProgress, LootPity, Streak } from "../lib/types";
+import type { ActiveDay, CharacterSummary, DailyProgress, EquippedCosmetic, LootPity, Streak } from "../lib/types";
 import { ProgressBar } from "./ui";
 import { formatNumber, pct } from "../lib/format";
 import { useI18n } from "../lib/i18n";
@@ -78,7 +78,9 @@ export function CharacterHeader({
   gold,
   activeDays,
   loot,
+  loadout,
   mood = "idle",
+  onOpenWardrobe,
 }: {
   character: CharacterSummary;
   streak: Streak;
@@ -86,7 +88,9 @@ export function CharacterHeader({
   gold: number;
   activeDays: ActiveDay[];
   loot?: LootPity;
+  loadout?: EquippedCosmetic[];
   mood?: "idle" | "focus" | "camp";
+  onOpenWardrobe?: () => void;
 }) {
   const { t } = useI18n();
   const today = activeDays.find((d) => d.today)?.day;
@@ -104,8 +108,17 @@ export function CharacterHeader({
       />
       <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center">
         {/* identity: the hero + one level */}
-        <div className="flex items-center gap-4">
-          <PixelHero level={character.level} titled={!!character.title} size={56} mood={mood} />
+        <div className="flex items-center gap-3 sm:gap-4">
+          <button
+            type="button"
+            onClick={onOpenWardrobe}
+            className="hero-stage -my-3 -ml-2 shrink-0 rounded-md focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-gold)]"
+            title={t("hero.wardrobe")}
+            aria-label={t("hero.wardrobe")}
+            data-testid="hero-button"
+          >
+            <Hero level={character.level} titled={!!character.title} size={112} mood={mood} loadout={loadout} />
+          </button>
           <div
             className="relative grid h-[64px] w-[68px] place-items-center rounded-sm border"
             style={{

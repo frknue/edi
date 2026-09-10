@@ -171,9 +171,10 @@ caught and fixed — keep using it.
 - **Gold is auditable the same way.** The balance is always
   `SUM(gold_events.amount)` computed on read — there is no stored balance
   column. Minting (1g per 10 XP, min 1, `services.GoldForXP` mirrored by
-  `db.goldForXP`) happens inside the SAME tx as the xp_event; purchases check
-  the balance inside the purchase tx so it can never go negative (regression
-  tests: `TestGoldAuditInvariant`, `TestShopPurchaseConcurrentNoOverspend`).
+  `db.goldForXP`) happens inside the SAME tx as the xp_event; purchases
+  (reward shop, wards, cosmetic gear) check the balance inside the purchase
+  tx so it can never go negative (regression tests: `TestGoldAuditInvariant`,
+  `TestShopPurchaseConcurrentNoOverspend`, `TestCosmeticConcurrentSinglePurchase`).
 - **The punishment layer is opt-in ("hardcore mode") and OFF by default.**
   Decay, missed-daily stakes and wards only run when the per-user
   `hardcore_mode` setting is `"1"` (`services/hardcore.go`:
@@ -411,6 +412,45 @@ and two concurrent takes of the last two items pay exactly one bonus
 `take_supplement` (id or case-insensitive name/unique prefix) /
 `remove_supplement` / `supplement_history`, CLI `edi-cli supps ...`,
 Telegram `/supps [name]`, web `components/Supplements.tsx` (Tools group).
+
+## Cosmetics (hero gear) + the 3D hero
+
+Gear for the character, bought once with gold and worn forever. **Purely
+cosmetic**: no XP, no stats, no decay, never lost, never coupled to streaks
+(the no-punishment ethos applies to purchases too). The catalog is code
+(`services/cosmetics.go`, like loot): key, slot (`head | body | weapon |
+offhand | back | aura | pet`), rarity, gold price, `min_level` (gates the
+purchase only, never the wearing) and **look hints** (`shape`, `color`,
+`accent`) so every client renders the same hero without a key→look table
+of its own. Storage: `cosmetic_items` (ownership, `UNIQUE(user_id,
+item_key)`) and `cosmetic_loadout` (one row per slot). `store.PurchaseCosmetic`
+runs inside `beginUserTx`: owned check → balance check → negative
+`gold_events` row (`source='cosmetic'`, `shop_item_id` NULL) → ownership
+row → equip, so a double-tap can never buy twice or overspend
+(`TestCosmeticConcurrentSinglePurchase`, `-race`). Errors: unknown key →
+404; already owned / below level / not enough gold / equip-unowned → 400.
+`Dashboard.loadout` carries the resolved gear (empty slots fall back to the
+free level look: sword Lv3, shield Lv6, helm Lv10, crown Lv15 — see
+`lib/heroSprite.ts` `resolveLook`). Parity: `GET /api/cosmetics`,
+`POST /api/cosmetics/{key}/buy | /equip`, `POST /api/cosmetics/unequip
+{slot}`; tools `list_cosmetics` / `buy_cosmetic` / `equip_cosmetic` /
+`unequip_cosmetic`; `edi-cli gear [buy|equip <key> | unequip <slot>]`;
+web `components/Wardrobe.tsx` (the Gear tab of the Shop page, default tab,
+remembered per device; the dashboard hero is a button into it). Telegram:
+not a pocket action — free-text chat reaches it through the tools.
+
+The hero itself is `components/Hero.tsx`: a lazily loaded three.js voxel
+figure (`Hero3D.tsx`, extruded from the shared pixel sheet in
+`lib/heroSprite.ts`, gear built as real geometry per slot) with `PixelHero`
+as the Suspense/no-WebGL fallback (`localStorage edi.hero3d="0"` forces 2D).
+Moods (`idle | celebrate | crit | focus | camp`) match the old CSS moods;
+`prefers-reduced-motion` keeps the 3D figure but stills it (no bob, spin,
+shake, blink or particles). Rules: dispose everything on unmount (the
+reward overlay mounts/unmounts constantly, WebGL contexts are capped),
+WebGL cannot read CSS `var()` so theme colors come from `palette()`, and
+both completion handlers pass `loadout: res.dashboard.loadout` to
+`celebrate` so the cameo wears the gear. `three` is the one dependency this
+added — keep it the only 3D one.
 
 ## Journal
 

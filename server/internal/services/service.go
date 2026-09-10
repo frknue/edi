@@ -715,6 +715,10 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 	if len(chapters) > 0 {
 		latest = &chapters[0]
 	}
+	loadout, err := s.Loadout()
+	if err != nil {
+		return models.Dashboard{}, err
+	}
 
 	var totalXP int64
 	for _, a := range attrs {
@@ -781,6 +785,7 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 		LatestChapter:    latest,
 		Suggestions:      orEmpty(suggestions),
 		ActiveBuffs:      orEmpty(buffs),
+		Loadout:          orEmpty(loadout),
 		DecayedToday:     decayed,
 	}, nil
 }

@@ -622,6 +622,51 @@ func (h *Handlers) purchaseShopItem(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+// --- cosmetics (hero gear) ---------------------------------------------------
+
+func (h *Handlers) listCosmetics(w http.ResponseWriter, r *http.Request) {
+	cat, err := h.forUser(r).ListCosmetics()
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, cat)
+}
+
+func (h *Handlers) buyCosmetic(w http.ResponseWriter, r *http.Request) {
+	res, err := h.forUser(r).BuyCosmetic(r.PathValue("key"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (h *Handlers) equipCosmetic(w http.ResponseWriter, r *http.Request) {
+	loadout, err := h.forUser(r).EquipCosmetic(r.PathValue("key"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, loadout)
+}
+
+func (h *Handlers) unequipCosmetic(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Slot string `json:"slot"`
+	}
+	if err := decodeBody(r, &in); err != nil {
+		writeError(w, err)
+		return
+	}
+	loadout, err := h.forUser(r).UnequipCosmetic(in.Slot)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, loadout)
+}
+
 func (h *Handlers) listGoldEvents(w http.ResponseWriter, r *http.Request) {
 	events, err := h.forUser(r).ListGoldEvents(queryInt(r, "limit", 30), r.URL.Query().Get("source"))
 	if err != nil {

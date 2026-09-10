@@ -152,3 +152,51 @@ func TestQuestSessionRoutes(t *testing.T) {
 		t.Fatalf("start unknown = %d, want 404", code)
 	}
 }
+
+// TestCosmeticRoutes: the wardrobe over HTTP — unknown key 404, unowned
+// equip / bad slot / double buy 400, happy path 200 with the loadout.
+func TestCosmeticRoutes(t *testing.T) {
+	srv := httptest.NewServer(newTestRouter(t, ""))
+	defer srv.Close()
+	post := func(path, payload string) (int, []byte) {
+		resp, err := http.Post(srv.URL+path, "application/json", strings.NewReader(payload))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var buf strings.Builder
+		_, _ = io.Copy(&buf, resp.Body)
+		return resp.StatusCode, []byte(buf.String())
+	}
+	if code, _ := post("/api/cosmetics/nope/buy", ""); code != http.StatusNotFound {
+		t.Errorf("buy unknown = %d, want 404", code)
+	}
+	if code, _ := post("/api/cosmetics/iron_helm/equip", ""); code != http.StatusBadRequest {
+		t.Errorf("equip unowned = %d, want 400", code)
+	}
+	if code, _ := post("/api/cosmetics/unequip", `{"slot":"hat"}`); code != http.StatusBadRequest {
+		t.Errorf("unequip bad slot = %d, want 400", code)
+	}
+	code, body := post("/api/cosmetics/slime/buy", "")
+	if code != http.StatusOK {
+		t.Fatalf("buy = %d %s", code, body)
+	}
+	var res map[string]any
+	_ = json.Unmarshal(body, &res)
+	if lo, _ := res["loadout"].([]any); len(lo) != 1 {
+		t.Errorf("loadout after buy = %v", res["loadout"])
+	}
+	if code, _ := post("/api/cosmetics/slime/buy", ""); code != http.StatusBadRequest {
+		t.Errorf("double buy = %d, want 400", code)
+	}
+	resp, err := http.Get(srv.URL + "/api/cosmetics")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var cat map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&cat)
+	if resp.StatusCode != http.StatusOK || cat["items"] == nil || cat["loadout"] == nil {
+		t.Errorf("GET cosmetics = %d %v", resp.StatusCode, cat)
+	}
+}

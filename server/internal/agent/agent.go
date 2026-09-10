@@ -366,6 +366,41 @@ func NewRegistry() *Registry {
 			return svc.ListGoldEvents(p.Limit, p.Source)
 		})
 
+	add("list_cosmetics", "List the hero's wardrobe: every cosmetic gear piece in the catalog (slot, rarity, gold price, min_level, look hints) flagged owned/equipped/unlocked, plus the current loadout, gold balance and character level. Gear is purely cosmetic (no XP, no stats) and is bought once, forever.",
+		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) { return svc.ListCosmetics() })
+
+	add("buy_cosmetic", "Spend gold on a cosmetic gear piece for the hero (by catalog key from list_cosmetics) and equip it. Fails with a validation error when already owned, below the level requirement, or when gold is short.",
+		`{"type":"object","required":["key"],"properties":{"key":{"type":"string"}}}`,
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			key, err := decodeKey(in)
+			if err != nil {
+				return nil, err
+			}
+			return svc.BuyCosmetic(key)
+		})
+
+	add("equip_cosmetic", "Wear an owned cosmetic gear piece (by catalog key) in its slot, replacing whatever was there. Returns the new loadout.",
+		`{"type":"object","required":["key"],"properties":{"key":{"type":"string"}}}`,
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			key, err := decodeKey(in)
+			if err != nil {
+				return nil, err
+			}
+			return svc.EquipCosmetic(key)
+		})
+
+	add("unequip_cosmetic", "Empty one gear slot (head, body, weapon, offhand, back, aura, pet); the hero falls back to the level look. Returns the new loadout.",
+		`{"type":"object","required":["slot"],"properties":{"slot":{"type":"string","enum":["head","body","weapon","offhand","back","aura","pet"]}}}`,
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			var p struct {
+				Slot string `json:"slot"`
+			}
+			if err := decode(in, &p); err != nil {
+				return nil, err
+			}
+			return svc.UnequipCosmetic(p.Slot)
+		})
+
 	add("ward_attribute", "Buy a Maintenance Ward: spend 30 gold to shield one attribute from decay for 7 days (extends an active ward). Only valid in hardcore mode — outside it there is no decay and the call fails with a validation error.",
 		`{"type":"object","required":["attribute_key"],"properties":{"attribute_key":{"type":"string"}}}`,
 		func(svc *services.Service, in json.RawMessage) (any, error) {
@@ -610,6 +645,20 @@ func decode(in json.RawMessage, dst any) error {
 		return nil
 	}
 	return json.Unmarshal(in, dst)
+}
+
+// decodeKey reads the required string "key" field of a tool call.
+func decodeKey(in json.RawMessage) (string, error) {
+	var p struct {
+		Key string `json:"key"`
+	}
+	if err := decode(in, &p); err != nil {
+		return "", err
+	}
+	if p.Key == "" {
+		return "", fmt.Errorf("%w: key is required", services.ErrValidation)
+	}
+	return p.Key, nil
 }
 
 func idSchema(field string) string {

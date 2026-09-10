@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Archive, CalendarDays, Coins, Plus, ShoppingCart, X } from "lucide-react";
+import { Archive, CalendarDays, Coins, Plus, ShoppingCart, Swords, X } from "lucide-react";
 import {
   useArchiveShopItem,
   useCreateShopItem,
@@ -14,6 +14,26 @@ import { Btn, EmptyState, SectionTitle, Spinner } from "../components/ui";
 import { formatDateTime, relativeTime } from "../lib/format";
 import type { ShopItem } from "../lib/types";
 import { useI18n } from "../lib/i18n";
+import { Wardrobe } from "../components/Wardrobe";
+
+export type ShopTab = "gear" | "rewards";
+const TAB_KEY = "edi.shop.tab";
+
+export function readShopTab(): ShopTab {
+  try {
+    return localStorage.getItem(TAB_KEY) === "rewards" ? "rewards" : "gear";
+  } catch {
+    return "gear";
+  }
+}
+
+export function rememberShopTab(tab: ShopTab) {
+  try {
+    localStorage.setItem(TAB_KEY, tab);
+  } catch {
+    // per-device convenience only
+  }
+}
 
 function ShopItemModal({
   item,
@@ -307,6 +327,11 @@ export function ShopPage() {
   const items = useShopItems();
   const ledger = useGoldEvents(30, "purchase");
   const [selectedItem, setSelectedItem] = useState<ShopItem | null>(null);
+  const [tab, setTab] = useState<ShopTab>(readShopTab);
+  const switchTab = (next: ShopTab) => {
+    setTab(next);
+    rememberShopTab(next);
+  };
 
   if (dashboard.isLoading || items.isLoading) return <Spinner label={t("shop.opening")} />;
   if (dashboard.isError || items.isError || !dashboard.data || !items.data) {
@@ -321,12 +346,17 @@ export function ShopPage() {
   const balance = dashboard.data.gold_balance;
   const purchases = ledger.data ?? [];
 
+  const tabs: { id: ShopTab; label: string; Icon: typeof Swords }[] = [
+    { id: "gear", label: t("shop.tabGear"), Icon: Swords },
+    { id: "rewards", label: t("shop.tabRewards"), Icon: ShoppingCart },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-xl font-bold tracking-tight text-ink">{t("shop.title")}</h1>
-          <p className="text-sm text-faint">{t("shop.subtitle")}</p>
+          <p className="text-sm text-faint">{tab === "gear" ? t("shop.gearSubtitle") : t("shop.subtitle")}</p>
         </div>
         <div className="flex items-center gap-2" data-testid="gold-balance">
           <Coins size={20} style={{ color: "var(--color-gold)" }} />
@@ -336,6 +366,33 @@ export function ShopPage() {
         </div>
       </div>
 
+      <div className="flex gap-1 border-b border-edge" role="tablist">
+        {tabs.map(({ id, label, Icon }) => {
+          const active = tab === id;
+          return (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={active}
+              onClick={() => switchTab(id)}
+              className="-mb-px inline-flex items-center gap-2 border-b-2 px-3 py-2 font-display text-[12px] uppercase tracking-[0.18em] transition-colors"
+              style={{
+                borderColor: active ? "var(--color-gold)" : "transparent",
+                color: active ? "var(--color-goldhi)" : "var(--color-muted)",
+              }}
+              data-testid={`shop-tab-${id}`}
+            >
+              <Icon size={14} />
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {tab === "gear" ? (
+        <Wardrobe />
+      ) : (
+        <>
       <AddItemForm />
 
       <section>
@@ -380,6 +437,8 @@ export function ShopPage() {
           </div>
         )}
       </section>
+        </>
+      )}
 
       <AnimatePresence>
         {selectedItem && (

@@ -336,6 +336,32 @@ func (c *Client) ListGoldEvents(limit int, source string) ([]models.GoldEvent, e
 	return out, err
 }
 
+// --- cosmetics (hero gear) ----------------------------------------------------
+
+func (c *Client) ListCosmetics() (models.CosmeticCatalog, error) {
+	var out models.CosmeticCatalog
+	err := c.do(http.MethodGet, "/api/cosmetics", nil, &out)
+	return out, err
+}
+
+func (c *Client) BuyCosmetic(key string) (models.CosmeticPurchaseResult, error) {
+	var r models.CosmeticPurchaseResult
+	err := c.do(http.MethodPost, "/api/cosmetics/"+key+"/buy", nil, &r)
+	return r, err
+}
+
+func (c *Client) EquipCosmetic(key string) ([]models.EquippedCosmetic, error) {
+	var out []models.EquippedCosmetic
+	err := c.do(http.MethodPost, "/api/cosmetics/"+key+"/equip", nil, &out)
+	return out, err
+}
+
+func (c *Client) UnequipCosmetic(slot string) ([]models.EquippedCosmetic, error) {
+	var out []models.EquippedCosmetic
+	err := c.do(http.MethodPost, "/api/cosmetics/unequip", map[string]string{"slot": slot}, &out)
+	return out, err
+}
+
 // --- decay & stakes -----------------------------------------------------------
 
 func (c *Client) WardAttribute(key string) (models.WardResult, error) {

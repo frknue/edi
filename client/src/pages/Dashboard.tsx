@@ -20,7 +20,7 @@ import {
 import { useReward } from "../lib/reward";
 import { getAttr, getType } from "../lib/theme";
 import { CharacterHeader } from "../components/CharacterHeader";
-import { PixelHero } from "../components/PixelHero";
+import { Hero } from "../components/Hero";
 import { TrophyCase } from "../components/TrophyCase";
 import { AttributeCard } from "../components/AttributeCard";
 import { QuestCard } from "../components/QuestCard";
@@ -30,15 +30,17 @@ import { Btn, DifficultyPips, EmptyState, Fold, SectionTitle, Spinner, RewardChi
 import { pushToast } from "../lib/toast";
 import { formatTime } from "../lib/format";
 import { useI18n } from "../lib/i18n";
-import type { CompletionResult, Dashboard, Quest, QuestSession } from "../lib/types";
+import type { CompletionResult, Dashboard, EquippedCosmetic, Quest, QuestSession } from "../lib/types";
 import type { MessageKey } from "../lib/locales/en";
 
 export function DashboardPage({
   onGoToQuests,
   onGoToAgent,
+  onGoToWardrobe,
 }: {
   onGoToQuests: () => void;
   onGoToAgent: () => void;
+  onGoToWardrobe: () => void;
 }) {
   const { t } = useI18n();
   const { data, isLoading, isError, error } = useDashboard();
@@ -77,6 +79,7 @@ export function DashboardPage({
       drop: res.drop,
       achievements: res.achievements_unlocked,
       level: res.dashboard.character.level,
+      loadout: res.dashboard.loadout,
     });
   const handleComplete = (id: number) => complete.mutate(id, { onSuccess: onCompleted });
 
@@ -89,7 +92,9 @@ export function DashboardPage({
         gold={data.gold_balance}
         activeDays={data.active_days}
         loot={data.loot_pity}
+        loadout={data.loadout}
         mood={data.active_session ? "focus" : data.day_state === "camp" ? "camp" : "idle"}
+        onOpenWardrobe={onGoToWardrobe}
       />
 
       {/* THE next move — one quest, one button, above everything else.
@@ -99,6 +104,7 @@ export function DashboardPage({
         <RunningQuest
           session={data.active_session}
           level={data.character.level}
+          loadout={data.loadout}
           busy={complete.isPending || stop.isPending}
           onComplete={handleComplete}
           onStop={(note) => stop.mutate(note)}
@@ -460,7 +466,7 @@ function Campfire({ data }: { data: Dashboard }) {
     >
       <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
         <div className="flex items-center gap-4">
-          <PixelHero level={data.character.level} titled={!!data.character.title} mood="camp" size={56} />
+          <Hero level={data.character.level} titled={!!data.character.title} mood="camp" size={96} loadout={data.loadout} className="-my-4" />
           <span className="campfire text-3xl" aria-hidden>
             🔥
           </span>
@@ -519,12 +525,14 @@ function Campfire({ data }: { data: Dashboard }) {
 function RunningQuest({
   session,
   level,
+  loadout,
   busy,
   onComplete,
   onStop,
 }: {
   session: QuestSession;
   level: number;
+  loadout: EquippedCosmetic[];
   busy: boolean;
   onComplete: (id: number) => void;
   onStop: (note: string) => void;
@@ -549,7 +557,7 @@ function RunningQuest({
       <div className="absolute inset-y-0 left-0 w-1" style={{ background: meta.color }} />
       <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
         <div className="flex items-center gap-4">
-          <PixelHero level={level} mood="focus" size={56} />
+          <Hero level={level} mood="focus" size={96} loadout={loadout} className="-my-4" />
           <div className="min-w-0">
             <div className="mb-1 flex items-center gap-2">
               <Play size={13} style={{ color: "var(--color-phos)" }} />

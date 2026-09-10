@@ -17,6 +17,7 @@ export const keys = {
   openaiStatus: ["openai-status"] as const,
   shop: ["shop"] as const,
   goldEvents: ["gold-events"] as const,
+  cosmetics: ["cosmetics"] as const,
   multiplayer: ["multiplayer"] as const,
   supplements: ["supplements"] as const,
   supplementHistory: ["supplements", "history"] as const,
@@ -537,6 +538,42 @@ export function usePurchaseShopItem() {
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["gold-events"] });
     },
+  });
+}
+
+// --- cosmetics (hero gear) ----------------------------------------------------
+
+export function useCosmetics() {
+  return useQuery({ queryKey: keys.cosmetics, queryFn: api.listCosmetics });
+}
+
+function invalidateWardrobe(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: keys.cosmetics });
+  qc.invalidateQueries({ queryKey: keys.dashboard });
+  qc.invalidateQueries({ queryKey: keys.goldEvents });
+}
+
+export function useBuyCosmetic() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (key: string) => api.buyCosmetic(key),
+    onSuccess: () => invalidateWardrobe(qc),
+  });
+}
+
+export function useEquipCosmetic() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (key: string) => api.equipCosmetic(key),
+    onSuccess: () => invalidateWardrobe(qc),
+  });
+}
+
+export function useUnequipCosmetic() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (slot: string) => api.unequipCosmetic(slot),
+    onSuccess: () => invalidateWardrobe(qc),
   });
 }
 

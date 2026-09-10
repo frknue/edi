@@ -391,31 +391,32 @@ type DailyProgress struct {
 
 // Dashboard is the single payload that powers the main screen.
 type Dashboard struct {
-	User             User              `json:"user"`
-	Character        CharacterSummary  `json:"character"`
-	Attributes       []Attribute       `json:"attributes"`
-	TodayQuests      []Quest           `json:"today_quests"`
-	Streak           Streak            `json:"streak"`
-	GoldBalance      int64             `json:"gold_balance"`
-	RestMode         bool              `json:"rest_mode"`
-	RestSince        *time.Time        `json:"rest_since,omitempty"`
-	Hardcore         bool              `json:"hardcore"`         // punishment layer live (decay, stakes, wards)
-	DecayedToday     int64             `json:"decayed_today"`    // XP removed by this request's decay catch-up (hardcore only)
-	DailyPenaltyXP   int64             `json:"daily_penalty_xp"` // XP removed today for missed daily quests (hardcore only)
-	ActiveDays       []ActiveDay       `json:"active_days"`      // last 14 local days, oldest first
-	ActiveSession    *QuestSession     `json:"active_session"`   // the running quest, if any
-	DayState         string            `json:"day_state"`        // open | camp (today's set is cleared)
-	XPToday          int64             `json:"xp_today"`         // positive XP earned today
-	BoardClearToday  bool              `json:"board_clear_today"`
-	LootPity         LootPity          `json:"loot_pity"`
-	FirstMove        *FirstMove        `json:"first_move"`      // the pre-chosen first quest (today or tomorrow)
-	PartnerSession   *PartnerSession   `json:"partner_session"` // the board partner's running quest, if any
-	LatestChapter    *StoryChapter     `json:"latest_chapter"`  // the newest saga episode, if any
-	RecentXPEvents   []XPEvent         `json:"recent_xp_events"`
-	RecommendedQuest *Quest            `json:"recommended_quest"`
-	DailyProgress    DailyProgress     `json:"daily_progress"`
-	Suggestions      []AgentSuggestion `json:"pending_suggestions"`
-	ActiveBuffs      []ActiveBuff      `json:"active_buffs"` // running loot buffs
+	User             User               `json:"user"`
+	Character        CharacterSummary   `json:"character"`
+	Attributes       []Attribute        `json:"attributes"`
+	TodayQuests      []Quest            `json:"today_quests"`
+	Streak           Streak             `json:"streak"`
+	GoldBalance      int64              `json:"gold_balance"`
+	RestMode         bool               `json:"rest_mode"`
+	RestSince        *time.Time         `json:"rest_since,omitempty"`
+	Hardcore         bool               `json:"hardcore"`         // punishment layer live (decay, stakes, wards)
+	DecayedToday     int64              `json:"decayed_today"`    // XP removed by this request's decay catch-up (hardcore only)
+	DailyPenaltyXP   int64              `json:"daily_penalty_xp"` // XP removed today for missed daily quests (hardcore only)
+	ActiveDays       []ActiveDay        `json:"active_days"`      // last 14 local days, oldest first
+	ActiveSession    *QuestSession      `json:"active_session"`   // the running quest, if any
+	DayState         string             `json:"day_state"`        // open | camp (today's set is cleared)
+	XPToday          int64              `json:"xp_today"`         // positive XP earned today
+	BoardClearToday  bool               `json:"board_clear_today"`
+	LootPity         LootPity           `json:"loot_pity"`
+	FirstMove        *FirstMove         `json:"first_move"`      // the pre-chosen first quest (today or tomorrow)
+	PartnerSession   *PartnerSession    `json:"partner_session"` // the board partner's running quest, if any
+	LatestChapter    *StoryChapter      `json:"latest_chapter"`  // the newest saga episode, if any
+	RecentXPEvents   []XPEvent          `json:"recent_xp_events"`
+	RecommendedQuest *Quest             `json:"recommended_quest"`
+	DailyProgress    DailyProgress      `json:"daily_progress"`
+	Suggestions      []AgentSuggestion  `json:"pending_suggestions"`
+	ActiveBuffs      []ActiveBuff       `json:"active_buffs"` // running loot buffs
+	Loadout          []EquippedCosmetic `json:"loadout"`      // the hero's equipped gear
 }
 
 // LootPity makes the variable ratio visible: after GuaranteedAfter dropless
@@ -567,7 +568,7 @@ type OpenAIStatus struct {
 type GoldEvent struct {
 	ID         int64     `json:"id"`
 	Amount     int64     `json:"amount"` // positive = mint, negative = purchase
-	Source     string    `json:"source"` // quest, subtask, tool, journal, purchase, grant
+	Source     string    `json:"source"` // quest, subtask, tool, journal, purchase, cosmetic, ward, grant
 	Label      string    `json:"label,omitempty"`
 	ShopItemID *int64    `json:"shop_item_id,omitempty"`
 	CreatedAt  time.Time `json:"created_at"`
@@ -602,6 +603,55 @@ type PurchaseResult struct {
 	Item    ShopItem  `json:"item"`
 	Event   GoldEvent `json:"event"`
 	Balance int64     `json:"balance"` // balance after the purchase
+}
+
+// CosmeticItem is one piece of hero gear from the code-defined catalog,
+// annotated for the calling user (owned / equipped / affordable). Look
+// hints (Shape, Color, Accent) let every client render the same hero
+// without a key→look table of its own.
+type CosmeticItem struct {
+	Key      string `json:"key"`
+	Slot     string `json:"slot"` // head | body | weapon | offhand | back | aura | pet
+	Name     string `json:"name"`
+	Rarity   string `json:"rarity"` // common | uncommon | rare | epic | legendary
+	Price    int64  `json:"price"`
+	MinLevel int    `json:"min_level"` // character level required to buy
+	Shape    string `json:"shape"`     // renderer hint, per slot (e.g. sword|axe|staff)
+	Color    string `json:"color"`     // primary hex
+	Accent   string `json:"accent"`    // secondary hex
+	Flavor   string `json:"flavor"`
+	Owned    bool   `json:"owned"`
+	Equipped bool   `json:"equipped"`
+	Unlocked bool   `json:"unlocked"` // level requirement met
+}
+
+// CosmeticCatalog is the wardrobe view: every item annotated + the loadout.
+type CosmeticCatalog struct {
+	Items   []CosmeticItem     `json:"items"`
+	Loadout []EquippedCosmetic `json:"loadout"`
+	Balance int64              `json:"balance"`
+	Level   int                `json:"level"`
+	Slots   []string           `json:"slots"`
+}
+
+// EquippedCosmetic is what the hero wears in one slot (a Dashboard field so
+// every client renders the same character).
+type EquippedCosmetic struct {
+	Slot   string `json:"slot"`
+	Key    string `json:"key"`
+	Name   string `json:"name"`
+	Rarity string `json:"rarity"`
+	Shape  string `json:"shape"`
+	Color  string `json:"color"`
+	Accent string `json:"accent"`
+}
+
+// CosmeticPurchaseResult is returned after buying gear (auto-equipped).
+type CosmeticPurchaseResult struct {
+	Item    CosmeticItem       `json:"item"`
+	Event   GoldEvent          `json:"event"`
+	Balance int64              `json:"balance"`
+	Loadout []EquippedCosmetic `json:"loadout"`
 }
 
 // Ward is a gold-bought decay shield for one attribute. Rows are never

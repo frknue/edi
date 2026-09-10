@@ -572,3 +572,12 @@ input[type="range"]::-webkit-slider-thumb {
 :root[data-theme="blossom"] .hud-panel {
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 10px 30px -18px rgba(255, 143, 200, 0.35);
 }
+
+/* the hero on the dashboard is a door to the armory */
+.hero-stage {
+  transition: filter 0.2s ease, transform 0.2s ease;
+}
+.hero-stage:hover {
+  filter: drop-shadow(0 0 14px rgba(var(--gold-rgb), 0.55));
+  transform: translateY(-1px);
+}

@@ -176,7 +176,7 @@ export interface ShopItemInput {
 export interface GoldEvent {
   id: number;
   amount: number; // positive = mint, negative = purchase
-  source: string; // quest, subtask, tool, journal, purchase, grant
+  source: string; // quest, subtask, tool, journal, purchase, cosmetic, ward, grant
   label?: string;
   shop_item_id?: number;
   created_at: string;
@@ -351,6 +351,51 @@ export interface Dashboard {
   daily_progress: DailyProgress;
   pending_suggestions: AgentSuggestion[];
   active_buffs: ActiveBuff[];
+  loadout: EquippedCosmetic[]; // the hero's equipped gear
+}
+
+// Cosmetics: hero gear bought once with gold, worn forever. Purely visual.
+export type CosmeticSlot = "head" | "body" | "weapon" | "offhand" | "back" | "aura" | "pet";
+
+export interface EquippedCosmetic {
+  slot: CosmeticSlot;
+  key: string;
+  name: string;
+  rarity: string;
+  shape: string;
+  color: string;
+  accent: string;
+}
+
+export interface CosmeticItem {
+  key: string;
+  slot: CosmeticSlot;
+  name: string;
+  rarity: string;
+  price: number;
+  min_level: number;
+  shape: string;
+  color: string;
+  accent: string;
+  flavor: string;
+  owned: boolean;
+  equipped: boolean;
+  unlocked: boolean;
+}
+
+export interface CosmeticCatalog {
+  items: CosmeticItem[];
+  loadout: EquippedCosmetic[];
+  balance: number;
+  level: number;
+  slots: CosmeticSlot[];
+}
+
+export interface CosmeticPurchaseResult {
+  item: CosmeticItem;
+  event: GoldEvent;
+  balance: number;
+  loadout: EquippedCosmetic[];
 }
 
 export interface LevelUp {

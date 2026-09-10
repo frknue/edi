@@ -92,6 +92,12 @@ func NewRouter(h *Handlers, clientDir string, tokenMode bool) http.Handler {
 	mux.HandleFunc("POST /api/shop/{id}/purchase", h.purchaseShopItem)
 	mux.HandleFunc("GET /api/gold/events", h.listGoldEvents)
 
+	// Cosmetics — hero gear bought with gold (catalog in services/cosmetics.go).
+	mux.HandleFunc("GET /api/cosmetics", h.listCosmetics)
+	mux.HandleFunc("POST /api/cosmetics/{key}/buy", h.buyCosmetic)
+	mux.HandleFunc("POST /api/cosmetics/{key}/equip", h.equipCosmetic)
+	mux.HandleFunc("POST /api/cosmetics/unequip", h.unequipCosmetic)
+
 	// Decay & stakes — ward purchases and rest mode.
 	mux.HandleFunc("POST /api/attributes/{key}/ward", h.wardAttribute)
 	mux.HandleFunc("GET /api/rest", h.getRest)

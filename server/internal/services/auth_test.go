@@ -229,6 +229,9 @@ func TestTenantIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("b shop: %v", err)
 	}
+	if _, err := b.BuyCosmetic("slime"); err != nil {
+		t.Fatalf("b cosmetic: %v", err)
+	}
 	bSupp, err := b.AddSupplement(models.SupplementInput{Name: "B's magnesium"})
 	if err != nil {
 		t.Fatalf("b supplement: %v", err)
@@ -249,6 +252,12 @@ func TestTenantIsolation(t *testing.T) {
 	}
 	if items, _ := a.ListShopItems(); len(items) != 0 {
 		t.Errorf("A sees %d of B's shop items, want 0", len(items))
+	}
+	if cat, _ := a.ListCosmetics(); len(cat.Loadout) != 0 || cat.Balance != 0 {
+		t.Errorf("A sees B's gear/gold: %d worn, %dg", len(cat.Loadout), cat.Balance)
+	}
+	if _, err := a.EquipCosmetic("slime"); !errors.Is(err, ErrValidation) {
+		t.Errorf("A equips B's pet: got %v, want ErrValidation", err)
 	}
 	if today, _ := a.ListSupplements(); today.Total != 0 || today.Taken != 0 {
 		t.Errorf("A sees %d/%d of B's supplements, want none", today.Taken, today.Total)
