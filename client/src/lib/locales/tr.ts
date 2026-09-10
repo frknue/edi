@@ -8,6 +8,10 @@ export const tr: Record<MessageKey, string> = {
   "app.tagline": "life-rpg terminali",
   "app.somethingWentWrong": "Bir şeyler ters gitti",
   "app.langToggleTitle": "Dil: {lang} — değiştirmek için tıkla",
+  "app.themeToggleTitle": "Tema: {theme} — değiştirmek için tıkla",
+  "theme.crt": "CRT terminal",
+  "theme.slate": "Arduvaz",
+  "theme.blossom": "Çiçek",
 
   "nav.dashboard": "Panel",
   "nav.quests": "Görevler",

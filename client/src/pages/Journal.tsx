@@ -8,11 +8,13 @@ import { Btn, EmptyState, SectionTitle, Spinner } from "../components/ui";
 import { relativeTime } from "../lib/format";
 import type { JournalEntry } from "../lib/types";
 import { useI18n } from "../lib/i18n";
+import { palette } from "../lib/themes";
 
 function scoreColor(v: number): string {
-  if (v <= 3) return "#ff5f56";
-  if (v <= 6) return "#ffb000";
-  return "#4bff7e";
+  const p = palette();
+  if (v <= 3) return p.attrs.strength;
+  if (v <= 6) return p.gold;
+  return p.phos;
 }
 
 function ScoreSlider({
@@ -153,7 +155,7 @@ function Heatmap({ days }: { days: Map<string, DayPoint> }) {
               const bg = future
                 ? "transparent"
                 : dp
-                  ? `rgba(75,255,126,${(0.18 + (dp.mood / 10) * 0.72).toFixed(2)})`
+                  ? `rgba(var(--phos-rgb),${(0.18 + (dp.mood / 10) * 0.72).toFixed(2)})`
                   : "rgba(255,255,255,0.05)";
               return (
                 <div
@@ -176,7 +178,7 @@ function Heatmap({ days }: { days: Map<string, DayPoint> }) {
       <div className="flex items-center gap-1 text-[9px] text-faint">
         {t("journal.low")}
         {[0.25, 0.5, 0.75, 0.95].map((a) => (
-          <span key={a} className="h-[8px] w-[8px] rounded-[2px]" style={{ background: `rgba(75,255,126,${a})` }} />
+          <span key={a} className="h-[8px] w-[8px] rounded-[2px]" style={{ background: `rgba(var(--phos-rgb),${a})` }} />
         ))}
         {t("journal.high")}
       </div>
@@ -202,8 +204,8 @@ function TrendsPanel({ entries }: { entries: JournalEntry[] }) {
         <span className="mr-1.5 text-[var(--color-phos)]">▸</span>{t("journal.trends")}
         <span className="ml-2 text-[10px] normal-case tracking-normal text-faint">{t("journal.trendsHint")}</span>
       </div>
-      <Sparkline series="mood" color="#4bff7e" points={recent} />
-      <Sparkline series="energy" color="#ffb000" points={recent} />
+      <Sparkline series="mood" color={palette().phos} points={recent} />
+      <Sparkline series="energy" color={palette().gold} points={recent} />
       <Heatmap days={days} />
     </section>
   );

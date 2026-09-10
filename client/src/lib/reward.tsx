@@ -97,8 +97,8 @@ function RewardOverlay({
               height: 360,
               borderRadius: "50%",
               background: result.crit
-                ? "radial-gradient(circle, rgba(255,71,71,0.6), rgba(255,71,71,0) 65%)"
-                : "radial-gradient(circle, rgba(255,176,0,0.55), rgba(255,176,0,0) 65%)",
+                ? "radial-gradient(circle, rgba(var(--boss-rgb),0.6), rgba(var(--boss-rgb),0) 65%)"
+                : "radial-gradient(circle, rgba(var(--gold-rgb),0.55), rgba(var(--gold-rgb),0) 65%)",
             }}
           />
           <SparkBurst crit={result.crit} />
@@ -136,8 +136,8 @@ function RewardOverlay({
                 style={{
                   color: "#ff4747",
                   border: "2px solid #ff4747",
-                  boxShadow: "0 0 24px -4px rgba(255,71,71,0.9)",
-                  textShadow: "0 0 12px rgba(255,71,71,0.8)",
+                  boxShadow: "0 0 24px -4px rgba(var(--boss-rgb),0.9)",
+                  textShadow: "0 0 12px rgba(var(--boss-rgb),0.8)",
                 }}
                 data-testid="crit-banner"
               >
@@ -248,7 +248,7 @@ function RewardOverlay({
                   <div
                     key={a.key}
                     className="flex items-center justify-center gap-2 rounded-lg border py-1.5 text-sm font-semibold"
-                    style={{ borderColor: "var(--color-gold)", background: "rgba(255,176,0,0.1)", color: "var(--color-goldhi)" }}
+                    style={{ borderColor: "var(--color-gold)", background: "rgba(var(--gold-rgb),0.1)", color: "var(--color-goldhi)" }}
                   >
                     🏆 {a.icon} {a.name}
                     {a.title && <span className="text-[11px] font-normal opacity-80">{t("reward.title", { title: a.title })}</span>}

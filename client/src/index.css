@@ -46,6 +46,98 @@
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Accent triplets for rgba() tints (`rgba(var(--phos-rgb),0.1)`). Components
+   must use these instead of literal phosphor/amber numbers so every theme can
+   retint them. Plain :root (not @theme) so Tailwind never prunes them. */
+:root {
+  --phos-rgb: 75, 255, 126;
+  --gold-rgb: 255, 176, 0;
+  --boss-rgb: 255, 71, 71;
+  --panel-radius: 4px;
+}
+
+/* ============================================================
+   Themes. The @theme block above IS the default ("crt"); each theme below
+   only overrides token VALUES (never names) — lib/themes.ts mirrors the hex
+   palette for alpha-concatenating callers and sets data-theme on <html>.
+   ============================================================ */
+
+/* SLATE — the neutral one: flat graphite surfaces, a cool blue accent,
+   system sans type, no tube effects. */
+:root[data-theme="slate"] {
+  --font-display: "Barlow Semi Condensed", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+
+  --color-void: #0f1115;
+  --color-abyss: #13161c;
+  --color-panel: #171b22;
+  --color-panel2: #1d222b;
+  --color-edge: #2a3040;
+  --color-edge2: #3b4356;
+
+  --color-ink: #e6e9ef;
+  --color-muted: #9aa3b2;
+  --color-faint: #5c6474;
+
+  --color-gold: #f5b942;
+  --color-goldhi: #ffd27a;
+  --color-phos: #7fb2ff;
+
+  --color-strength: #f26d63;
+  --color-discipline: #7f8cf7;
+  --color-focus: #38bdf8;
+  --color-health: #4ade80;
+  --color-wealth: #f5b942;
+  --color-relationships: #f472b6;
+  --color-learning: #a78bfa;
+  --color-creativity: #fb923c;
+  --color-spirituality: #2dd4bf;
+  --color-boss: #f0525a;
+
+  --phos-rgb: 127, 178, 255;
+  --gold-rgb: 245, 185, 66;
+  --boss-rgb: 240, 82, 90;
+  --panel-radius: 10px;
+}
+
+/* BLOSSOM — the girly one: deep plum glass, bubblegum pink + peach gold,
+   rounded type and corners, a soft bloom instead of scanlines. */
+:root[data-theme="blossom"] {
+  --font-display: "Quicksand", "Nunito", ui-rounded, ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Nunito", "Quicksand", ui-rounded, ui-sans-serif, system-ui, sans-serif;
+
+  --color-void: #1a1020;
+  --color-abyss: #1f1327;
+  --color-panel: #261a30;
+  --color-panel2: #2e2039;
+  --color-edge: #3f2d4d;
+  --color-edge2: #5a4270;
+
+  --color-ink: #fbe9f5;
+  --color-muted: #c9a3c0;
+  --color-faint: #7e6280;
+
+  --color-gold: #ffc078;
+  --color-goldhi: #ffd9a8;
+  --color-phos: #ff8fc8;
+
+  --color-strength: #ff6f91;
+  --color-discipline: #a393ff;
+  --color-focus: #7fd4ff;
+  --color-health: #8ef0b4;
+  --color-wealth: #ffcf7a;
+  --color-relationships: #ff9ff0;
+  --color-learning: #cdb7ff;
+  --color-creativity: #ffb28a;
+  --color-spirituality: #9de9de;
+  --color-boss: #ff5c7a;
+
+  --phos-rgb: 255, 143, 200;
+  --gold-rgb: 255, 192, 120;
+  --boss-rgb: 255, 92, 122;
+  --panel-radius: 14px;
+}
+
 * {
   border-color: var(--color-edge);
 }
@@ -61,8 +153,8 @@ body {
   background-color: var(--color-void);
   /* faint phosphor bloom in the corners of the tube */
   background-image:
-    radial-gradient(1100px 700px at 50% -10%, rgba(75, 255, 126, 0.05), transparent 60%),
-    radial-gradient(900px 700px at 90% 110%, rgba(255, 176, 0, 0.04), transparent 55%);
+    radial-gradient(1100px 700px at 50% -10%, rgba(var(--phos-rgb),0.05), transparent 60%),
+    radial-gradient(900px 700px at 90% 110%, rgba(var(--gold-rgb),0.04), transparent 55%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -143,12 +235,12 @@ body::after {
 .hud-panel {
   position: relative;
   background:
-    linear-gradient(180deg, rgba(75, 255, 126, 0.03), transparent 45%),
+    linear-gradient(180deg, rgba(var(--phos-rgb),0.03), transparent 45%),
     var(--color-panel);
   border: 1px solid var(--color-edge);
-  border-radius: 4px;
+  border-radius: var(--panel-radius);
   box-shadow:
-    inset 0 0 22px rgba(75, 255, 126, 0.04),
+    inset 0 0 22px rgba(var(--phos-rgb),0.04),
     0 0 0 1px rgba(0, 0, 0, 0.4);
 }
 
@@ -158,8 +250,8 @@ body::after {
 .hud-panel-hover:hover {
   border-color: var(--color-edge2);
   box-shadow:
-    inset 0 0 26px rgba(75, 255, 126, 0.07),
-    0 0 12px -4px rgba(75, 255, 126, 0.25);
+    inset 0 0 26px rgba(var(--phos-rgb),0.07),
+    0 0 12px -4px rgba(var(--phos-rgb),0.25);
 }
 
 /* corner ticks on key panels (legacy .clip-corner name) */
@@ -221,8 +313,8 @@ body::after {
 
 /* boss alert pulse */
 @keyframes boss-pulse {
-  0%, 100% { box-shadow: inset 0 0 20px rgba(255, 71, 71, 0.10), 0 0 0 1px rgba(255, 71, 71, 0.55), 0 0 20px -6px rgba(255, 71, 71, 0.5); }
-  50% { box-shadow: inset 0 0 26px rgba(255, 71, 71, 0.16), 0 0 0 1px rgba(255, 71, 71, 0.9), 0 0 34px -2px rgba(255, 71, 71, 0.75); }
+  0%, 100% { box-shadow: inset 0 0 20px rgba(var(--boss-rgb),0.10), 0 0 0 1px rgba(var(--boss-rgb),0.55), 0 0 20px -6px rgba(var(--boss-rgb),0.5); }
+  50% { box-shadow: inset 0 0 26px rgba(var(--boss-rgb),0.16), 0 0 0 1px rgba(var(--boss-rgb),0.9), 0 0 34px -2px rgba(var(--boss-rgb),0.75); }
 }
 .boss-glow {
   animation: boss-pulse 2.4s ease-in-out infinite;
@@ -230,7 +322,7 @@ body::after {
 
 /* scrollbar as terminal gutter */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: rgba(75, 255, 126, 0.03); }
+::-webkit-scrollbar-track { background: rgba(var(--phos-rgb),0.03); }
 ::-webkit-scrollbar-thumb {
   background: var(--color-edge);
   border: 2px solid var(--color-void);
@@ -238,7 +330,7 @@ body::after {
 ::-webkit-scrollbar-thumb:hover { background: var(--color-edge2); }
 
 ::selection {
-  background: rgba(75, 255, 126, 0.28);
+  background: rgba(var(--phos-rgb),0.28);
   color: #eaffef;
 }
 
@@ -357,8 +449,8 @@ input[type="range"]::-webkit-slider-thumb {
   animation: timer-glow 2.4s ease-in-out infinite;
 }
 @keyframes timer-glow {
-  0%, 100% { text-shadow: 0 0 10px rgba(75,255,126,0.35); }
-  50% { text-shadow: 0 0 22px rgba(75,255,126,0.75); }
+  0%, 100% { text-shadow: 0 0 10px rgba(var(--phos-rgb),0.35); }
+  50% { text-shadow: 0 0 22px rgba(var(--phos-rgb),0.75); }
 }
 
 /* the title aura pulses slowly */
@@ -398,4 +490,85 @@ input[type="range"]::-webkit-slider-thumb {
 /* progress bars ease toward their new fill instead of snapping */
 .xp-fill, .xp-track > div {
   transition: width 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ============================================================
+   Non-CRT themes: the tube effects are gated, not deleted. Everything below
+   only applies when data-theme is slate or blossom.
+   ============================================================ */
+:root:not([data-theme="crt"]) body::before,
+:root:not([data-theme="crt"]) body::after {
+  display: none;
+}
+:root:not([data-theme="crt"]) .font-display {
+  letter-spacing: 0.01em;
+  text-shadow: none;
+  font-weight: 600;
+}
+:root:not([data-theme="crt"]) .glow,
+:root:not([data-theme="crt"]) .timer-pulse {
+  text-shadow: none;
+  animation: none;
+}
+:root:not([data-theme="crt"]) .cursor-blink::after {
+  display: none;
+}
+:root:not([data-theme="crt"]) .clip-corner::before,
+:root:not([data-theme="crt"]) .clip-corner::after {
+  display: none;
+}
+:root:not([data-theme="crt"]) .hud-panel {
+  background: var(--color-panel);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px -16px rgba(0, 0, 0, 0.6);
+}
+:root:not([data-theme="crt"]) .hud-panel-hover:hover {
+  border-color: var(--color-edge2);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 12px 28px -14px rgba(0, 0, 0, 0.7);
+}
+/* smooth bars instead of segmented phosphor cells */
+:root:not([data-theme="crt"]) .xp-track {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+}
+:root:not([data-theme="crt"]) .xp-fill {
+  border-radius: 999px;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+:root:not([data-theme="crt"]) .xp-fill::after {
+  animation: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent);
+}
+:root:not([data-theme="crt"]) .btn-term {
+  border-radius: calc(var(--panel-radius) - 2px);
+  text-transform: none;
+  letter-spacing: 0;
+}
+/* the [ command ] brackets are a CRT affordance */
+:root:not([data-theme="crt"]) .btn-term > span[aria-hidden] {
+  display: none;
+}
+:root:not([data-theme="crt"]) ::-webkit-scrollbar-track {
+  background: transparent;
+}
+:root:not([data-theme="crt"]) input[type="range"]::-webkit-slider-thumb {
+  border-radius: 999px;
+  width: 16px;
+  height: 16px;
+  box-shadow: none;
+}
+
+/* SLATE: flat, quiet ground */
+:root[data-theme="slate"] body {
+  background-image: none;
+}
+
+/* BLOSSOM: a soft pink/lavender bloom on the plum ground */
+:root[data-theme="blossom"] body {
+  background-image:
+    radial-gradient(900px 600px at 15% -10%, rgba(255, 143, 200, 0.14), transparent 60%),
+    radial-gradient(800px 600px at 100% 100%, rgba(163, 147, 255, 0.12), transparent 55%);
+}
+:root[data-theme="blossom"] .hud-panel {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 10px 30px -18px rgba(255, 143, 200, 0.35);
 }

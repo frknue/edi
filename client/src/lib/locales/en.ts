@@ -6,6 +6,10 @@ export const en = {
   "app.tagline": "life-rpg terminal",
   "app.somethingWentWrong": "Something went wrong",
   "app.langToggleTitle": "Language: {lang} — click to switch",
+  "app.themeToggleTitle": "Theme: {theme} — click to switch",
+  "theme.crt": "CRT terminal",
+  "theme.slate": "Slate",
+  "theme.blossom": "Blossom",
 
   "nav.dashboard": "Dashboard",
   "nav.quests": "Quests",

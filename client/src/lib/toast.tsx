@@ -1,3 +1,4 @@
+import { palette } from "./themes";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { CheckCircle2, TriangleAlert, X } from "lucide-react";
@@ -30,11 +31,11 @@ function subscribe(l: Listener): () => void {
   };
 }
 
-const styles: Record<ToastType, { color: string; Icon: typeof CheckCircle2 }> = {
+const styles = (): Record<ToastType, { color: string; Icon: typeof CheckCircle2 }> => ({
   error: { color: "#ff8a80", Icon: TriangleAlert },
-  success: { color: "#4bff7e", Icon: CheckCircle2 },
-  info: { color: "#35e0ff", Icon: CheckCircle2 },
-};
+  success: { color: palette().phos, Icon: CheckCircle2 },
+  info: { color: palette().focus, Icon: CheckCircle2 },
+});
 
 export function Toaster() {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -56,7 +57,7 @@ export function Toaster() {
     <div className="pointer-events-none fixed bottom-20 right-4 z-[60] flex w-[min(92vw,360px)] flex-col gap-2 lg:bottom-4">
       <AnimatePresence>
         {toasts.map((t) => {
-          const s = styles[t.type];
+          const s = styles()[t.type];
           const Icon = s.Icon;
           return (
             <motion.div

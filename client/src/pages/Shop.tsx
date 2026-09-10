@@ -161,8 +161,8 @@ function ShopItemModal({
             id="shop-item-modal-status"
             className="rounded-sm border px-3 py-2.5 text-xs"
             style={{
-              borderColor: affordable ? "var(--color-edge2)" : "rgba(255,176,0,0.3)",
-              background: affordable ? "rgba(75,255,126,0.04)" : "rgba(255,176,0,0.04)",
+              borderColor: affordable ? "var(--color-edge2)" : "rgba(var(--gold-rgb),0.3)",
+              background: affordable ? "rgba(var(--phos-rgb),0.04)" : "rgba(var(--gold-rgb),0.04)",
               color: affordable ? "var(--color-muted)" : "var(--color-gold)",
             }}
           >

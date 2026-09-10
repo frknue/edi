@@ -8,6 +8,10 @@ export const de: Record<MessageKey, string> = {
   "app.tagline": "life-rpg terminal",
   "app.somethingWentWrong": "Etwas ist schiefgelaufen",
   "app.langToggleTitle": "Sprache: {lang} — klicken zum Wechseln",
+  "app.themeToggleTitle": "Design: {theme} — klicken zum Wechseln",
+  "theme.crt": "CRT-Terminal",
+  "theme.slate": "Schiefer",
+  "theme.blossom": "Blüte",
 
   "nav.dashboard": "Dashboard",
   "nav.quests": "Quests",

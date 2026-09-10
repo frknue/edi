@@ -8,7 +8,7 @@ import { SuggestionsPage } from "./pages/Suggestions";
 import { ShopPage } from "./pages/Shop";
 import { DailyMoodLog } from "./components/DailyMoodLog";
 import { Supplements } from "./components/Supplements";
-import { LanguageToggle, Logo, Sidebar } from "./components/Sidebar";
+import { LanguageToggle, Logo, Sidebar, ThemeToggle } from "./components/Sidebar";
 import { useI18n } from "./lib/i18n";
 import type { View } from "./components/Sidebar";
 import { AccountInviteButton } from "./components/AccountInvite";
@@ -67,6 +67,7 @@ export default function App() {
         <div className="flex items-center gap-2">
           <AccountInviteButton compact />
           <LanguageToggle />
+          <ThemeToggle />
         </div>
       </header>
 

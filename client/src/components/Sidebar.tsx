@@ -11,6 +11,7 @@ import {
   ChevronsRight,
   LayoutDashboard,
   LogOut,
+  Palette,
   ScrollText,
   Store,
   Wrench,
@@ -18,6 +19,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import type { CSSProperties } from "react";
 import { LOCALES, localeLabel, useI18n } from "../lib/i18n";
+import { THEMES, themeLabelKey, useTheme } from "../lib/themes";
 import type { MessageKey } from "../lib/locales/en";
 import { AccountInviteButton } from "./AccountInvite";
 
@@ -51,7 +53,7 @@ export function Logo({ collapsed = false }: { collapsed?: boolean }) {
         style={{
           borderColor: "var(--color-phos)",
           color: "var(--color-phos)",
-          boxShadow: "0 0 14px -4px rgba(75,255,126,0.8), inset 0 0 10px rgba(75,255,126,0.12)",
+          boxShadow: "0 0 14px -4px rgba(var(--phos-rgb),0.8), inset 0 0 10px rgba(var(--phos-rgb),0.12)",
         }}
       >
         &gt;_
@@ -72,7 +74,7 @@ export function Logo({ collapsed = false }: { collapsed?: boolean }) {
 }
 
 const goldStyle = (active: boolean): CSSProperties => ({
-  background: active ? "rgba(255,176,0,0.08)" : "transparent",
+  background: active ? "rgba(var(--gold-rgb),0.08)" : "transparent",
   color: active ? "var(--color-goldhi)" : "var(--color-muted)",
 });
 
@@ -196,6 +198,7 @@ export function Sidebar({
       {!collapsed && <SessionCard />}
       <div className={`mt-3 flex items-center gap-2 ${collapsed ? "flex-col" : ""}`}>
         <LanguageToggle compact={collapsed} />
+        <ThemeToggle compact={collapsed} />
         <button
           onClick={onToggle}
           data-testid="sidebar-toggle"
@@ -269,6 +272,29 @@ export function LanguageToggle({ compact = false }: { compact?: boolean }) {
       }`}
     >
       {locale}
+    </button>
+  );
+}
+
+// ThemeToggle cycles the visual theme (a per-device preference, see
+// lib/themes.ts). Like the language, a switch remounts the tree.
+export function ThemeToggle({ compact = false }: { compact?: boolean }) {
+  const { theme, setTheme } = useTheme();
+  const { t } = useI18n();
+  const next = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+  const title = t("app.themeToggleTitle", { theme: t(themeLabelKey[theme]) });
+  return (
+    <button
+      onClick={() => setTheme(next)}
+      data-testid="theme-toggle"
+      data-theme-active={theme}
+      title={title}
+      aria-label={title}
+      className={`flex items-center justify-center rounded-lg border border-edge text-faint transition-colors hover:text-muted ${
+        compact ? "w-full py-2" : "px-3 py-2"
+      }`}
+    >
+      <Palette size={14} />
     </button>
   );
 }

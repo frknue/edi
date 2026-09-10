@@ -60,7 +60,7 @@ export function QuestCard({
       }`}
       style={
         running
-          ? { borderColor: "var(--color-phos)", boxShadow: "0 0 18px -6px rgba(75,255,126,0.7)" }
+          ? { borderColor: "var(--color-phos)", boxShadow: "0 0 18px -6px rgba(var(--phos-rgb),0.7)" }
           : isRecovery
             ? { background: "linear-gradient(180deg, rgba(46,230,200,0.06), rgba(255,255,255,0)), var(--color-panel)" }
             : undefined
@@ -121,7 +121,7 @@ export function QuestCard({
             {typeof quest.projected_xp === "number" && quest.projected_xp > 0 && isActive && (
               <span
                 className="tabnum whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-semibold"
-                style={{ borderColor: "rgba(255,176,0,0.45)", color: "var(--color-goldhi)" }}
+                style={{ borderColor: "rgba(var(--gold-rgb),0.45)", color: "var(--color-goldhi)" }}
                 title={t("dash.paysNowTitle")}
                 data-testid={`pays-${quest.id}`}
               >
@@ -340,7 +340,7 @@ function BossHP({ quest }: { quest: Quest }) {
             className="h-2 flex-1 rounded-[2px] transition-all"
             style={{
               background: st.done ? "rgba(255,255,255,0.06)" : "var(--color-boss)",
-              boxShadow: st.done ? undefined : "0 0 8px rgba(255,71,71,0.6)",
+              boxShadow: st.done ? undefined : "0 0 8px rgba(var(--boss-rgb),0.6)",
             }}
           />
         ))}

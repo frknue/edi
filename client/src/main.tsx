@@ -4,6 +4,7 @@ import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react
 import { RewardProvider } from "./lib/reward";
 import { AiConsentProvider } from "./lib/aiConsent";
 import { I18nProvider, t } from "./lib/i18n";
+import { ThemeProvider } from "./lib/themes";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { TokenGate } from "./components/TokenGate";
 import { Toaster, pushToast } from "./lib/toast";
@@ -29,20 +30,25 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
-        {/* key={locale}: a language switch remounts the whole tree so every
-            label (including module-level lookups) repaints in one go. */}
-        <I18nProvider>
-          {(locale) => (
-            <RewardProvider key={locale}>
-              <AiConsentProvider>
-                <TokenGate>
-                  <App />
-                </TokenGate>
-              </AiConsentProvider>
-              <Toaster />
-            </RewardProvider>
+        {/* key={locale:theme}: a language or theme switch remounts the whole
+            tree so every label and getter-based color (including module-level
+            lookups) repaints in one go. */}
+        <ThemeProvider>
+          {(theme) => (
+            <I18nProvider>
+              {(locale) => (
+                <RewardProvider key={`${locale}:${theme}`}>
+                  <AiConsentProvider>
+                    <TokenGate>
+                      <App />
+                    </TokenGate>
+                  </AiConsentProvider>
+                  <Toaster />
+                </RewardProvider>
+              )}
+            </I18nProvider>
           )}
-        </I18nProvider>
+        </ThemeProvider>
       </ErrorBoundary>
     </QueryClientProvider>
   </StrictMode>,

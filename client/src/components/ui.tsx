@@ -26,7 +26,7 @@ export function ProgressBar({
           width: `${width}%`,
           height: "100%",
           borderRadius: 999,
-          background: `linear-gradient(90deg, ${color}cc, ${color})`,
+          background: `linear-gradient(90deg, color-mix(in srgb, ${color} 80%, transparent), ${color})`,
           boxShadow: `0 0 12px -2px ${color}`,
           transition: "width 0.7s cubic-bezier(0.16,1,0.3,1)",
         }}
@@ -51,9 +51,9 @@ export function Btn({
     "btn-term inline-flex items-center justify-center gap-2 rounded-sm px-3.5 py-2 text-[13px] font-medium uppercase tracking-wide transition-all duration-100 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none";
   const variants: Record<BtnVariant, string> = {
     primary:
-      "border border-[var(--color-gold)] bg-[rgba(255,176,0,0.08)] text-[var(--color-goldhi)] shadow-[0_0_14px_-6px_rgba(255,176,0,0.8)] hover:bg-[var(--color-gold)] hover:text-[#1a1200] hover:shadow-[0_0_18px_-2px_rgba(255,176,0,0.9)] active:scale-[0.99]",
+      "border border-[var(--color-gold)] bg-[rgba(var(--gold-rgb),0.08)] text-[var(--color-goldhi)] shadow-[0_0_14px_-6px_rgba(var(--gold-rgb),0.8)] hover:bg-[var(--color-gold)] hover:text-[#1a1200] hover:shadow-[0_0_18px_-2px_rgba(var(--gold-rgb),0.9)] active:scale-[0.99]",
     ghost:
-      "border border-edge bg-transparent text-ink hover:border-edge2 hover:bg-[rgba(75,255,126,0.06)] active:scale-[0.99]",
+      "border border-edge bg-transparent text-ink hover:border-edge2 hover:bg-[rgba(var(--phos-rgb),0.06)] active:scale-[0.99]",
     danger:
       "border border-[#ff4747]/50 bg-[#ff4747]/08 text-[#ff8a80] hover:bg-[#ff4747] hover:text-[#1a0000] active:scale-[0.99]",
     soft: "border border-transparent bg-white/[0.04] text-muted hover:text-ink hover:bg-white/[0.07] active:scale-[0.99]",

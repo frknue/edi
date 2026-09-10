@@ -5,6 +5,7 @@
 // by default; "celebrate" jumps, "crit" shakes, "focus" leans in and works
 // (active quest mode) — see index.css keyframes.
 
+import { palette } from "../lib/themes";
 import { t } from "../lib/i18n";
 
 const W = 16;
@@ -103,7 +104,7 @@ const crownMap = [
 ];
 
 function tunicColor(level: number): string {
-  if (level >= 15) return "#ffb000"; // gold
+  if (level >= 15) return palette().gold; // gold
   if (level >= 10) return "#b98aff"; // epic purple
   if (level >= 5) return "#34d0ff"; // rare blue
   return "#2fbf5f"; // starter green
@@ -127,7 +128,7 @@ export function PixelHero({
     b: tunicColor(level),
     d: "#123020",
     w: "#cfd8dc",
-    g: "#ffb000",
+    g: palette().gold,
     p: "#34d0ff",
     m: "#b0bec5",
     c: "#ffd700",
@@ -170,7 +171,7 @@ export function PixelHero({
             position: "absolute",
             inset: "-12%",
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(255,176,0,0.35), transparent 65%)",
+            background: "radial-gradient(circle, rgba(var(--gold-rgb),0.35), transparent 65%)",
           }}
         />
       )}

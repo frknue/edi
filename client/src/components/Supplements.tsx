@@ -77,7 +77,7 @@ function ProgressPanel({
         {today.bonus_awarded ? (
           <span
             className="inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider"
-            style={{ background: "rgba(255,176,0,0.12)", color: "var(--color-goldhi)" }}
+            style={{ background: "rgba(var(--gold-rgb),0.12)", color: "var(--color-goldhi)" }}
             data-testid="supplement-bonus-paid"
           >
             <Star size={12} /> {t("supps.bonusPaid")}
@@ -152,7 +152,7 @@ function SupplementRow({ supplement: sp }: { supplement: Supplement }) {
         className="grid h-9 w-9 shrink-0 place-items-center rounded-sm border transition-colors disabled:cursor-default"
         style={{
           borderColor: sp.taken ? "var(--color-health)" : "var(--color-edge2)",
-          background: sp.taken ? "rgba(75,255,126,0.14)" : "transparent",
+          background: sp.taken ? "rgba(var(--phos-rgb),0.14)" : "transparent",
           color: sp.taken ? "var(--color-health)" : "var(--color-faint)",
         }}
       >
@@ -380,7 +380,7 @@ function HistoryPanel() {
                     : d?.bonus
                       ? "var(--color-gold)"
                       : d
-                        ? `rgba(75,255,126,${(0.25 + (d.taken / maxTaken) * 0.6).toFixed(2)})`
+                        ? `rgba(var(--phos-rgb),${(0.25 + (d.taken / maxTaken) * 0.6).toFixed(2)})`
                         : "rgba(255,255,255,0.05)";
                   return (
                     <div
@@ -401,8 +401,8 @@ function HistoryPanel() {
             ))}
           </div>
           <div className="flex items-center gap-1 text-[9px] text-faint">
-            <span className="h-[8px] w-[8px] rounded-[2px]" style={{ background: "rgba(75,255,126,0.4)" }} />
-            <span className="h-[8px] w-[8px] rounded-[2px]" style={{ background: "rgba(75,255,126,0.85)" }} />
+            <span className="h-[8px] w-[8px] rounded-[2px]" style={{ background: "rgba(var(--phos-rgb),0.4)" }} />
+            <span className="h-[8px] w-[8px] rounded-[2px]" style={{ background: "rgba(var(--phos-rgb),0.85)" }} />
             <span className="h-[8px] w-[8px] rounded-[2px]" style={{ background: "var(--color-gold)" }} />
             <span>★</span>
           </div>

@@ -153,7 +153,7 @@ export function DashboardPage({
       {data.rest_mode && (
         <div
           className="flex items-center justify-between rounded-lg border px-4 py-3"
-          style={{ borderColor: "var(--color-gold)", background: "rgba(255,176,0,0.06)" }}
+          style={{ borderColor: "var(--color-gold)", background: "rgba(var(--gold-rgb),0.06)" }}
           data-testid="rest-banner"
         >
           <div className="flex items-center gap-2 text-sm" style={{ color: "var(--color-goldhi)" }}>
@@ -347,7 +347,7 @@ function NextMove({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       className="hud-panel clip-corner relative overflow-hidden p-5 sm:p-6"
-      style={{ background: "linear-gradient(120deg, rgba(255,176,0,0.12), rgba(53,224,255,0.06)), var(--color-panel)" }}
+      style={{ background: "linear-gradient(120deg, rgba(var(--gold-rgb),0.12), rgba(53,224,255,0.06)), var(--color-panel)" }}
       data-testid="next-move"
       data-quest-id={current.id}
     >
@@ -455,7 +455,7 @@ function Campfire({ data }: { data: Dashboard }) {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       className="hud-panel clip-corner relative overflow-hidden p-5 sm:p-6"
-      style={{ background: "linear-gradient(120deg, rgba(255,140,40,0.12), rgba(255,176,0,0.05)), var(--color-panel)", borderColor: "rgba(255,160,60,0.45)" }}
+      style={{ background: "linear-gradient(120deg, rgba(255,140,40,0.12), rgba(var(--gold-rgb),0.05)), var(--color-panel)", borderColor: "rgba(255,160,60,0.45)" }}
       data-testid="campfire"
     >
       <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
@@ -542,7 +542,7 @@ function RunningQuest({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       className="hud-panel clip-corner relative overflow-hidden p-5 sm:p-6"
-      style={{ background: "linear-gradient(120deg, rgba(75,255,126,0.10), rgba(53,224,255,0.05)), var(--color-panel)", borderColor: "rgba(75,255,126,0.45)" }}
+      style={{ background: "linear-gradient(120deg, rgba(var(--phos-rgb),0.10), rgba(53,224,255,0.05)), var(--color-panel)", borderColor: "rgba(var(--phos-rgb),0.45)" }}
       data-testid="running-quest"
       data-quest-id={session.quest_id}
     >
@@ -583,7 +583,7 @@ function RunningQuest({
       <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
         <div
           className="h-full rounded-full"
-          style={{ width: `${Math.max(2, block * 100)}%`, background: "linear-gradient(90deg, rgba(75,255,126,0.5), var(--color-phos))", transition: "width 1s linear" }}
+          style={{ width: `${Math.max(2, block * 100)}%`, background: "linear-gradient(90deg, rgba(var(--phos-rgb),0.5), var(--color-phos))", transition: "width 1s linear" }}
         />
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">

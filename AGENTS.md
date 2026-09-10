@@ -531,6 +531,26 @@ contract is checked by `TestLiveConverseToolCall` (`EDI_LIVE_TEST=1`).
   fails silently. New mutations get this for free — don't swallow errors.
 - Tailwind **v4** (CSS-first): design tokens are in `@theme` in `src/index.css`; there
   is no `tailwind.config.js`. Attribute/quest colors + icons live in `lib/theme.ts`.
+- **Themes** (`lib/themes.ts`): `crt` (default, the CRT terminal), `slate`
+  (neutral graphite, blue accent, sans type) and `blossom` (plum + pink,
+  rounded type). All three are dark. A theme is `data-theme` on `<html>`
+  (set by the inline script in `index.html` before first paint, then by
+  `setTheme`), stored per device in `localStorage edi.theme`; the tree
+  remounts on switch (`key={locale:theme}` in `main.tsx`) exactly like a
+  language change. `index.css` keeps the `@theme` block as the CRT values and
+  overrides only token VALUES per theme in `:root[data-theme="…"]` blocks
+  (never rename a token); tube effects (scanlines, glow, segmented bars,
+  `[ ]` button brackets) are gated behind `:root:not([data-theme="crt"])`,
+  not deleted. Rules: never hardcode phosphor/amber/boss tints — use
+  `rgba(var(--phos-rgb),a)` / `--gold-rgb` / `--boss-rgb` (no spaces inside
+  Tailwind arbitrary values) or `var(--color-*)`; anything that appends alpha
+  bytes to a hex (`${meta.color}1a`) must take its hex from `palette()` in
+  `themes.ts` (the `theme.ts` getters already do), because `var()` cannot be
+  concatenated. The toggle (`ThemeToggle` in `Sidebar.tsx`,
+  `data-testid="theme-toggle"`) sits next to the language toggle in the
+  sidebar footer and the mobile header. Adding a theme = a `:root[data-theme]`
+  block, a `Palette` entry + `chromeColor`, the `Theme` union/`THEMES`, the
+  `index.html` allowlist, and a `theme.<id>` label in all three locales.
 - Reward feedback (XP/level-up overlay) is `lib/reward.tsx` — call `celebrate(result)`
   from a completion `onSuccess`.
 - **No mock state.** The UI must read real backend data and surface real loading/error

@@ -27,7 +27,7 @@ function DailyRing({ ratio, completed, goal }: { ratio: number; completed: numbe
           initial={{ strokeDashoffset: c }}
           animate={{ strokeDashoffset: offset }}
           transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-          style={{ filter: cleared ? "drop-shadow(0 0 6px rgba(75,255,126,0.8))" : "drop-shadow(0 0 5px rgba(255,176,0,0.7))" }}
+          style={{ filter: cleared ? "drop-shadow(0 0 6px rgba(var(--phos-rgb),0.8))" : "drop-shadow(0 0 5px rgba(var(--gold-rgb),0.7))" }}
         />
       </svg>
       <div className="absolute text-center">
@@ -56,7 +56,7 @@ function ActiveDays({ days }: { days: ActiveDay[] }) {
             className="block h-3 w-3 rounded-[2px] transition-colors"
             style={{
               background: d.active ? "var(--color-phos)" : "rgba(255,255,255,0.06)",
-              boxShadow: d.active ? "0 0 6px rgba(75,255,126,0.6)" : undefined,
+              boxShadow: d.active ? "0 0 6px rgba(var(--phos-rgb),0.6)" : undefined,
               outline: d.today ? "1px solid var(--color-goldhi)" : undefined,
               outlineOffset: 1,
             }}
@@ -100,7 +100,7 @@ export function CharacterHeader({
     >
       <div
         className="pointer-events-none absolute -right-10 -top-16 h-56 w-56 rounded-full"
-        style={{ background: "radial-gradient(circle, rgba(255,176,0,0.18), transparent 70%)" }}
+        style={{ background: "radial-gradient(circle, rgba(var(--gold-rgb),0.18), transparent 70%)" }}
       />
       <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center">
         {/* identity: the hero + one level */}
@@ -110,7 +110,7 @@ export function CharacterHeader({
             className="relative grid h-[64px] w-[68px] place-items-center rounded-sm border"
             style={{
               borderColor: "var(--color-gold)",
-              boxShadow: "0 0 22px -6px rgba(255,176,0,0.7), inset 0 0 16px rgba(255,176,0,0.10)",
+              boxShadow: "0 0 22px -6px rgba(var(--gold-rgb),0.7), inset 0 0 16px rgba(var(--gold-rgb),0.10)",
             }}
           >
             <span className="absolute -left-px -top-px h-2.5 w-2.5 border-l-2 border-t-2" style={{ borderColor: "var(--color-goldhi)" }} />
@@ -156,7 +156,7 @@ export function CharacterHeader({
               </span>
               <span className="tabnum">{t("hero.streakSmall", { n: streak.current, best: streak.longest })}</span>
               {mendedToday && (
-                <span className="rounded px-1 font-display text-[9px] uppercase tracking-wider" style={{ color: "var(--color-phos)", border: "1px solid rgba(75,255,126,0.4)" }} data-testid="streak-mended">
+                <span className="rounded px-1 font-display text-[9px] uppercase tracking-wider" style={{ color: "var(--color-phos)", border: "1px solid rgba(var(--phos-rgb),0.4)" }} data-testid="streak-mended">
                   {t("hero.mended")}
                 </span>
               )}

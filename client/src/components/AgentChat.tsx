@@ -210,7 +210,7 @@ function Bubble({ message: m }: { message: ChatMessage }) {
           className="inline-block whitespace-pre-wrap rounded-md px-3 py-2 text-left text-sm leading-relaxed text-ink"
           style={
             mine
-              ? { background: "rgba(255,176,0,0.10)", border: "1px solid rgba(255,176,0,0.25)" }
+              ? { background: "rgba(var(--gold-rgb),0.10)", border: "1px solid rgba(var(--gold-rgb),0.25)" }
               : { background: "rgba(185,138,255,0.08)", border: "1px solid rgba(185,138,255,0.25)" }
           }
         >

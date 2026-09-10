@@ -65,7 +65,7 @@ export function TrophyCase() {
                     className="rounded-lg border p-3"
                     style={{
                       borderColor: a.earned ? "var(--color-gold)" : "var(--color-edge)",
-                      background: a.earned ? "rgba(255,176,0,0.06)" : "transparent",
+                      background: a.earned ? "rgba(var(--gold-rgb),0.06)" : "transparent",
                       opacity: a.earned ? 1 : 0.55,
                     }}
                   >

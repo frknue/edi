@@ -636,7 +636,7 @@ function ThoughtEditor({
                 className="block w-full rounded-lg border border-edge bg-white/[0.02] p-2 text-left transition-colors hover:border-[var(--color-health)]/50"
               >
                 <span className="mb-0.5 inline-block rounded px-1.5 py-0.5 text-[9px] uppercase tracking-wide"
-                  style={{ background: "rgba(75,255,126,0.14)", color: "var(--color-health)" }}>
+                  style={{ background: "rgba(var(--phos-rgb),0.14)", color: "var(--color-health)" }}>
                   {c.technique}
                 </span>
                 <p className="text-[13px] leading-snug text-ink">{c.text}</p>

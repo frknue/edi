@@ -271,7 +271,7 @@ function ConnectedBar({ status }: { status: OpenAIStatus }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-xl border border-edge bg-white/[0.02] px-4 py-2.5">
       <div className="flex items-center gap-2 text-sm">
-        <span className="grid h-6 w-6 place-items-center rounded-full" style={{ background: "rgba(75,255,126,0.16)", color: "#4bff7e" }}>
+        <span className="grid h-6 w-6 place-items-center rounded-full" style={{ background: "rgba(var(--phos-rgb),0.16)", color: "var(--color-phos)" }}>
           <Check size={13} />
         </span>
         <span className="text-ink">{status.email || t("agent.chatgptConnected")}</span>
@@ -463,7 +463,7 @@ function TelegramCard() {
         <div className="flex items-center gap-2 text-sm font-medium text-ink">
           <Send size={15} style={{ color: "#34d0ff" }} /> Telegram
           {tg.linked && (
-            <span className="rounded px-1.5 py-0.5 text-[10px] uppercase" style={{ background: "rgba(75,255,126,0.14)", color: "var(--color-phos)" }}>
+            <span className="rounded px-1.5 py-0.5 text-[10px] uppercase" style={{ background: "rgba(var(--phos-rgb),0.14)", color: "var(--color-phos)" }}>
               {t("tg.linked")}
             </span>
           )}
