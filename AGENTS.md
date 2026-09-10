@@ -439,6 +439,41 @@ web `components/Wardrobe.tsx` (the Gear tab of the Shop page, default tab,
 remembered per device; the dashboard hero is a button into it). Telegram:
 not a pocket action — free-text chat reaches it through the tools.
 
+The shop's retention hooks are the honest ones only (no countdown pressure,
+no gacha, no real money — gold comes from quests):
+- **Gear goal** (`app_settings gear_goal` = catalog key): the one piece the
+  user is saving for. `SetGearGoal` (unknown → 404, owned → 400, locked is
+  fine — saving while leveling is the point), `ClearGearGoal`, and it
+  clears itself inside `BuyCosmetic` when that piece is bought; an owned
+  or unknown goal resolves to nil, never an error. Surfaced as
+  `Dashboard.gear_goal` / `CosmeticCatalog.goal` `{item, balance, missing,
+  progress}`; `POST|DELETE /api/cosmetics/goal`, tools `set_gear_goal` /
+  `clear_gear_goal`, `edi-cli gear goal <key>|none`, the goal bar in the
+  fitting room and the mini bar under the dashboard gold (`TestGearGoal`).
+- **Daily deal**: one UNOWNED piece at `dealPercent` (25) off for the local
+  day, picked by `dailyDealKey(userID, owned, day)` (rendezvous hashing:
+  lowest FNV of user+date+key among unowned pieces, so buying any OTHER
+  piece leaves it in place all day; only a new day or buying the deal
+  itself moves it; a level-up does not, and a locked deal is a tease for
+  the next tier). `CosmeticItem.price` is the effective price,
+  `list_price` the catalog one, `deal` flags it; `BuyCosmetic` charges
+  through the same function (label "… (daily deal −25%)"), so the price
+  shown is the price paid. Tests must read prices from `ListCosmetics`
+  rather than hardcode them (`TestDailyDealDeterministicAndCharged`).
+- **Approachability numbers** on the catalog: `next_unlock {level, xp_to_go,
+  keys}` (the next catalog TIER above the level, distance measured from
+  `XPForLevel(tier)`, nil when all open), `avg_quest_gold` (`store.AvgGoldPerQuest`, ≥1; the web
+  turns "26g short" into "≈ N quests away"), `owned_count/total` and a
+  `set` per piece (ranger, ironclad, arcane, dragon, void, dawn) for the
+  collection meter. A purchase opens the ceremony modal (`AcquiredModal`,
+  3D hero wearing the piece).
+- **Try-on is pinned, not hover-only**: clicking a piece pins it on the hero
+  for its slot (one per slot, so an outfit can be judged), hovering only
+  peeks while the pointer rests; clicking the pinned or the actually
+  equipped piece restores the slot; ×/Escape clears; a pin drops once that
+  piece is bought. Pins are client state (`Hero3D` takes `preview:
+  EquippedCosmetic[]`); the server loadout stays the truth.
+
 The hero itself is `components/Hero.tsx`: a lazily loaded three.js voxel
 figure (`Hero3D.tsx`, extruded from the shared pixel sheet in
 `lib/heroSprite.ts`, gear built as real geometry per slot) with `PixelHero`

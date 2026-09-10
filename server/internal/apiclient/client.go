@@ -356,6 +356,17 @@ func (c *Client) EquipCosmetic(key string) ([]models.EquippedCosmetic, error) {
 	return out, err
 }
 
+func (c *Client) SetGearGoal(key string) (*models.GearGoal, error) {
+	var out models.GearGoal
+	err := c.do(http.MethodPost, "/api/cosmetics/goal", map[string]string{"key": key}, &out)
+	return &out, err
+}
+
+func (c *Client) ClearGearGoal() error {
+	var out map[string]bool
+	return c.do(http.MethodDelete, "/api/cosmetics/goal", nil, &out)
+}
+
 func (c *Client) UnequipCosmetic(slot string) ([]models.EquippedCosmetic, error) {
 	var out []models.EquippedCosmetic
 	err := c.do(http.MethodPost, "/api/cosmetics/unequip", map[string]string{"slot": slot}, &out)

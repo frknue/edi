@@ -667,6 +667,30 @@ func (h *Handlers) unequipCosmetic(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, loadout)
 }
 
+func (h *Handlers) setGearGoal(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Key string `json:"key"`
+	}
+	if err := decodeBody(r, &in); err != nil {
+		writeError(w, err)
+		return
+	}
+	goal, err := h.forUser(r).SetGearGoal(in.Key)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, goal)
+}
+
+func (h *Handlers) clearGearGoal(w http.ResponseWriter, r *http.Request) {
+	if err := h.forUser(r).ClearGearGoal(); err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"cleared": true})
+}
+
 func (h *Handlers) listGoldEvents(w http.ResponseWriter, r *http.Request) {
 	events, err := h.forUser(r).ListGoldEvents(queryInt(r, "limit", 30), r.URL.Query().Get("source"))
 	if err != nil {

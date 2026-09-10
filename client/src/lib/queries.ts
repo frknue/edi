@@ -577,6 +577,22 @@ export function useUnequipCosmetic() {
   });
 }
 
+export function useSetGearGoal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (key: string) => api.setGearGoal(key),
+    onSuccess: () => invalidateWardrobe(qc),
+  });
+}
+
+export function useClearGearGoal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.clearGearGoal(),
+    onSuccess: () => invalidateWardrobe(qc),
+  });
+}
+
 export function useWardAttribute() {
   const qc = useQueryClient();
   return useMutation({

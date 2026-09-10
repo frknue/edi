@@ -31,7 +31,7 @@
 //	shop-add --name N --price P     Add a reward to the shop
 //	buy <id>                        Purchase a shop item (spends gold)
 //	gold                            Gold balance + recent ledger
-//	gear [buy|equip|unequip <key|slot>]  Hero wardrobe: list / buy / wear cosmetic gear
+//	gear [buy|equip|unequip|goal <key|slot>]  Hero wardrobe: list / buy / wear / save for cosmetic gear
 //	ward <attribute>                Buy a 7-day decay ward for an attribute (30g, hardcore mode)
 //	rest [on|off]                   Show / toggle rest mode (nudges stand down; pauses decay in hardcore)
 //	hardcore [on|off]               Show / toggle hardcore mode (decay + daily XP stakes; off by default)
@@ -833,7 +833,13 @@ func cmdGear(c *apiclient.Client, args []string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Gold: %dg   Level: %d\n", cat.Balance, cat.Level)
+		fmt.Printf("Gold: %dg   Level: %d   Collected: %d/%d\n", cat.Balance, cat.Level, cat.OwnedCount, cat.Total)
+		if cat.Goal != nil {
+			fmt.Printf("Saving for: %s — %dg / %dg (%dg to go)\n", cat.Goal.Item.Name, cat.Goal.Balance, cat.Goal.Item.Price, cat.Goal.Missing)
+		}
+		if cat.Deal != nil {
+			fmt.Printf("Daily deal: %s (%s) %dg → %dg (−%d%%)\n", cat.Deal.Name, cat.Deal.Rarity, cat.Deal.ListPrice, cat.Deal.Price, cat.Deal.Percent)
+		}
 		worn := map[string]models.EquippedCosmetic{}
 		for _, e := range cat.Loadout {
 			worn[e.Slot] = e
@@ -857,15 +863,36 @@ func cmdGear(c *apiclient.Client, args []string) error {
 			case !it.Unlocked:
 				mark = "x"
 			}
-			fmt.Printf("  %s %-8s %-18s %-20s %-9s %5dg  Lv%d\n", mark, it.Slot, it.Key, it.Name, it.Rarity, it.Price, it.MinLevel)
+			deal := ""
+			if it.Deal {
+				deal = "  DEAL"
+			}
+			fmt.Printf("  %s %-8s %-18s %-20s %-9s %5dg  Lv%d%s\n", mark, it.Slot, it.Key, it.Name, it.Rarity, it.Price, it.MinLevel, deal)
 		}
 		fmt.Println("\n  * equipped   o owned   x locked (level)")
 		return nil
 	}
 	if len(args) != 2 {
-		return fmt.Errorf("usage: gear [buy|equip <key> | unequip <slot>]")
+		return fmt.Errorf("usage: gear [buy|equip <key> | unequip <slot> | goal <key>|none]")
 	}
 	switch args[0] {
+	case "goal":
+		if args[1] == "none" {
+			if err := c.ClearGearGoal(); err != nil {
+				return err
+			}
+			fmt.Println("Goal cleared.")
+			return nil
+		}
+		g, err := c.SetGearGoal(args[1])
+		if err != nil {
+			return err
+		}
+		if g == nil || g.Item.Key == "" {
+			fmt.Println("Goal set.")
+			return nil
+		}
+		fmt.Printf("Saving for %s (%dg) — %dg to go.\n", g.Item.Name, g.Item.Price, g.Missing)
 	case "buy":
 		res, err := c.BuyCosmetic(args[1])
 		if err != nil {
@@ -1301,6 +1328,7 @@ commands:
   gear                            Hero wardrobe: catalog, owned + equipped gear
   gear buy <key>                  Buy a gear piece with gold (auto-equips)
   gear equip <key> | gear unequip <slot>   Wear owned gear / empty a slot
+  gear goal <key>|none            Pick the piece you're saving gold for
   ward <attribute>                   buy a 7-day decay ward for an attribute (30g)
   rest [on|off]                      show / pause / resume all attribute decay
   story                              narrate the current chapter (needs ChatGPT)

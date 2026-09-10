@@ -93,6 +93,7 @@ export function DashboardPage({
         activeDays={data.active_days}
         loot={data.loot_pity}
         loadout={data.loadout}
+        gearGoal={data.gear_goal}
         mood={data.active_session ? "focus" : data.day_state === "camp" ? "camp" : "idle"}
         onOpenWardrobe={onGoToWardrobe}
       />

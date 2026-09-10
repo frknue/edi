@@ -189,6 +189,25 @@ func TestCosmeticRoutes(t *testing.T) {
 	if code, _ := post("/api/cosmetics/slime/buy", ""); code != http.StatusBadRequest {
 		t.Errorf("double buy = %d, want 400", code)
 	}
+	// Gear goal: unknown 404, owned 400, locked-but-unowned 200; DELETE clears.
+	if code, _ := post("/api/cosmetics/goal", `{"key":"nope"}`); code != http.StatusNotFound {
+		t.Errorf("goal unknown = %d, want 404", code)
+	}
+	if code, _ := post("/api/cosmetics/goal", `{"key":"slime"}`); code != http.StatusBadRequest {
+		t.Errorf("goal owned = %d, want 400", code)
+	}
+	if code, body := post("/api/cosmetics/goal", `{"key":"crown_of_dawn"}`); code != http.StatusOK || !strings.Contains(string(body), `"missing"`) {
+		t.Errorf("goal set = %d %s", code, body)
+	}
+	req, _ := http.NewRequest(http.MethodDelete, srv.URL+"/api/cosmetics/goal", nil)
+	del, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	del.Body.Close()
+	if del.StatusCode != http.StatusOK {
+		t.Errorf("goal clear = %d, want 200", del.StatusCode)
+	}
 	resp, err := http.Get(srv.URL + "/api/cosmetics")
 	if err != nil {
 		t.Fatal(err)
@@ -196,7 +215,7 @@ func TestCosmeticRoutes(t *testing.T) {
 	defer resp.Body.Close()
 	var cat map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&cat)
-	if resp.StatusCode != http.StatusOK || cat["items"] == nil || cat["loadout"] == nil {
-		t.Errorf("GET cosmetics = %d %v", resp.StatusCode, cat)
+	if resp.StatusCode != http.StatusOK || cat["items"] == nil || cat["loadout"] == nil || cat["goal"] != nil || cat["deal"] == nil {
+		t.Errorf("GET cosmetics = %d goal=%v deal=%v", resp.StatusCode, cat["goal"], cat["deal"])
 	}
 }

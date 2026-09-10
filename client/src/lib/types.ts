@@ -352,6 +352,7 @@ export interface Dashboard {
   pending_suggestions: AgentSuggestion[];
   active_buffs: ActiveBuff[];
   loadout: EquippedCosmetic[]; // the hero's equipped gear
+  gear_goal: GearGoal | null; // the piece the user is saving for
 }
 
 // Cosmetics: hero gear bought once with gold, worn forever. Purely visual.
@@ -372,7 +373,10 @@ export interface CosmeticItem {
   slot: CosmeticSlot;
   name: string;
   rarity: string;
-  price: number;
+  set?: string; // themed collection
+  price: number; // effective price (deal applied)
+  list_price: number;
+  deal: boolean; // today's daily deal
   min_level: number;
   shape: string;
   color: string;
@@ -388,7 +392,39 @@ export interface CosmeticCatalog {
   loadout: EquippedCosmetic[];
   balance: number;
   level: number;
+  next_unlock: NextUnlock | null; // the next level tier that opens pieces
+  avg_quest_gold: number; // recent average mint per quest (≥1)
+  owned_count: number;
+  total: number;
+  goal: GearGoal | null;
+  deal: DailyDeal | null;
   slots: CosmeticSlot[];
+}
+
+// The next catalog tier above the current level and the XP to reach it.
+export interface NextUnlock {
+  level: number;
+  xp_to_go: number;
+  keys: string[];
+}
+
+// The save-up target: gold progress toward one chosen piece.
+export interface GearGoal {
+  item: CosmeticItem;
+  balance: number;
+  missing: number;
+  progress: number; // 0..1
+}
+
+// One unowned piece at a discount for the local day.
+export interface DailyDeal {
+  key: string;
+  name: string;
+  rarity: string;
+  percent: number;
+  list_price: number;
+  price: number;
+  day: string;
 }
 
 export interface CosmeticPurchaseResult {

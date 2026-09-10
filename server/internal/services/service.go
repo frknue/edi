@@ -719,6 +719,16 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 	if err != nil {
 		return models.Dashboard{}, err
 	}
+	gearGoal, err := s.GearGoalSummary(LevelForXP(func() int64 {
+		var t int64
+		for _, a := range attrs {
+			t += a.TotalXP
+		}
+		return t
+	}()), goldBalance)
+	if err != nil {
+		return models.Dashboard{}, err
+	}
 
 	var totalXP int64
 	for _, a := range attrs {
@@ -786,6 +796,7 @@ func (s *Service) GetDashboard() (models.Dashboard, error) {
 		Suggestions:      orEmpty(suggestions),
 		ActiveBuffs:      orEmpty(buffs),
 		Loadout:          orEmpty(loadout),
+		GearGoal:         gearGoal,
 		DecayedToday:     decayed,
 	}, nil
 }

@@ -366,7 +366,7 @@ func NewRegistry() *Registry {
 			return svc.ListGoldEvents(p.Limit, p.Source)
 		})
 
-	add("list_cosmetics", "List the hero's wardrobe: every cosmetic gear piece in the catalog (slot, rarity, gold price, min_level, look hints) flagged owned/equipped/unlocked, plus the current loadout, gold balance and character level. Gear is purely cosmetic (no XP, no stats) and is bought once, forever.",
+	add("list_cosmetics", "List the hero's wardrobe: every cosmetic gear piece in the catalog (slot, rarity, set, gold price incl. today's daily deal, min_level, look hints) flagged owned/equipped/unlocked, plus the current loadout, gold balance, character level, xp_to_next_level, avg_quest_gold, the gear goal the user is saving for and today's deal. Gear is purely cosmetic (no XP, no stats) and is bought once, forever.",
 		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) { return svc.ListCosmetics() })
 
 	add("buy_cosmetic", "Spend gold on a cosmetic gear piece for the hero (by catalog key from list_cosmetics) and equip it. Fails with a validation error when already owned, below the level requirement, or when gold is short.",
@@ -399,6 +399,24 @@ func NewRegistry() *Registry {
 				return nil, err
 			}
 			return svc.UnequipCosmetic(p.Slot)
+		})
+
+	add("set_gear_goal", "Choose the cosmetic piece the user is saving gold for (by catalog key). Progress toward it shows on the dashboard as gear_goal; it clears itself when bought. Fails with a validation error if already owned. Locked (higher level) pieces are allowed.",
+		`{"type":"object","required":["key"],"properties":{"key":{"type":"string"}}}`,
+		func(svc *services.Service, in json.RawMessage) (any, error) {
+			key, err := decodeKey(in)
+			if err != nil {
+				return nil, err
+			}
+			return svc.SetGearGoal(key)
+		})
+
+	add("clear_gear_goal", "Drop the gear goal (nothing is lost; the gold stays).",
+		emptySchema, func(svc *services.Service, _ json.RawMessage) (any, error) {
+			if err := svc.ClearGearGoal(); err != nil {
+				return nil, err
+			}
+			return map[string]bool{"cleared": true}, nil
 		})
 
 	add("ward_attribute", "Buy a Maintenance Ward: spend 30 gold to shield one attribute from decay for 7 days (extends an active ward). Only valid in hardcore mode — outside it there is no decay and the call fails with a validation error.",

@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
 import { Hero } from "./Hero";
 import { Coins, Flame, Gift } from "lucide-react";
-import type { ActiveDay, CharacterSummary, DailyProgress, EquippedCosmetic, LootPity, Streak } from "../lib/types";
+import type { ActiveDay, CharacterSummary, DailyProgress, EquippedCosmetic, GearGoal, LootPity, Streak } from "../lib/types";
+import { rarityColor } from "../lib/theme";
 import { ProgressBar } from "./ui";
 import { formatNumber, pct } from "../lib/format";
 import { useI18n } from "../lib/i18n";
@@ -79,6 +80,7 @@ export function CharacterHeader({
   activeDays,
   loot,
   loadout,
+  gearGoal,
   mood = "idle",
   onOpenWardrobe,
 }: {
@@ -89,6 +91,7 @@ export function CharacterHeader({
   activeDays: ActiveDay[];
   loot?: LootPity;
   loadout?: EquippedCosmetic[];
+  gearGoal?: GearGoal | null; // the piece the hero is saving for
   mood?: "idle" | "focus" | "camp";
   onOpenWardrobe?: () => void;
 }) {
@@ -190,6 +193,22 @@ export function CharacterHeader({
               <span className="tabnum text-xl font-bold text-ink">{gold}</span>
             </div>
             <div className="mt-0.5 font-display text-[10px] uppercase tracking-wider text-faint">{t("hero.gold")}</div>
+            {gearGoal && (
+              <button
+                type="button"
+                onClick={onOpenWardrobe}
+                className="mt-1.5 block w-[112px] text-left"
+                title={t("wardrobe.savingFor") + ": " + gearGoal.item.name}
+                data-testid="header-goal"
+              >
+                <div className="goal-bar">
+                  <span style={{ width: `${Math.round(gearGoal.progress * 100)}%`, background: rarityColor[gearGoal.item.rarity] ?? rarityColor.common }} />
+                </div>
+                <div className="tabnum mt-0.5 truncate text-[10px]" style={{ color: rarityColor[gearGoal.item.rarity] ?? rarityColor.common }}>
+                  ★ {t("hero.goalLine", { name: gearGoal.item.name, balance: gearGoal.balance, price: gearGoal.item.price })}
+                </div>
+              </button>
+            )}
             {loot && loot.guaranteed_after > 0 && (
               <div
                 className="mt-1 flex items-center justify-center gap-1 text-[10px]"

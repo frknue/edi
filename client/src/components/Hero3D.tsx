@@ -53,7 +53,7 @@ export interface Hero3DProps {
   mood?: HeroMood;
   size?: number; // css px (square)
   loadout?: EquippedCosmetic[];
-  preview?: EquippedCosmetic | null; // wardrobe try-on: overrides its slot
+  preview?: EquippedCosmetic[] | null; // wardrobe try-on: each overrides its slot
   interactive?: boolean; // drag to rotate + slow auto-turn
   frame?: "tight" | "wide"; // camera distance (wide leaves room for pet/aura)
   burst?: number; // bump to fire a particle burst (purchase / equip)
@@ -595,7 +595,7 @@ export default function Hero3D({
   } | null>(null);
 
   const look = resolveLook(level, loadout);
-  if (preview) look[preview.slot] = preview;
+  for (const p of preview ?? []) look[p.slot] = p;
   const lookSig = `${level}|${titled}|${Object.values(look)
     .map((p) => `${p.slot}:${p.key}:${p.color}`)
     .sort()

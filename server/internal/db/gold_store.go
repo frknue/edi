@@ -39,6 +39,22 @@ func (s *Store) GoldBalance(userID int64) (int64, error) {
 	return bal, err
 }
 
+// AvgGoldPerQuest averages the last n positive quest mints (0 when none) —
+// the number that turns "26g short" into "about three quests away".
+func (s *Store) AvgGoldPerQuest(userID int64, n int) (int64, error) {
+	if n <= 0 {
+		n = 20
+	}
+	var avg sql.NullFloat64
+	err := s.db.QueryRow(`SELECT AVG(amount) FROM (
+		SELECT amount FROM gold_events WHERE user_id = $1 AND source = 'quest' AND amount > 0
+		ORDER BY id DESC LIMIT $2) recent`, userID, n).Scan(&avg)
+	if err != nil || !avg.Valid {
+		return 0, err
+	}
+	return int64(avg.Float64 + 0.5), nil
+}
+
 // ListGoldEvents returns the most recent gold ledger rows (mints and
 // purchases). When source is non-empty, only rows with that exact source
 // (e.g. "purchase", "grant", "quest") are returned — filtered at the query

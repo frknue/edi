@@ -606,3 +606,70 @@ input[type="range"]::-webkit-slider-thumb {
   outline: none;
   box-shadow: 0 0 0 1px var(--color-phos);
 }
+
+/* --- armory: rarity frames, the daily deal, the purchase ceremony -------- */
+
+/* legendary + epic pieces carry a slow light sheen across the card */
+.rarity-sheen {
+  position: relative;
+  overflow: hidden;
+}
+.rarity-sheen::after {
+  content: "";
+  position: absolute;
+  inset: -60% -30%;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.07) 50%, transparent 60%);
+  transform: translateX(-70%);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rarity-sheen::after {
+    animation: sheen 5.5s ease-in-out infinite;
+  }
+}
+@keyframes sheen {
+  0%, 55% { transform: translateX(-70%); }
+  85%, 100% { transform: translateX(70%); }
+}
+
+/* the deal tag breathes */
+.deal-tag {
+  animation: deal-pulse 2.2s ease-in-out infinite;
+}
+@keyframes deal-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--gold-rgb), 0.35); }
+  50% { box-shadow: 0 0 0 5px rgba(var(--gold-rgb), 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .deal-tag { animation: none; }
+}
+
+/* ceremony: light rays behind the hero when a piece is acquired */
+.rays {
+  position: absolute;
+  inset: -40%;
+  pointer-events: none;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0.09) 0deg 6deg, transparent 6deg 18deg);
+  -webkit-mask: radial-gradient(circle, rgba(0, 0, 0, 0.9), transparent 62%);
+  mask: radial-gradient(circle, rgba(0, 0, 0, 0.9), transparent 62%);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rays { animation: rays-turn 22s linear infinite; }
+}
+@keyframes rays-turn {
+  to { transform: rotate(360deg); }
+}
+
+/* goal bar fill (the same segmented look as the XP bar in CRT) */
+.goal-bar {
+  height: 6px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+.goal-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}

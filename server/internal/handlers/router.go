@@ -97,6 +97,8 @@ func NewRouter(h *Handlers, clientDir string, tokenMode bool) http.Handler {
 	mux.HandleFunc("POST /api/cosmetics/{key}/buy", h.buyCosmetic)
 	mux.HandleFunc("POST /api/cosmetics/{key}/equip", h.equipCosmetic)
 	mux.HandleFunc("POST /api/cosmetics/unequip", h.unequipCosmetic)
+	mux.HandleFunc("POST /api/cosmetics/goal", h.setGearGoal)
+	mux.HandleFunc("DELETE /api/cosmetics/goal", h.clearGearGoal)
 
 	// Decay & stakes — ward purchases and rest mode.
 	mux.HandleFunc("POST /api/attributes/{key}/ward", h.wardAttribute)

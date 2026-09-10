@@ -417,6 +417,7 @@ type Dashboard struct {
 	Suggestions      []AgentSuggestion  `json:"pending_suggestions"`
 	ActiveBuffs      []ActiveBuff       `json:"active_buffs"` // running loot buffs
 	Loadout          []EquippedCosmetic `json:"loadout"`      // the hero's equipped gear
+	GearGoal         *GearGoal          `json:"gear_goal"`    // the piece the user is saving for
 }
 
 // LootPity makes the variable ratio visible: after GuaranteedAfter dropless
@@ -610,28 +611,67 @@ type PurchaseResult struct {
 // hints (Shape, Color, Accent) let every client render the same hero
 // without a key→look table of its own.
 type CosmeticItem struct {
-	Key      string `json:"key"`
-	Slot     string `json:"slot"` // head | body | weapon | offhand | back | aura | pet
-	Name     string `json:"name"`
-	Rarity   string `json:"rarity"` // common | uncommon | rare | epic | legendary
-	Price    int64  `json:"price"`
-	MinLevel int    `json:"min_level"` // character level required to buy
-	Shape    string `json:"shape"`     // renderer hint, per slot (e.g. sword|axe|staff)
-	Color    string `json:"color"`     // primary hex
-	Accent   string `json:"accent"`    // secondary hex
-	Flavor   string `json:"flavor"`
-	Owned    bool   `json:"owned"`
-	Equipped bool   `json:"equipped"`
-	Unlocked bool   `json:"unlocked"` // level requirement met
+	Key       string `json:"key"`
+	Slot      string `json:"slot"` // head | body | weapon | offhand | back | aura | pet
+	Name      string `json:"name"`
+	Rarity    string `json:"rarity"`        // common | uncommon | rare | epic | legendary
+	Set       string `json:"set,omitempty"` // themed collection (dragon, void, frost…)
+	Price     int64  `json:"price"`         // what it costs right now (deal applied)
+	ListPrice int64  `json:"list_price"`    // catalog price
+	Deal      bool   `json:"deal"`          // today's daily deal
+	MinLevel  int    `json:"min_level"`     // character level required to buy
+	Shape     string `json:"shape"`         // renderer hint, per slot (e.g. sword|axe|staff)
+	Color     string `json:"color"`         // primary hex
+	Accent    string `json:"accent"`        // secondary hex
+	Flavor    string `json:"flavor"`
+	Owned     bool   `json:"owned"`
+	Equipped  bool   `json:"equipped"`
+	Unlocked  bool   `json:"unlocked"` // level requirement met
 }
 
-// CosmeticCatalog is the wardrobe view: every item annotated + the loadout.
+// CosmeticCatalog is the wardrobe view: every item annotated + the loadout,
+// plus the numbers a client needs to make the shop approachable (the goal,
+// today's deal, XP to the next unlock tier, gold per quest).
 type CosmeticCatalog struct {
-	Items   []CosmeticItem     `json:"items"`
-	Loadout []EquippedCosmetic `json:"loadout"`
-	Balance int64              `json:"balance"`
-	Level   int                `json:"level"`
-	Slots   []string           `json:"slots"`
+	Items        []CosmeticItem     `json:"items"`
+	Loadout      []EquippedCosmetic `json:"loadout"`
+	Balance      int64              `json:"balance"`
+	Level        int                `json:"level"`
+	NextUnlock   *NextUnlock        `json:"next_unlock"`    // the next level tier that opens pieces (nil = all open)
+	AvgQuestGold int64              `json:"avg_quest_gold"` // recent average mint per quest (≥1)
+	OwnedCount   int                `json:"owned_count"`
+	Total        int                `json:"total"`
+	Goal         *GearGoal          `json:"goal"` // the piece the user is saving for
+	Deal         *DailyDeal         `json:"deal"` // today's discounted piece
+	Slots        []string           `json:"slots"`
+}
+
+// NextUnlock is the level carrot: the next tier that opens catalog pieces
+// and the XP still needed to reach it (XPForLevel(level) - total XP).
+type NextUnlock struct {
+	Level  int      `json:"level"`
+	XPToGo int64    `json:"xp_to_go"`
+	Keys   []string `json:"keys"`
+}
+
+// GearGoal is the save-up target: gold progress toward one chosen piece.
+type GearGoal struct {
+	Item     CosmeticItem `json:"item"`
+	Balance  int64        `json:"balance"`
+	Missing  int64        `json:"missing"`  // gold still needed (0 = affordable)
+	Progress float64      `json:"progress"` // balance / price, capped at 1
+}
+
+// DailyDeal is one unowned piece at a discount for the local day — a reason
+// to come back, never a countdown that punishes.
+type DailyDeal struct {
+	Key       string `json:"key"`
+	Name      string `json:"name"`
+	Rarity    string `json:"rarity"`
+	Percent   int    `json:"percent"`
+	ListPrice int64  `json:"list_price"`
+	Price     int64  `json:"price"`
+	Day       string `json:"day"` // YYYY-MM-DD local
 }
 
 // EquippedCosmetic is what the hero wears in one slot (a Dashboard field so

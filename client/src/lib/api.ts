@@ -15,6 +15,7 @@ import type {
   CosmeticPurchaseResult,
   Dashboard,
   EquippedCosmetic,
+  GearGoal,
   GoldEvent,
   JournalCreateResult,
   JournalEntry,
@@ -203,6 +204,9 @@ export const api = {
     request<CosmeticPurchaseResult>(`/cosmetics/${encodeURIComponent(key)}/buy`, { method: "POST" }),
   equipCosmetic: (key: string) =>
     request<EquippedCosmetic[]>(`/cosmetics/${encodeURIComponent(key)}/equip`, { method: "POST" }),
+  setGearGoal: (key: string) =>
+    request<GearGoal>("/cosmetics/goal", { method: "POST", body: JSON.stringify({ key }) }),
+  clearGearGoal: () => request<{ cleared: boolean }>("/cosmetics/goal", { method: "DELETE" }),
   unequipCosmetic: (slot: string) =>
     request<EquippedCosmetic[]>("/cosmetics/unequip", { method: "POST", body: JSON.stringify({ slot }) }),
   listGoldEvents: (limit = 30, source?: string) =>
