@@ -113,6 +113,27 @@ export function QuestCard({
               <p className="mt-0.5 line-clamp-2 text-xs text-muted">{quest.description}</p>
             )}
           </div>
+          {/* Secondary actions live up here, where a card always has room;
+              the footer keeps the two big verbs (Start / Complete). */}
+          {isActive && ((onEdit && canEdit) || onSkip || onArchive) && (
+            <div className="flex shrink-0 items-center gap-1" data-testid={`quest-actions-${quest.id}`}>
+              {onEdit && canEdit && (
+                <button type="button" className="icon-action" onClick={() => onEdit(quest)} aria-label={t("quest.edit")} title={t("quest.edit")}>
+                  <Pencil size={14} />
+                </button>
+              )}
+              {onSkip && (
+                <button type="button" className="icon-action" disabled={busy} onClick={() => onSkip(quest.id)} aria-label={t("quest.skip")} title={t("quest.skip")}>
+                  <SkipForward size={14} />
+                </button>
+              )}
+              {onArchive && (
+                <button type="button" className="icon-action" disabled={busy} onClick={() => onArchive(quest.id)} aria-label={t("quest.archive")} title={t("quest.archive")}>
+                  <Archive size={14} />
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="mt-3 flex items-center justify-between gap-2">
@@ -182,12 +203,14 @@ export function QuestCard({
           <AvoidanceKit quest={quest} onRetire={onArchive} busy={busy} />
         )}
 
-        {(onComplete || onStart || onSkip || onArchive || onEdit) && isActive && (
+        {/* min-w-0 lets the two verbs share the row on a narrow card (the
+            flex default of min-width:auto would push one out of the card). */}
+        {(onComplete || onStart) && isActive && (
           <div className="mt-4 flex items-center gap-2">
             {onStart && myActive && !running && (
               <Btn
                 variant="ghost"
-                className="flex-1"
+                className="min-w-0 flex-1"
                 disabled={busy}
                 onClick={() => onStart(quest.id)}
                 data-testid={`start-${quest.id}`}
@@ -199,28 +222,13 @@ export function QuestCard({
             {onComplete && (
               <Btn
                 variant="primary"
-                className="flex-1"
+                className="min-w-0 flex-1"
                 disabled={busy}
                 onClick={() => onComplete(quest.id)}
                 data-testid={`complete-${quest.id}`}
               >
                 <Check size={16} />
                 {t("common.complete")}
-              </Btn>
-            )}
-            {onEdit && canEdit && (
-              <Btn variant="ghost" className="!px-2" onClick={() => onEdit(quest)} aria-label={t("quest.edit")}>
-                <Pencil size={15} />
-              </Btn>
-            )}
-            {onSkip && (
-              <Btn variant="soft" className="!px-2" disabled={busy} onClick={() => onSkip(quest.id)} aria-label={t("quest.skip")}>
-                <SkipForward size={15} />
-              </Btn>
-            )}
-            {onArchive && (
-              <Btn variant="soft" className="!px-2" disabled={busy} onClick={() => onArchive(quest.id)} aria-label={t("quest.archive")}>
-                <Archive size={15} />
               </Btn>
             )}
           </div>
